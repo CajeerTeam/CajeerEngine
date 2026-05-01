@@ -13,6 +13,7 @@ $router->get('/admin', [AdminController::class, 'dashboard']);
 $router->get('/admin/health', [AdminController::class, 'health']);
 $router->get('/admin/compatibility', [AdminController::class, 'compatibility']);
 $router->get('/admin/marketplace', [AdminMarketplaceController::class, 'index']);
+$router->post('/admin/marketplace/install', [AdminMarketplaceController::class, 'install']);
 
 $router->get('/admin/content', [AdminContentController::class, 'index']);
 $router->get('/admin/content/create', [AdminContentController::class, 'create']);

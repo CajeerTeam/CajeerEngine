@@ -15,6 +15,8 @@ return [
         'secure' => false,
         'http_only' => true,
         'same_site' => 'Lax',
+        'idle_timeout' => 3600,
+        'absolute_timeout' => 28800,
     ],
     'plugin_capabilities' => [
         'content.read',

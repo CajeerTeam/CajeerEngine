@@ -69,7 +69,7 @@ Apache License 2.0
 ```text
 fix/login-rate-limit
 feature/plugin-installer
-docs/configuration-guide
+wiki/configuration-guide
 security/session-cookie-flags
 refactor/storage-adapter
 ```

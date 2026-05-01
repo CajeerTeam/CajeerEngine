@@ -8,18 +8,20 @@ use Cajeer\Compatibility\WordPress\Scanner\PluginScanner;
 use Cajeer\Config\ConfigRepository;
 use Cajeer\Database\DatabaseManager;
 use Cajeer\Database\MigrationRunner;
+use Cajeer\Modules\Auth\Rbac\PermissionRepository;
 use Cajeer\Modules\Auth\Security\PasswordHasher;
+use Cajeer\System\HealthChecker;
 
 $basePath = dirname(__DIR__);
 require_once $basePath . '/core/bootstrap.php';
 
 $command = $argv[1] ?? 'help';
-
 function out(string $message): void { fwrite(STDOUT, $message . PHP_EOL); }
 
 try {
     match ($command) {
         'health' => health($basePath),
+        'doctor' => doctor($basePath),
         'install' => install($basePath, $argv),
         'cache:clear' => cache_clear($basePath),
         'migrate' => migrate($basePath, $argv),
@@ -37,8 +39,9 @@ function help(): void
 {
     out('Cajeer Engine CLI');
     out('Команды:');
-    out('  php bin/cajeer install --admin-email=admin@example.test --admin-password=secret');
+    out('  php bin/cajeer install --database=mysql --admin-email=admin@example.test --admin-username=admin --admin-password=StrongPassword123!');
     out('  php bin/cajeer health');
+    out('  php bin/cajeer doctor');
     out('  php bin/cajeer migrate --database=mysql');
     out('  php bin/cajeer migrate:status --database=pgsql');
     out('  php bin/cajeer cache:clear');
@@ -53,9 +56,16 @@ function opt(array $argv, string $name, mixed $default = null): mixed
     }
     return $default;
 }
-
-function config(string $basePath): ConfigRepository { return ConfigRepository::load(is_dir($basePath . '/configs') ? $basePath . '/configs' : $basePath . '/config'); }
+function config(string $basePath): ConfigRepository { return ConfigRepository::load($basePath . '/configs'); }
 function database_name(array $argv): string { return (string) opt($argv, 'database', getenv('DB_DEFAULT') ?: 'mysql'); }
+function migrations_path(string $basePath): string { return $basePath . '/migrations'; }
+function validate_admin_password(string $password): void
+{
+    $weak = ['admin', 'password', '123456', 'admin123456', 'qwerty', 'change-me'];
+    if (strlen($password) < 12 || in_array(strtolower($password), $weak, true)) {
+        throw new InvalidArgumentException('Пароль администратора слишком слабый: минимум 12 символов, без словарных значений.');
+    }
+}
 
 function health(string $basePath): void
 {
@@ -66,26 +76,37 @@ function health(string $basePath): void
     out('installed: ' . (is_file($basePath . '/storage/installed.lock') ? 'yes' : 'no'));
 }
 
+function doctor(string $basePath): void
+{
+    $app = Cajeer\Kernel\Application::create($basePath);
+    out(json_encode((new HealthChecker($app->container(), $basePath))->summary(), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+}
+
 function install(string $basePath, array $argv): void
 {
     $database = database_name($argv);
+    $email = (string) opt($argv, 'admin-email');
+    $username = (string) opt($argv, 'admin-username', 'admin');
+    $password = (string) opt($argv, 'admin-password');
+    if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) throw new InvalidArgumentException('Укажите --admin-email.');
+    if ($password === '') throw new InvalidArgumentException('Укажите --admin-password.');
+    validate_admin_password($password);
+
     $config = config($basePath);
     $db = new DatabaseManager($config);
     $pdo = $db->connection($database);
-    $count = (new MigrationRunner($pdo, $basePath . '/database/migrations'))->run($database);
-    $email = (string) opt($argv, 'admin-email', 'admin@example.test');
-    $username = (string) opt($argv, 'admin-username', 'admin');
-    $password = (string) opt($argv, 'admin-password', 'admin123456');
+    $count = (new MigrationRunner($pdo, migrations_path($basePath)))->run($database);
     $stmt = $pdo->prepare('INSERT INTO cajeer_users (email, username, password_hash, display_name, status) VALUES (:email, :username, :password_hash, :display_name, :status)');
-    try { $stmt->execute(['email' => $email, 'username' => $username, 'password_hash' => (new PasswordHasher())->make($password), 'display_name' => $username, 'status' => 'active']); } catch (Throwable) {}
+    $stmt->execute(['email' => $email, 'username' => $username, 'password_hash' => (new PasswordHasher())->make($password), 'display_name' => $username, 'status' => 'active']);
+    $adminId = (int) $pdo->lastInsertId();
+    (new PermissionRepository($db))->ensureDefaults($adminId);
     file_put_contents($basePath . '/storage/installed.lock', date(DATE_ATOM));
     out('Установка завершена. Миграций выполнено: ' . $count);
 }
 
 function cache_clear(string $basePath): void
 {
-    $dirs = [$basePath . '/storage/cache', $basePath . '/storage/compiled_tpl'];
-    foreach ($dirs as $dir) {
+    foreach ([$basePath . '/storage/cache', $basePath . '/storage/compiled_tpl'] as $dir) {
         if (!is_dir($dir)) continue;
         foreach (glob($dir . '/*') ?: [] as $file) is_file($file) && unlink($file);
     }
@@ -95,15 +116,15 @@ function cache_clear(string $basePath): void
 function migrate(string $basePath, array $argv): void
 {
     $database = database_name($argv);
-    $runner = new MigrationRunner((new DatabaseManager(config($basePath)))->connection($database), $basePath . '/database/migrations');
+    $runner = new MigrationRunner((new DatabaseManager(config($basePath)))->connection($database), migrations_path($basePath));
     $count = $runner->run($database, in_array('--dry-run', $argv, true));
-    out("Выполнено миграций: {$count}");
+    out((in_array('--dry-run', $argv, true) ? 'Будет выполнено миграций: ' : 'Выполнено миграций: ') . $count);
 }
 
 function migrate_status(string $basePath, array $argv): void
 {
     $database = database_name($argv);
-    $runner = new MigrationRunner((new DatabaseManager(config($basePath)))->connection($database), $basePath . '/database/migrations');
+    $runner = new MigrationRunner((new DatabaseManager(config($basePath)))->connection($database), migrations_path($basePath));
     out(json_encode($runner->status($database), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 }
 
@@ -111,7 +132,7 @@ function dle_scan_template(string $basePath, array $argv): void
 {
     $file = $argv[2] ?? '';
     $path = str_starts_with($file, '/') ? $file : $basePath . '/' . $file;
-    $report = (new DleAdapter())->scanTemplate($path);
+    $report = (new DleAdapter($basePath . '/themes/default'))->scanTemplate($path);
     out(json_encode(['file' => $file] + $report, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 }
 
@@ -119,6 +140,5 @@ function wp_scan_plugin(string $basePath, array $argv): void
 {
     $file = $argv[2] ?? '';
     $path = str_starts_with($file, '/') ? $file : $basePath . '/' . $file;
-    $report = (new PluginScanner())->scan($path);
-    out(json_encode($report, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    out(json_encode((new PluginScanner())->scan($path), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 }

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($title ?? 'Cajeer Engine', ENT_QUOTES, 'UTF-8') ?></title>
     <link rel="stylesheet" href="/assets/css/app.css">
+    <?php if (function_exists('wp_head')) { wp_head(); } ?>
 </head>
 <body>
 <header class="ce-header">
@@ -22,5 +23,6 @@
 <footer class="ce-footer">
     <span>PHP CMS · DLE compatibility · WordPress compatibility</span>
 </footer>
+<?php if (function_exists('wp_footer')) { wp_footer(); } ?>
 </body>
 </html>

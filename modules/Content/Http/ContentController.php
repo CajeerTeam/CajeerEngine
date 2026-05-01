@@ -6,10 +6,12 @@ namespace Cajeer\Modules\Content\Http;
 
 use Cajeer\Container\Container;
 use Cajeer\Database\DatabaseManager;
+use Cajeer\Events\EventDispatcher;
 use Cajeer\Http\Exceptions\NotFoundException;
 use Cajeer\Http\Request;
 use Cajeer\Http\Response;
 use Cajeer\Modules\Content\Repository\ContentRepository;
+use Cajeer\Modules\Content\Service\ContentRenderer;
 use Cajeer\View\ViewRenderer;
 
 final class ContentController
@@ -18,35 +20,36 @@ final class ContentController
 
     public function home(Request $request): Response
     {
-        $items = [];
-        if ($this->container->has(DatabaseManager::class)) {
-            $items = (new ContentRepository($this->container->get(DatabaseManager::class)))->latest('post', 6);
-        }
+        $repo = new ContentRepository($this->container->get(DatabaseManager::class));
         $html = $this->container->get(ViewRenderer::class)->render('home', [
             'title' => 'Cajeer Engine',
             'description' => 'PHP CMS с compatibility layer для DLE и WordPress.',
-            'items' => $items,
+            'items' => $repo->latest('post', 10),
         ]);
         return Response::html($html);
     }
 
     public function page(Request $request): Response
     {
-        $slug = (string) $request->input('slug', 'page');
-        $item = (new ContentRepository($this->container->get(DatabaseManager::class)))->findPublishedBySlug('page', $slug);
-        if (!$item) {
-            throw new NotFoundException('Страница не найдена.');
-        }
-        return Response::html($this->container->get(ViewRenderer::class)->render('page', ['title' => $item->title, 'content' => $item->body ?? '', 'item' => $item]));
+        return $this->show('page', (string) $request->input('slug'));
     }
 
     public function news(Request $request): Response
     {
-        $slug = (string) $request->input('slug', 'news');
-        $item = (new ContentRepository($this->container->get(DatabaseManager::class)))->findPublishedBySlug('post', $slug);
-        if (!$item) {
-            throw new NotFoundException('Новость не найдена.');
-        }
-        return Response::html($this->container->get(ViewRenderer::class)->render('page', ['title' => $item->title, 'content' => $item->body ?? '', 'item' => $item]));
+        return $this->show('post', (string) $request->input('slug'));
+    }
+
+    private function show(string $type, string $slug): Response
+    {
+        $repo = new ContentRepository($this->container->get(DatabaseManager::class));
+        $item = $repo->findPublishedBySlug($type, $slug);
+        if (!$item) throw new NotFoundException('Материал не найден.');
+        $content = (new ContentRenderer($this->container->get(EventDispatcher::class)))->render($item);
+        $html = $this->container->get(ViewRenderer::class)->render('page', [
+            'title' => $item->metaTitle ?: $item->title,
+            'content' => $content,
+            'item' => $item,
+        ]);
+        return Response::html($html);
     }
 }

@@ -8,8 +8,11 @@ use Cajeer\Config\ConfigRepository;
 use Cajeer\Container\Container;
 use Cajeer\Database\DatabaseManager;
 use Cajeer\Database\MigrationRunner;
+use Cajeer\Http\Exceptions\ValidationException;
 use Cajeer\Http\Request;
 use Cajeer\Http\Response;
+use Cajeer\Modules\Audit\AuditLogger;
+use Cajeer\Modules\Auth\Rbac\PermissionRepository;
 use Cajeer\Modules\Auth\Security\CsrfTokenManager;
 use Cajeer\Modules\Auth\Security\PasswordHasher;
 use Cajeer\View\ViewRenderer;
@@ -39,30 +42,61 @@ final class InstallController
         }
 
         $driver = (string) $request->input('db_driver', 'mysql');
-        $env = $this->buildEnv($request, $driver);
-        file_put_contents($basePath . '/.env', $env);
+        if (!in_array($driver, ['mysql', 'pgsql'], true)) {
+            throw new ValidationException('Неподдерживаемый драйвер БД.', ['db_driver' => 'mysql или pgsql']);
+        }
+        $this->validateAdminPassword((string) $request->input('admin_password', ''));
 
-        $config = ConfigRepository::load($basePath . '/configs');
-        $db = new DatabaseManager($config);
-        $pdo = $db->connection($driver);
-        (new MigrationRunner($pdo, $basePath . '/database/migrations'))->run($driver);
-        $this->createAdmin($pdo, $request);
-        file_put_contents($basePath . '/storage/installed.lock', date(DATE_ATOM));
+        $env = $this->buildEnv($request, $driver);
+        $tmpEnv = $basePath . '/.env.installing';
+        file_put_contents($tmpEnv, $env);
+
+        $oldEnv = $basePath . '/.env';
+        $backup = null;
+        if (is_file($oldEnv)) {
+            $backup = $basePath . '/.env.backup.' . date('YmdHis');
+            copy($oldEnv, $backup);
+        }
+        rename($tmpEnv, $oldEnv);
+
+        try {
+            $config = ConfigRepository::load($basePath . '/configs');
+            $db = new DatabaseManager($config);
+            $pdo = $db->connection($driver);
+            (new MigrationRunner($pdo, $basePath . '/migrations'))->run($driver);
+            $adminId = $this->createAdmin($pdo, $request);
+            (new PermissionRepository($db))->ensureDefaults($adminId);
+            (new AuditLogger($db))->record('installer.completed', $adminId, 'system', 'installer', ['driver' => $driver], $request);
+            file_put_contents($basePath . '/storage/installed.lock', date(DATE_ATOM));
+        } catch (Throwable $e) {
+            @unlink($basePath . '/storage/installed.lock');
+            if ($backup && is_file($backup)) {
+                copy($backup, $oldEnv);
+            }
+            throw $e;
+        }
 
         return Response::redirect('/admin/login');
     }
 
-    private function createAdmin(PDO $pdo, Request $request): void
+    private function createAdmin(PDO $pdo, Request $request): int
     {
-        $email = trim((string) $request->input('admin_email', 'admin@example.test'));
+        $email = trim((string) $request->input('admin_email', ''));
         $username = trim((string) $request->input('admin_username', 'admin'));
-        $password = (string) $request->input('admin_password', 'admin123456');
-        $hash = (new PasswordHasher())->make($password);
+        $password = (string) $request->input('admin_password', '');
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new ValidationException('Некорректный email администратора.', ['admin_email' => 'email required']);
+        }
         $stmt = $pdo->prepare('INSERT INTO cajeer_users (email, username, password_hash, display_name, status) VALUES (:email, :username, :password_hash, :display_name, :status)');
-        try {
-            $stmt->execute(['email' => $email, 'username' => $username, 'password_hash' => $hash, 'display_name' => $username, 'status' => 'active']);
-        } catch (Throwable) {
-            // Админ уже может существовать после ручной миграции; установщик не должен падать на повторном seed.
+        $stmt->execute(['email' => $email, 'username' => $username, 'password_hash' => (new PasswordHasher())->make($password), 'display_name' => $username, 'status' => 'active']);
+        return (int) $pdo->lastInsertId();
+    }
+
+    private function validateAdminPassword(string $password): void
+    {
+        $weak = ['admin', 'password', '123456', 'admin123456', 'qwerty', 'change-me'];
+        if (strlen($password) < 12 || in_array(strtolower($password), $weak, true)) {
+            throw new ValidationException('Пароль администратора слишком слабый.', ['admin_password' => 'Минимум 12 символов, без словарных значений.']);
         }
     }
 
@@ -73,7 +107,7 @@ final class InstallController
             'APP_ENV=production',
             'APP_DEBUG=false',
             'APP_URL=' . (string) $request->input('app_url', 'http://localhost'),
-            'APP_KEY=' . bin2hex(random_bytes(16)),
+            'APP_KEY=' . bin2hex(random_bytes(32)),
             'DB_DEFAULT=' . $driver,
             'MYSQL_HOST=' . (string) $request->input('db_host', '127.0.0.1'),
             'MYSQL_PORT=' . (string) $request->input('db_port', $driver === 'mysql' ? '3306' : '5432'),
@@ -103,6 +137,7 @@ final class InstallController
             'pdo_pgsql' => extension_loaded('pdo_pgsql'),
             'storage writable' => is_writable($basePath . '/storage'),
             'public/uploads writable' => is_writable($basePath . '/public/uploads'),
+            'migrations present' => is_dir($basePath . '/migrations/mysql') && is_dir($basePath . '/migrations/pgsql'),
         ];
     }
 }
