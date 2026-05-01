@@ -1,1 +1,0 @@
-<?php ob_start(); ?><article class="ce-card"><h1>500</h1><p><?= htmlspecialchars($message ?? 'Внутренняя ошибка сервера', ENT_QUOTES, 'UTF-8') ?></p><p><a href="/">На главную</a></p></article><?php $content = ob_get_clean(); require dirname(__DIR__) . '/layout.php'; ?>
