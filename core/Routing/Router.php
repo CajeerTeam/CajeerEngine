@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cajeer\Routing;
 
 use Cajeer\Container\Container;
+use Cajeer\Http\Exceptions\NotFoundException;
 use Cajeer\Http\Request;
 use Cajeer\Http\Response;
 
@@ -13,15 +14,11 @@ final class Router
     /** @var array<string,array<string,callable|array|string>> */
     private array $routes = [];
 
-    public function get(string $path, callable|array|string $handler): void
-    {
-        $this->add('GET', $path, $handler);
-    }
-
-    public function post(string $path, callable|array|string $handler): void
-    {
-        $this->add('POST', $path, $handler);
-    }
+    public function get(string $path, callable|array|string $handler): void { $this->add('GET', $path, $handler); }
+    public function post(string $path, callable|array|string $handler): void { $this->add('POST', $path, $handler); }
+    public function put(string $path, callable|array|string $handler): void { $this->add('PUT', $path, $handler); }
+    public function patch(string $path, callable|array|string $handler): void { $this->add('PATCH', $path, $handler); }
+    public function delete(string $path, callable|array|string $handler): void { $this->add('DELETE', $path, $handler); }
 
     public function add(string $method, string $path, callable|array|string $handler): void
     {
@@ -45,7 +42,7 @@ final class Router
             }
         }
 
-        return Response::html('<h1>404</h1><p>Страница не найдена.</p>', 404);
+        throw new NotFoundException();
     }
 
     private function invoke(callable|array|string $handler, Request $request, Container $container): Response
@@ -53,16 +50,20 @@ final class Router
         if (is_array($handler)) {
             [$class, $method] = $handler;
             $instance = new $class($container);
-            return $instance->$method($request);
+            return $this->normalizeResult($instance->$method($request));
         }
 
         if (is_string($handler) && str_contains($handler, '@')) {
             [$class, $method] = explode('@', $handler, 2);
             $instance = new $class($container);
-            return $instance->$method($request);
+            return $this->normalizeResult($instance->$method($request));
         }
 
-        $result = $handler($request, $container);
+        return $this->normalizeResult($handler($request, $container));
+    }
+
+    private function normalizeResult(mixed $result): Response
+    {
         if ($result instanceof Response) {
             return $result;
         }

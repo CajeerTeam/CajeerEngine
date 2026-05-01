@@ -61,3 +61,18 @@ a:hover { text-decoration: underline; }
     .ce-header { align-items: flex-start; flex-direction: column; }
     .ce-grid, .ce-grid.two { grid-template-columns: 1fr; }
 }
+
+.ce-form { display: grid; gap: 16px; }
+.ce-form label { display: grid; gap: 8px; color: var(--muted); font-weight: 650; }
+.ce-form input, .ce-form textarea, .ce-form select { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font: inherit; background: #fff; color: var(--text); }
+.ce-narrow { max-width: 520px; margin-inline: auto; }
+.ce-alert { padding: 12px 14px; border-radius: 14px; background: var(--accent-soft); }
+.ce-alert.danger { background: #ffecec; color: #8a1f1f; }
+.ce-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.ce-table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+.ce-table th, .ce-table td { border-bottom: 1px solid var(--line); padding: 12px; text-align: left; vertical-align: top; }
+.ce-actions-cell { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ce-actions-cell form { display: inline; }
+.ce-actions-cell button { border: 0; background: transparent; color: #b42318; cursor: pointer; font: inherit; }
+.ce-checks { columns: 2; }
+@media (max-width: 820px) { .ce-toolbar { align-items: flex-start; flex-direction: column; } .ce-table { display: block; overflow-x: auto; } .ce-checks { columns: 1; } }

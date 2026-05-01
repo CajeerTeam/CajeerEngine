@@ -4,74 +4,93 @@ declare(strict_types=1);
 
 namespace Cajeer\Compatibility\WordPress;
 
+use Cajeer\Database\DatabaseManager;
+use Throwable;
+
 final class WordPressRuntime
 {
     /** @var array<string,array<int,array<int,callable>>> */
     private array $actions = [];
-
     /** @var array<string,array<int,array<int,callable>>> */
     private array $filters = [];
-
     /** @var array<string,callable> */
     private array $shortcodes = [];
-
     /** @var array<string,mixed> */
     private array $options = [];
+    private ?DatabaseManager $database = null;
 
-    public function addAction(string $hook, callable $callback, int $priority = 10): void
+    public function setDatabase(DatabaseManager $database): void
     {
-        $this->actions[$hook][$priority][] = $callback;
-        ksort($this->actions[$hook]);
+        $this->database = $database;
     }
 
-    public function doAction(string $hook, array $args = []): void
-    {
-        foreach ($this->actions[$hook] ?? [] as $callbacks) {
-            foreach ($callbacks as $callback) {
-                $callback(...$args);
-            }
-        }
-    }
+    public function addAction(string $hook, callable $callback, int $priority = 10): void { $this->actions[$hook][$priority][] = $callback; ksort($this->actions[$hook]); }
+    public function removeAction(string $hook, callable $callback, int $priority = 10): void { $this->removeCallback($this->actions, $hook, $callback, $priority); }
+    public function hasAction(string $hook): bool { return !empty($this->actions[$hook]); }
+    public function doAction(string $hook, array $args = []): void { foreach ($this->actions[$hook] ?? [] as $callbacks) foreach ($callbacks as $callback) $callback(...$args); }
 
-    public function addFilter(string $hook, callable $callback, int $priority = 10): void
-    {
-        $this->filters[$hook][$priority][] = $callback;
-        ksort($this->filters[$hook]);
-    }
+    public function addFilter(string $hook, callable $callback, int $priority = 10): void { $this->filters[$hook][$priority][] = $callback; ksort($this->filters[$hook]); }
+    public function removeFilter(string $hook, callable $callback, int $priority = 10): void { $this->removeCallback($this->filters, $hook, $callback, $priority); }
+    public function hasFilter(string $hook): bool { return !empty($this->filters[$hook]); }
+    public function applyFilters(string $hook, mixed $value, array $args = []): mixed { foreach ($this->filters[$hook] ?? [] as $callbacks) foreach ($callbacks as $callback) $value = $callback($value, ...$args); return $value; }
 
-    public function applyFilters(string $hook, mixed $value, array $args = []): mixed
-    {
-        foreach ($this->filters[$hook] ?? [] as $callbacks) {
-            foreach ($callbacks as $callback) {
-                $value = $callback($value, ...$args);
-            }
-        }
-        return $value;
-    }
-
-    public function addShortcode(string $tag, callable $callback): void
-    {
-        $this->shortcodes[$tag] = $callback;
-    }
-
+    public function addShortcode(string $tag, callable $callback): void { $this->shortcodes[$tag] = $callback; }
     public function doShortcode(string $content): string
     {
         return preg_replace_callback('/\[([a-zA-Z0-9_-]+)([^\]]*)\]/', function (array $matches): string {
             $tag = $matches[1];
-            if (!isset($this->shortcodes[$tag])) {
-                return $matches[0];
-            }
+            if (!isset($this->shortcodes[$tag])) return $matches[0];
             return (string) $this->shortcodes[$tag]([], null, $tag);
         }, $content) ?? $content;
     }
 
     public function getOption(string $name, mixed $default = false): mixed
     {
+        if ($this->database) {
+            try {
+                $pdo = $this->database->connection();
+                $stmt = $pdo->prepare('SELECT setting_value FROM cajeer_settings WHERE setting_key = :key LIMIT 1');
+                $stmt->execute(['key' => 'wp.' . $name]);
+                $value = $stmt->fetchColumn();
+                return $value === false ? $default : unserialize((string) $value, ['allowed_classes' => false]);
+            } catch (Throwable) {}
+        }
         return $this->options[$name] ?? $default;
     }
 
     public function updateOption(string $name, mixed $value): void
     {
         $this->options[$name] = $value;
+        if ($this->database) {
+            try {
+                $pdo = $this->database->connection();
+                $stmt = $pdo->prepare('REPLACE INTO cajeer_settings (setting_key, setting_value, autoload) VALUES (:key, :value, 1)');
+                $stmt->execute(['key' => 'wp.' . $name, 'value' => serialize($value)]);
+            } catch (Throwable) {
+                try {
+                    $pdo = $this->database->connection();
+                    $stmt = $pdo->prepare('INSERT INTO cajeer_settings (setting_key, setting_value, autoload) VALUES (:key, :value, 1) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value');
+                    $stmt->execute(['key' => 'wp.' . $name, 'value' => serialize($value)]);
+                } catch (Throwable) {}
+            }
+        }
+    }
+
+    public function deleteOption(string $name): void
+    {
+        unset($this->options[$name]);
+        if ($this->database) {
+            try {
+                $stmt = $this->database->connection()->prepare('DELETE FROM cajeer_settings WHERE setting_key = :key');
+                $stmt->execute(['key' => 'wp.' . $name]);
+            } catch (Throwable) {}
+        }
+    }
+
+    private function removeCallback(array &$bucket, string $hook, callable $callback, int $priority): void
+    {
+        foreach ($bucket[$hook][$priority] ?? [] as $index => $registered) {
+            if ($registered === $callback) unset($bucket[$hook][$priority][$index]);
+        }
     }
 }

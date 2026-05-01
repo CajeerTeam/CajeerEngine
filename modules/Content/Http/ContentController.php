@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Cajeer\Modules\Content\Http;
 
 use Cajeer\Container\Container;
+use Cajeer\Database\DatabaseManager;
+use Cajeer\Http\Exceptions\NotFoundException;
 use Cajeer\Http\Request;
 use Cajeer\Http\Response;
+use Cajeer\Modules\Content\Repository\ContentRepository;
 use Cajeer\View\ViewRenderer;
 
 final class ContentController
@@ -15,9 +18,14 @@ final class ContentController
 
     public function home(Request $request): Response
     {
+        $items = [];
+        if ($this->container->has(DatabaseManager::class)) {
+            $items = (new ContentRepository($this->container->get(DatabaseManager::class)))->latest('post', 6);
+        }
         $html = $this->container->get(ViewRenderer::class)->render('home', [
             'title' => 'Cajeer Engine',
             'description' => 'PHP CMS с compatibility layer для DLE и WordPress.',
+            'items' => $items,
         ]);
         return Response::html($html);
     }
@@ -25,20 +33,20 @@ final class ContentController
     public function page(Request $request): Response
     {
         $slug = (string) $request->input('slug', 'page');
-        $html = $this->container->get(ViewRenderer::class)->render('page', [
-            'title' => 'Страница: ' . htmlspecialchars($slug, ENT_QUOTES, 'UTF-8'),
-            'content' => 'Это заглушка страницы. Здесь будет Content Repository.',
-        ]);
-        return Response::html($html);
+        $item = (new ContentRepository($this->container->get(DatabaseManager::class)))->findPublishedBySlug('page', $slug);
+        if (!$item) {
+            throw new NotFoundException('Страница не найдена.');
+        }
+        return Response::html($this->container->get(ViewRenderer::class)->render('page', ['title' => $item->title, 'content' => $item->body ?? '', 'item' => $item]));
     }
 
     public function news(Request $request): Response
     {
         $slug = (string) $request->input('slug', 'news');
-        $html = $this->container->get(ViewRenderer::class)->render('page', [
-            'title' => 'Новость: ' . htmlspecialchars($slug, ENT_QUOTES, 'UTF-8'),
-            'content' => 'Это заглушка новости. Маршрут готов под DLE-style URL.',
-        ]);
-        return Response::html($html);
+        $item = (new ContentRepository($this->container->get(DatabaseManager::class)))->findPublishedBySlug('post', $slug);
+        if (!$item) {
+            throw new NotFoundException('Новость не найдена.');
+        }
+        return Response::html($this->container->get(ViewRenderer::class)->render('page', ['title' => $item->title, 'content' => $item->body ?? '', 'item' => $item]));
     }
 }

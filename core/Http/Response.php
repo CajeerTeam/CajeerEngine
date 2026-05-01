@@ -23,6 +23,11 @@ final class Response
         return new self(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '{}', $status, ['Content-Type' => 'application/json; charset=UTF-8']);
     }
 
+    public static function redirect(string $to, int $status = 302): self
+    {
+        return new self('', $status, ['Location' => $to]);
+    }
+
     public function withHeader(string $name, string $value): self
     {
         $clone = clone $this;
@@ -42,5 +47,10 @@ final class Response
     public function content(): string
     {
         return $this->content;
+    }
+
+    public function status(): int
+    {
+        return $this->status;
     }
 }

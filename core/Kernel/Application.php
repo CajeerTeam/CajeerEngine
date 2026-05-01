@@ -6,8 +6,11 @@ namespace Cajeer\Kernel;
 
 use Cajeer\Config\ConfigRepository;
 use Cajeer\Container\Container;
+use Cajeer\Database\DatabaseManager;
 use Cajeer\Events\EventDispatcher;
 use Cajeer\Extensions\ExtensionRegistry;
+use Cajeer\Http\Exceptions\HttpException;
+use Cajeer\Http\Exceptions\ValidationException;
 use Cajeer\Http\MiddlewarePipeline;
 use Cajeer\Http\Request;
 use Cajeer\Http\Response;
@@ -46,9 +49,11 @@ final class Application
         }
 
         $paths = new Path($this->basePath);
-        $config = ConfigRepository::load($this->basePath . '/config');
+        $configPath = is_dir($this->basePath . '/configs') ? $this->basePath . '/configs' : $this->basePath . '/config';
+        $config = ConfigRepository::load($configPath);
         $logger = new Logger($this->basePath . '/storage/logs/app.log');
         $views = new ViewRenderer($this->basePath . '/resources/views');
+        $database = new DatabaseManager($config);
 
         $this->container->set(Path::class, $paths);
         $this->container->set(ConfigRepository::class, $config);
@@ -57,7 +62,12 @@ final class Application
         $this->container->set(Logger::class, $logger);
         $this->container->set(ViewRenderer::class, $views);
         $this->container->set(ExtensionRegistry::class, $this->extensions);
+        $this->container->set(DatabaseManager::class, $database);
         $this->container->set(self::class, $this);
+
+        if (function_exists('cajeer_wp_runtime')) {
+            cajeer_wp_runtime()->setDatabase($database);
+        }
 
         $this->ensureRuntimeDirectories();
         $this->loadRoutes();
@@ -74,8 +84,10 @@ final class Application
 
             $pipeline = new MiddlewarePipeline([
                 new \Cajeer\Http\Middleware\TrustProxyMiddleware(),
-                new \Cajeer\Http\Middleware\SecurityHeadersMiddleware(),
                 new \Cajeer\Http\Middleware\MaintenanceMiddleware($this->basePath),
+                new \Cajeer\Http\Middleware\CsrfMiddleware(),
+                new \Cajeer\Http\Middleware\AdminAuthMiddleware($this->container, $this->basePath),
+                new \Cajeer\Http\Middleware\SecurityHeadersMiddleware(),
             ]);
 
             return $pipeline->handle($request, function (Request $request): Response {
@@ -83,28 +95,27 @@ final class Application
                 $this->events->dispatch('response.sending', ['request' => $request, 'response' => $response]);
                 return $response;
             });
+        } catch (ValidationException $e) {
+            return $request->wantsJson()
+                ? Response::json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422)
+                : Response::html('<h1>422</h1><p>' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</p>', 422);
+        } catch (HttpException $e) {
+            return $request->wantsJson()
+                ? Response::json(['message' => $e->getMessage(), 'status' => $e->statusCode()], $e->statusCode())
+                : Response::html('<h1>' . $e->statusCode() . '</h1><p>' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</p>', $e->statusCode());
         } catch (\Throwable $e) {
             $this->container->get(Logger::class)->error($e->getMessage(), ['exception' => $e]);
             $debug = (bool) $this->container->get(ConfigRepository::class)->get('app.debug', false);
             $message = $debug ? $e->getMessage() : 'Внутренняя ошибка сервера';
-            return Response::html('<h1>500</h1><p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>', 500);
+            return $request->wantsJson()
+                ? Response::json(['message' => $message], 500)
+                : Response::html('<h1>500</h1><p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>', 500);
         }
     }
 
-    public function container(): Container
-    {
-        return $this->container;
-    }
-
-    public function router(): Router
-    {
-        return $this->router;
-    }
-
-    public function events(): EventDispatcher
-    {
-        return $this->events;
-    }
+    public function container(): Container { return $this->container; }
+    public function router(): Router { return $this->router; }
+    public function events(): EventDispatcher { return $this->events; }
 
     private function loadRoutes(): void
     {
@@ -119,7 +130,7 @@ final class Application
 
     private function ensureRuntimeDirectories(): void
     {
-        foreach (['cache', 'logs', 'compiled_tpl', 'sessions', 'uploads', 'backups'] as $dir) {
+        foreach (['cache', 'logs', 'compiled_tpl', 'sessions', 'uploads', 'backups', 'framework'] as $dir) {
             $path = $this->basePath . '/storage/' . $dir;
             if (!is_dir($path)) {
                 mkdir($path, 0775, true);

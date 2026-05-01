@@ -1,8 +1,22 @@
 <?php
 
 use Cajeer\Modules\Admin\Http\AdminController;
+use Cajeer\Modules\Auth\Http\AuthController;
+use Cajeer\Modules\Content\Http\AdminContentController;
+use Cajeer\Modules\Marketplace\Http\AdminMarketplaceController;
+
+$router->get('/admin/login', [AuthController::class, 'login']);
+$router->post('/admin/login', [AuthController::class, 'authenticate']);
+$router->get('/admin/logout', [AuthController::class, 'logout']);
 
 $router->get('/admin', [AdminController::class, 'dashboard']);
+$router->get('/admin/health', [AdminController::class, 'health']);
 $router->get('/admin/compatibility', [AdminController::class, 'compatibility']);
-$router->get('/admin/marketplace', static fn () => Cajeer\Http\Response::html('<h1>Admin Marketplace</h1><p>Заготовка административной установки пакетов.</p>'));
-$router->get('/admin/content', static fn () => Cajeer\Http\Response::html('<h1>Контент</h1><p>Заготовка CRUD контента.</p>'));
+$router->get('/admin/marketplace', [AdminMarketplaceController::class, 'index']);
+
+$router->get('/admin/content', [AdminContentController::class, 'index']);
+$router->get('/admin/content/create', [AdminContentController::class, 'create']);
+$router->post('/admin/content', [AdminContentController::class, 'store']);
+$router->get('/admin/content/{id}/edit', [AdminContentController::class, 'edit']);
+$router->post('/admin/content/{id}', [AdminContentController::class, 'update']);
+$router->post('/admin/content/{id}/delete', [AdminContentController::class, 'delete']);

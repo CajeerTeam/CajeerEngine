@@ -1,0 +1,7 @@
+{
+  "name": "cajeer/auth",
+  "type": "module",
+  "version": "0.2.0",
+  "provider": "Cajeer\\Modules\\Auth\\AuthServiceProvider",
+  "permissions": ["users.read", "users.write"]
+}

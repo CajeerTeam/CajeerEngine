@@ -28,6 +28,13 @@ final class DatabaseManager
         }
 
         $driver = $connection['driver'] ?? $name;
+        if ($driver === 'mysql' && !extension_loaded('pdo_mysql')) {
+            throw new RuntimeException('Расширение pdo_mysql не установлено.');
+        }
+        if ($driver === 'pgsql' && !extension_loaded('pdo_pgsql')) {
+            throw new RuntimeException('Расширение pdo_pgsql не установлено.');
+        }
+
         $dsn = match ($driver) {
             'mysql' => sprintf('mysql:host=%s;port=%s;dbname=%s;charset=%s', $connection['host'], $connection['port'], $connection['database'], $connection['charset'] ?? 'utf8mb4'),
             'pgsql' => sprintf('pgsql:host=%s;port=%s;dbname=%s', $connection['host'], $connection['port'], $connection['database']),
@@ -37,9 +44,15 @@ final class DatabaseManager
         $pdo = new PDO($dsn, (string) $connection['username'], (string) $connection['password'], [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
         ]);
 
         $this->connections[$name] = $pdo;
         return $pdo;
+    }
+
+    public function query(?string $connection = null): QueryBuilder
+    {
+        return new QueryBuilder($this->connection($connection));
     }
 }

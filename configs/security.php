@@ -7,6 +7,15 @@ return [
         'Referrer-Policy' => 'strict-origin-when-cross-origin',
         'Permissions-Policy' => 'geolocation=(), microphone=(), camera=()',
     ],
+    'csrf' => [
+        'enabled' => true,
+    ],
+    'session' => [
+        'name' => 'cajeer_session',
+        'secure' => false,
+        'http_only' => true,
+        'same_site' => 'Lax',
+    ],
     'plugin_capabilities' => [
         'content.read',
         'content.write',
@@ -18,5 +27,12 @@ return [
         'files.write',
         'db.raw_query',
         'admin.menu',
+        'http.client',
+    ],
+    'dangerous_capabilities' => [
+        'db.raw_query',
+        'files.write',
+        'users.write',
+        'settings.write',
     ],
 ];

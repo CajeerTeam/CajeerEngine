@@ -23,6 +23,10 @@ final class DleAdapter
         if (!is_file($file)) {
             throw new \RuntimeException("DLE-шаблон не найден: {$file}");
         }
-        return $this->parser->detectTags(file_get_contents($file) ?: '');
+        $template = file_get_contents($file) ?: '';
+        return [
+            'tags' => $this->parser->detectTags($template),
+            'report' => $this->parser->compatibilityReport($template),
+        ];
     }
 }
