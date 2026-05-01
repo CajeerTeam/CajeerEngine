@@ -1,0 +1,3 @@
+<?php ob_start(); ?>
+<section class="section section-first"><div class="container narrow"><h1>Cajeer Team</h1><p class="lead">Cajeer Team координирует развитие публично представленных проектов и брендов экосистемы.</p><p>Команда обеспечивает организационную связность экосистемы, управленческую координацию и единый контур сопровождения публично представленных направлений без раскрытия внутренних процессов.</p><p>Публичная коммуникация от имени Cajeer осуществляется исключительно через <?= e(brand_value($config, 'founder', 'SkiF4er')) ?>.</p><p class="section-meta">Актуально на <?= e(date('d.m.Y', strtotime($pageMeta['updated_at'] ?? 'now'))) ?></p></div></section>
+<?php $content = ob_get_clean(); require __DIR__ . '/layout.php'; ?>
