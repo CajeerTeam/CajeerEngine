@@ -1,0 +1,7 @@
+{
+  "name": "cajeer/content",
+  "type": "module",
+  "version": "0.1.0",
+  "provider": "Cajeer\\Modules\\Content\\ContentServiceProvider",
+  "description": "Базовый модуль контента: страницы, новости, категории, теги."
+}

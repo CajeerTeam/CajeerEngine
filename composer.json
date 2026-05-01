@@ -1,0 +1,32 @@
+{
+  "name": "cajeer/engine",
+  "description": "Cajeer Engine — PHP CMS platform with DLE and WordPress compatibility layers.",
+  "type": "project",
+  "license": "Apache-2.0",
+  "authors": [
+    {
+      "name": "TheSkiF4er"
+    }
+  ],
+  "require": {
+    "php": ">=8.2",
+    "ext-pdo": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Cajeer\\": "core/",
+      "Cajeer\\App\\": "app/",
+      "Cajeer\\Modules\\": "modules/",
+      "Cajeer\\Compatibility\\Dle\\": "compatibility/dle/",
+      "Cajeer\\Compatibility\\WordPress\\": "compatibility/wordpress/"
+    },
+    "files": [
+      "compatibility/wordpress/functions.php"
+    ]
+  },
+  "bin": [
+    "bin/cajeer"
+  ],
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}

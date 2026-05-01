@@ -1,0 +1,10 @@
+{
+  "name": "cajeer/default-theme",
+  "type": "theme",
+  "version": "0.1.0",
+  "description": "Базовая нативная тема Cajeer Engine.",
+  "compatibility": {
+    "dle": false,
+    "wordpress": false
+  }
+}

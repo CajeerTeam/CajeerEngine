@@ -1,0 +1,10 @@
+{
+  "name": "cajeer/dle-default-theme",
+  "type": "theme",
+  "version": "0.1.0",
+  "description": "Пример DLE-compatible темы.",
+  "compatibility": {
+    "dle": true,
+    "wordpress": false
+  }
+}

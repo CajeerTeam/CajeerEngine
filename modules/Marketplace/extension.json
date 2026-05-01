@@ -1,0 +1,7 @@
+{
+  "name": "cajeer/marketplace",
+  "type": "module",
+  "version": "0.1.0",
+  "provider": "Cajeer\\Modules\\Marketplace\\MarketplaceServiceProvider",
+  "description": "Публичная и административная витрина расширений."
+}

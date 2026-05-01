@@ -1,0 +1,7 @@
+{
+  "name": "cajeer/admin",
+  "type": "module",
+  "version": "0.1.0",
+  "provider": "Cajeer\\Modules\\Admin\\AdminServiceProvider",
+  "description": "Базовая административная панель."
+}

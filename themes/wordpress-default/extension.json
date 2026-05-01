@@ -1,0 +1,10 @@
+{
+  "name": "cajeer/wordpress-default-theme",
+  "type": "theme",
+  "version": "0.1.0",
+  "description": "Пример WordPress-compatible темы.",
+  "compatibility": {
+    "dle": false,
+    "wordpress": true
+  }
+}

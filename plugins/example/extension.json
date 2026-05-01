@@ -1,0 +1,8 @@
+{
+  "name": "cajeer/example-plugin",
+  "type": "plugin",
+  "version": "0.1.0",
+  "provider": "Cajeer\\App\\ExamplePlugin\\ExamplePluginProvider",
+  "description": "Пример нативного плагина Cajeer.",
+  "capabilities": ["content.read", "admin.menu"]
+}

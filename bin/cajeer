@@ -1,0 +1,100 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Cajeer\Compatibility\Dle\DleAdapter;
+use Cajeer\Compatibility\WordPress\Scanner\PluginScanner;
+use Cajeer\Config\ConfigRepository;
+use Cajeer\Database\DatabaseManager;
+use Cajeer\Database\MigrationRunner;
+
+$basePath = dirname(__DIR__);
+require_once $basePath . '/core/bootstrap.php';
+
+$command = $argv[1] ?? 'help';
+
+function out(string $message): void
+{
+    fwrite(STDOUT, $message . PHP_EOL);
+}
+
+try {
+    match ($command) {
+        'health' => health($basePath),
+        'cache:clear' => cache_clear($basePath),
+        'migrate' => migrate($basePath, $argv),
+        'dle:scan-template' => dle_scan_template($basePath, $argv),
+        'wp:scan-plugin' => wp_scan_plugin($basePath, $argv),
+        default => help(),
+    };
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Ошибка: ' . $e->getMessage() . PHP_EOL);
+    exit(1);
+}
+
+function help(): void
+{
+    out('Cajeer Engine CLI');
+    out('');
+    out('Команды:');
+    out('  php bin/cajeer health');
+    out('  php bin/cajeer migrate --database=mysql');
+    out('  php bin/cajeer migrate --database=pgsql');
+    out('  php bin/cajeer cache:clear');
+    out('  php bin/cajeer dle:scan-template themes/default/main.tpl');
+    out('  php bin/cajeer wp:scan-plugin plugins/example/plugin.php');
+}
+
+function health(string $basePath): void
+{
+    out('status: ok');
+    out('base_path: ' . $basePath);
+    out('php: ' . PHP_VERSION);
+    out('storage_writable: ' . (is_writable($basePath . '/storage') ? 'yes' : 'no'));
+}
+
+function cache_clear(string $basePath): void
+{
+    $dirs = [$basePath . '/storage/cache', $basePath . '/storage/compiled_tpl'];
+    foreach ($dirs as $dir) {
+        if (!is_dir($dir)) {
+            continue;
+        }
+        foreach (glob($dir . '/*') ?: [] as $file) {
+            is_file($file) && unlink($file);
+        }
+    }
+    out('Кеш очищен.');
+}
+
+function migrate(string $basePath, array $argv): void
+{
+    $database = 'mysql';
+    foreach ($argv as $arg) {
+        if (str_starts_with($arg, '--database=')) {
+            $database = substr($arg, strlen('--database='));
+        }
+    }
+    $config = ConfigRepository::load($basePath . '/config');
+    $db = new DatabaseManager($config);
+    $runner = new MigrationRunner($db->connection($database), $basePath . '/database/migrations');
+    $count = $runner->run($database);
+    out("Выполнено миграций: {$count}");
+}
+
+function dle_scan_template(string $basePath, array $argv): void
+{
+    $file = $argv[2] ?? '';
+    $path = str_starts_with($file, '/') ? $file : $basePath . '/' . $file;
+    $tags = (new DleAdapter())->scanTemplate($path);
+    out(json_encode(['file' => $file, 'tags' => $tags], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+}
+
+function wp_scan_plugin(string $basePath, array $argv): void
+{
+    $file = $argv[2] ?? '';
+    $path = str_starts_with($file, '/') ? $file : $basePath . '/' . $file;
+    $report = (new PluginScanner())->scan($path);
+    out(json_encode($report, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+}
