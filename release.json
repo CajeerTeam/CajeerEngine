@@ -1,0 +1,53 @@
+{
+  "name": "cajeerengine",
+  "version": "1.1.1",
+  "channel": "stable",
+  "engine_api_version": "1.1",
+  "php": ">=8.4.1 <9.0",
+  "db": {
+    "primary": "PostgreSQL 17+",
+    "recommended": "PostgreSQL 18+",
+    "optional": [
+      "SQLite 3.40+ demo/local",
+      "MySQL 8.4+",
+      "MariaDB 10.11+"
+    ]
+  },
+  "distribution": {
+    "docs": "GitFlic Wiki",
+    "updates": "GitFlic Releases / Registry",
+    "release_builder": "tools/build-release.php",
+    "source_artifact": "storage/releases/cajeerengine-1.1.1-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.1.1-dist.zip",
+    "checksums": "storage/releases/*.sha256",
+    "artifact_index": "storage/releases/cajeerengine-1.1.1-artifacts.json",
+    "support_bundle": "storage/app/support",
+    "backup": "storage/app/backups",
+    "server_reports": "storage/app/reports",
+    "update_reports": "storage/app/updates/reports"
+  },
+  "release_policy": {
+    "semver": true,
+    "lts_ready": true,
+    "security_releases": true,
+    "api_v1_stable": true,
+    "engine_api_version": "1.1"
+  },
+  "product_changes": [
+    "Admin UI 1.1.1 ships production static SPA assets in public/admin/assets, not preview fallback files.",
+    "Admin SPA includes Bearer login/logout, route guards and HTTP 401/403 handling.",
+    "Dashboard, content types, entries, media, CMS, users/RBAC, extensions, updates, search and import/export screens call real API endpoints.",
+    "admin:assets and publish-admin-assets validate production asset size/quality and write admin-manifest.json.",
+    "fix:admin-assets restores production admin assets from admin/static when public assets are missing."
+  ],
+  "notes": {
+    "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
+    "1.0.5": "Server automation release: doctor/fix commands, Nginx generator, aaPanel preset, systemd templates, post-install report and backup alias.",
+    "1.0.6": "Release UX release: source/dist release split, checksums, GitFlic artifacts, upgrade wizard, one-command updater and backup before update.",
+    "1.0.7": "Admin UI hardening release: production static admin SPA, route guards, CMS CRUD workflows, protected web upgrade and release hygiene.",
+    "1.1.1": "Admin UI hardening release: production static admin SPA, real API CRUD screens, route guards, media upload, updates/search/import-export UI and strict admin asset verification.",
+    "1.0.9": "Import/export and updater hardening release: content/media import, dry-run diff, maintenance mode, rollback snapshots and post-update checks.",
+    "1.1.0": "Extension Runtime release: PHP providers, services, hooks/events, lifecycle install/uninstall, extension migrations and assets publishing."
+  },
+  "stability": "stable"
+}

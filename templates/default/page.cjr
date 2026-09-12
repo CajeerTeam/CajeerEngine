@@ -1,0 +1,30 @@
+@extends('default.layouts.app')
+
+<section class="ce-page">
+  <h1>{{ $heading ?? $title }}</h1>
+
+  @if (!empty($summary))
+    <p class="ce-summary">{{ $summary }}</p>
+  @endif
+
+  <div class="ce-content">
+    {!! $content !!}
+  </div>
+
+  @if (!empty($data['blocks']) && is_array($data['blocks']))
+    <section class="ce-blocks">
+      @foreach ($data['blocks'] as $block)
+        @component('block', ['block' => $block])
+      @endforeach
+    </section>
+  @endif
+
+  <footer class="ce-meta">
+    @if (!empty($published_at))
+      <span>Опубликовано: {{ $published_at }}</span>
+    @endif
+    @if (!empty($updated_at))
+      <span> · Обновлено: {{ $updated_at }}</span>
+    @endif
+  </footer>
+</section>

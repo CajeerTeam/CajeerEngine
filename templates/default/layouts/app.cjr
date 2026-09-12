@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="{{ $locale ?? 'ru' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ $seo['title'] ?? $title ?? $theme['site_name'] ?? 'CajeerEngine' }}</title>
+  @if (!empty($seo['description']))
+    <meta name="description" content="{{ $seo['description'] }}">
+  @endif
+  <meta name="robots" content="{{ $seo['robots'] ?? 'index,follow' }}">
+  @if (!empty($canonical_url))
+    <link rel="canonical" href="{{ $canonical_url }}">
+  @endif
+  @if (!empty($theme['favicon_url']))
+    <link rel="icon" href="{{ $theme['favicon_url'] }}">
+  @endif
+  <meta property="og:title" content="{{ $seo['og_title'] ?? $seo['title'] ?? $title }}">
+  @if (!empty($seo['og_description']))
+    <meta property="og:description" content="{{ $seo['og_description'] }}">
+  @endif
+  @if (!empty($seo['og_image']))
+    <meta property="og:image" content="{{ $seo['og_image'] }}">
+  @endif
+  <style>
+    :root { --ce-accent: {{ $theme['accent_color'] ?? '#2563eb' }}; --ce-container: {{ $theme['layout']['container_width'] ?? '1040px' }}; }
+    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f7f7f8; color: #171717; }
+    a { color: var(--ce-accent); text-decoration-thickness: .08em; text-underline-offset: .18em; }
+    .ce-shell { max-width: var(--ce-container); margin: 0 auto; padding: 28px 20px 48px; }
+    .ce-topbar { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:18px 0 30px; }
+    .ce-brand { font-weight:800; color:#111827; text-decoration:none; }
+    .ce-nav { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+    .ce-nav a { color:#334155; text-decoration:none; font-size:14px; }
+    .ce-nav a:hover { color:var(--ce-accent); }
+    .ce-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 18px; padding: 30px; box-shadow: 0 12px 30px rgba(0,0,0,.04); }
+    .ce-page h1 { margin-top: 0; font-size: clamp(30px, 6vw, 56px); line-height: 1.05; }
+    .ce-summary { color: #555; font-size: 18px; }
+    .ce-content { line-height: 1.75; }
+    .ce-meta { color: #777; font-size: 14px; margin-top: 28px; }
+    .ce-preview { padding: 10px 14px; margin-bottom: 16px; border-radius: 10px; background: #fff7df; border: 1px solid #ffe2a3; }
+    .ce-footer { margin-top:28px; color:#64748b; font-size:13px; }
+  </style>
+</head>
+<body>
+  <main class="ce-shell">
+    <header class="ce-topbar">
+      <a class="ce-brand" href="/">{{ $theme['site_name'] ?? 'CajeerEngine' }}</a>
+      @if (!empty($navigation['primary']['items']) && is_array($navigation['primary']['items']))
+        <nav class="ce-nav" aria-label="Основное меню">
+          @foreach ($navigation['primary']['items'] as $item)
+            <a href="{{ $item['url'] ?? '#' }}" target="{{ $item['target'] ?? '_self' }}">{{ $item['label'] ?? 'Ссылка' }}</a>
+          @endforeach
+        </nav>
+      @endif
+    </header>
+    @if (!empty($preview))
+      <div class="ce-preview">Preview mode: страница показана без требования статуса published.</div>
+    @endif
+    <article class="ce-card">
+      {!! $slot ?? '' !!}
+    </article>
+    @if (!empty($theme['layout']['show_powered_by']))
+      <footer class="ce-footer">Работает на CajeerEngine CMS.</footer>
+    @endif
+  </main>
+</body>
+</html>

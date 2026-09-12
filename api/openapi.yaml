@@ -1,0 +1,2070 @@
+openapi: 3.1.1
+info:
+  title: CajeerEngine REST API
+  version: 1.1.1
+  summary: Рабочий REST API CajeerEngine 1.1.1 stable.
+  description: |
+    REST API между Backend Core, Admin UI, SDK и headless-frontends.
+    В 1.1.1 добавлен полноценный Admin UI hardening: production static SPA, dashboard, CRUD-экраны CMS, media, users/RBAC, extensions, updates, search и import/export.
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+servers:
+  - url: /api/v1
+tags:
+  - name: System
+  - name: Database
+  - name: Admin
+  - name: Auth
+  - name: Content
+  - name: Media
+  - name: Public
+  - name: CMS
+  - name: Users
+  - name: Security
+  - name: Search
+  - name: Queue
+  - name: Scheduler
+  - name: Webhooks
+  - name: Events
+  - name: Extensions
+  - name: Installer
+  - name: ImportExport
+  - name: Updates
+  - name: ReleaseCandidate
+  - name: Stable
+paths:
+  /admin/bootstrap:
+    get:
+      tags: [Admin]
+      operationId: get_AdminBootstrap
+      summary: GET /admin/bootstrap
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /admin/dashboard:
+    get:
+      tags: [Admin]
+      operationId: get_AdminDashboard
+      summary: GET /admin/dashboard
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /api-tokens:
+    get:
+      tags: [Security]
+      operationId: get_ApiTokensIndex
+      summary: GET /api-tokens
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    post:
+      tags: [Security]
+      operationId: post_ApiTokensStore
+      summary: POST /api-tokens
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /api-tokens/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      tags: [Security]
+      operationId: delete_ApiTokensRevoke
+      summary: DELETE /api-tokens/{id}
+      responses:
+        '204':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /auth/2fa/disable:
+    post:
+      tags: [Auth]
+      operationId: post_Auth2faDisable
+      summary: POST /auth/2fa/disable
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /auth/2fa/enable:
+    post:
+      tags: [Auth]
+      operationId: post_Auth2faEnable
+      summary: POST /auth/2fa/enable
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: post_AuthLogin
+      summary: POST /auth/login
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: post_AuthLogout
+      summary: POST /auth/logout
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: get_AuthMe
+      summary: GET /auth/me
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /content-types:
+    get:
+      tags: [Content]
+      operationId: get_ContentTypesIndex
+      summary: GET /content-types
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    post:
+      tags: [Content]
+      operationId: post_ContentTypesStore
+      summary: POST /content-types
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /content-types/{handle}:
+    parameters:
+      - name: handle
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      tags: [Content]
+      operationId: delete_ContentTypesDelete
+      summary: DELETE /content-types/{handle}
+      responses:
+        '204':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    get:
+      tags: [Content]
+      operationId: get_ContentTypesShow
+      summary: GET /content-types/{handle}
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    patch:
+      tags: [Content]
+      operationId: patch_ContentTypesPatch
+      summary: PATCH /content-types/{handle}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    put:
+      tags: [Content]
+      operationId: put_ContentTypesUpdate
+      summary: PUT /content-types/{handle}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /content-types/{handle}/schema:
+    parameters:
+      - name: handle
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Content]
+      operationId: get_ContentTypesSchema
+      summary: GET /content-types/{handle}/schema
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /content/{type}:
+    parameters:
+      - name: type
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Content]
+      operationId: get_ContentIndex
+      summary: GET /content/{type}
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    post:
+      tags: [Content]
+      operationId: post_ContentStore
+      summary: POST /content/{type}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /content/{type}/{id}:
+    parameters:
+      - name: type
+        in: path
+        required: true
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      tags: [Content]
+      operationId: delete_ContentDelete
+      summary: DELETE /content/{type}/{id}
+      responses:
+        '204':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    get:
+      tags: [Content]
+      operationId: get_ContentShow
+      summary: GET /content/{type}/{id}
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    patch:
+      tags: [Content]
+      operationId: patch_ContentPatch
+      summary: PATCH /content/{type}/{id}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    put:
+      tags: [Content]
+      operationId: put_ContentUpdate
+      summary: PUT /content/{type}/{id}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /content/{type}/{id}/archive:
+    parameters:
+      - name: type
+        in: path
+        required: true
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Content]
+      operationId: post_ContentArchive
+      summary: POST /content/{type}/{id}/archive
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /content/{type}/{id}/localizations:
+    parameters:
+      - name: type
+        in: path
+        required: true
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Content]
+      operationId: get_ContentLocalizations
+      summary: GET /content/{type}/{id}/localizations
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    post:
+      tags: [Content]
+      operationId: post_ContentLocalizationsStore
+      summary: POST /content/{type}/{id}/localizations
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /content/{type}/{id}/publish:
+    parameters:
+      - name: type
+        in: path
+        required: true
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Content]
+      operationId: post_ContentPublish
+      summary: POST /content/{type}/{id}/publish
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /content/{type}/{id}/revisions:
+    parameters:
+      - name: type
+        in: path
+        required: true
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Content]
+      operationId: get_ContentRevisions
+      summary: GET /content/{type}/{id}/revisions
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /content/{type}/{id}/revisions/{revision}:
+    parameters:
+      - name: type
+        in: path
+        required: true
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+      - name: revision
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Content]
+      operationId: post_ContentRevisionsRestoreShort
+      summary: POST /content/{type}/{id}/revisions/{revision}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /content/{type}/{id}/revisions/{revision}/restore:
+    parameters:
+      - name: type
+        in: path
+        required: true
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+      - name: revision
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Content]
+      operationId: post_ContentRevisionsRestore
+      summary: POST /content/{type}/{id}/revisions/{revision}/restore
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /content/{type}/{id}/unpublish:
+    parameters:
+      - name: type
+        in: path
+        required: true
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Content]
+      operationId: post_ContentUnpublish
+      summary: POST /content/{type}/{id}/unpublish
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /database:
+    get:
+      tags: [Database]
+      operationId: get_DatabaseShow
+      summary: GET /database
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /database/migrations:
+    get:
+      tags: [Database]
+      operationId: get_DatabaseMigrations
+      summary: GET /database/migrations
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /events/dispatch:
+    post:
+      tags: [Events]
+      operationId: post_EventsDispatch
+      summary: POST /events/dispatch
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /extensions:
+    get:
+      tags: [Extensions]
+      operationId: get_ExtensionsIndex
+      summary: GET /extensions
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /extensions/config:
+    patch:
+      tags: [Extensions]
+      operationId: patch_ExtensionsConfig
+      summary: PATCH /extensions/config
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /extensions/diagnostics:
+    get:
+      tags: [Extensions]
+      operationId: get_ExtensionsDiagnostics
+      summary: GET /extensions/diagnostics
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /extensions/disable:
+    post:
+      tags: [Extensions]
+      operationId: post_ExtensionsDisable
+      summary: POST /extensions/disable
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /extensions/enable:
+    post:
+      tags: [Extensions]
+      operationId: post_ExtensionsEnable
+      summary: POST /extensions/enable
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /extensions/events:
+    get:
+      tags: [Extensions]
+      operationId: get_ExtensionsEvents
+      summary: GET /extensions/events
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /extensions/events/dispatch:
+    post:
+      tags: [Extensions]
+      operationId: post_ExtensionsEventsDispatch
+      summary: POST /extensions/events/dispatch
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /extensions/install:
+    post:
+      tags: [Extensions]
+      operationId: post_ExtensionsInstall
+      summary: POST /extensions/install
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /extensions/permissions:
+    get:
+      tags: [Extensions]
+      operationId: get_ExtensionsPermissions
+      summary: GET /extensions/permissions
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /extensions/uninstall:
+    post:
+      tags: [Extensions]
+      operationId: post_ExtensionsUninstall
+      summary: POST /extensions/uninstall
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /extensions/validate:
+    post:
+      tags: [Extensions]
+      operationId: post_ExtensionsValidate
+      summary: POST /extensions/validate
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /health:
+    get:
+      tags: [System]
+      operationId: get_Health
+      summary: GET /health
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /import-export/export:
+    post:
+      tags: [ImportExport]
+      operationId: post_ImportExportExport
+      summary: POST /import-export/export
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /import-export/exports:
+    get:
+      tags: [ImportExport]
+      operationId: get_ImportExportExports
+      summary: GET /import-export/exports
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /import-export/import:
+    post:
+      tags: [ImportExport]
+      operationId: post_ImportExportImport
+      summary: POST /import-export/import
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /installer/requirements:
+    get:
+      tags: [Installer]
+      operationId: get_InstallerRequirements
+      summary: GET /installer/requirements
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /installer/run:
+    post:
+      tags: [Installer]
+      operationId: post_InstallerRun
+      summary: POST /installer/run
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /media:
+    get:
+      tags: [Media]
+      operationId: get_MediaIndex
+      summary: GET /media
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    post:
+      tags: [Media]
+      operationId: post_MediaStore
+      summary: POST /media
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /media/diagnostics:
+    get:
+      tags: [Media]
+      operationId: get_MediaDiagnostics
+      summary: GET /media/diagnostics
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /media/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      tags: [Media]
+      operationId: delete_MediaDelete
+      summary: DELETE /media/{id}
+      responses:
+        '204':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    get:
+      tags: [Media]
+      operationId: get_MediaShow
+      summary: GET /media/{id}
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /public/preview/{type}/{id}:
+    parameters:
+      - name: type
+        in: path
+        required: true
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Public]
+      operationId: get_PublicPreview
+      summary: GET /public/preview/{type}/{id}
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /public/sitemap:
+    get:
+      tags: [Public]
+      operationId: get_PublicSitemap
+      summary: GET /public/sitemap
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /queue:
+    get:
+      tags: [Queue]
+      operationId: get_QueueDiagnostics
+      summary: GET /queue
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /queue/failed:
+    get:
+      tags: [Queue]
+      operationId: get_QueueFailed
+      summary: GET /queue/failed
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /queue/failed/{id}/retry:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Queue]
+      operationId: post_QueueFailedRetry
+      summary: POST /queue/failed/{id}/retry
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /queue/jobs:
+    post:
+      tags: [Queue]
+      operationId: post_QueueJobsStore
+      summary: POST /queue/jobs
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /queue/work:
+    post:
+      tags: [Queue]
+      operationId: post_QueueWork
+      summary: POST /queue/work
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /rc/checks:
+    get:
+      tags: [ReleaseCandidate]
+      operationId: get_RcChecks
+      summary: GET /rc/checks
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /rc/readiness:
+    get:
+      tags: [ReleaseCandidate]
+      operationId: get_RcReadiness
+      summary: GET /rc/readiness
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /rc/run:
+    post:
+      tags: [ReleaseCandidate]
+      operationId: post_RcRun
+      summary: POST /rc/run
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /roles:
+    get:
+      tags: [Users]
+      operationId: get_RolesIndex
+      summary: GET /roles
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    post:
+      tags: [Users]
+      operationId: post_RolesStore
+      summary: POST /roles
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /roles/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Users]
+      operationId: get_RolesShow
+      summary: GET /roles/{id}
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /runtime:
+    get:
+      tags: [System]
+      operationId: get_Runtime
+      summary: GET /runtime
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /scheduler/run:
+    post:
+      tags: [Scheduler]
+      operationId: post_SchedulerRun
+      summary: POST /scheduler/run
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /scheduler/tasks:
+    get:
+      tags: [Scheduler]
+      operationId: get_SchedulerTasks
+      summary: GET /scheduler/tasks
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /search:
+    get:
+      tags: [Search]
+      operationId: get_SearchIndex
+      summary: GET /search
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /search/diagnostics:
+    get:
+      tags: [Search]
+      operationId: get_SearchDiagnostics
+      summary: GET /search/diagnostics
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /search/reindex:
+    post:
+      tags: [Search]
+      operationId: post_SearchReindex
+      summary: POST /search/reindex
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /security:
+    get:
+      tags: [Security]
+      operationId: get_SecurityShow
+      summary: GET /security
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /stable:
+    get:
+      tags: [Stable]
+      operationId: get_StableStatus
+      summary: GET /stable
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /stable/backup:
+    post:
+      tags: [Stable]
+      operationId: post_StableBackup
+      summary: POST /stable/backup
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /stable/release-lock:
+    post:
+      tags: [Stable]
+      operationId: post_StableReleaseLock
+      summary: POST /stable/release-lock
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /stable/smoke-test:
+    post:
+      tags: [Stable]
+      operationId: post_StableSmokeTest
+      summary: POST /stable/smoke-test
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /stable/support-bundle:
+    post:
+      tags: [Stable]
+      operationId: post_StableSupportBundle
+      summary: POST /stable/support-bundle
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /system:
+    get:
+      tags: [System]
+      operationId: get_System
+      summary: GET /system
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /updates:
+    get:
+      tags: [Updates]
+      operationId: get_UpdatesDiagnostics
+      summary: GET /updates
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /updates/check:
+    post:
+      tags: [Updates]
+      operationId: post_UpdatesCheck
+      summary: POST /updates/check
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /updates/plan:
+    post:
+      tags: [Updates]
+      operationId: post_UpdatesPlan
+      summary: POST /updates/plan
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /updates/prepare:
+    post:
+      tags: [Updates]
+      operationId: post_UpdatesPrepare
+      summary: POST /updates/prepare
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /users:
+    get:
+      tags: [Users]
+      operationId: get_UsersIndex
+      summary: GET /users
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    post:
+      tags: [Users]
+      operationId: post_UsersStore
+      summary: POST /users
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      tags: [Users]
+      operationId: delete_UsersDisable
+      summary: DELETE /users/{id}
+      responses:
+        '204':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    get:
+      tags: [Users]
+      operationId: get_UsersShow
+      summary: GET /users/{id}
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    patch:
+      tags: [Users]
+      operationId: patch_UsersPatch
+      summary: PATCH /users/{id}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /webhook-deliveries:
+    get:
+      tags: [Webhooks]
+      operationId: get_WebhookDeliveriesIndex
+      summary: GET /webhook-deliveries
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /webhooks:
+    get:
+      tags: [Webhooks]
+      operationId: get_WebhooksIndex
+      summary: GET /webhooks
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    post:
+      tags: [Webhooks]
+      operationId: post_WebhooksStore
+      summary: POST /webhooks
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /webhooks/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      tags: [Webhooks]
+      operationId: delete_WebhooksDelete
+      summary: DELETE /webhooks/{id}
+      responses:
+        '204':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+    patch:
+      tags: [Webhooks]
+      operationId: patch_WebhooksPatch
+      summary: PATCH /webhooks/{id}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+  /webhooks/{id}/test:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Webhooks]
+      operationId: post_WebhooksTest
+      summary: POST /webhooks/{id}/test
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: OK
+        '401':
+          description: Требуется авторизация
+        '403':
+          description: Недостаточно прав
+        '422':
+          description: Ошибка валидации
+
+  /cms:
+    get:
+      tags: [CMS]
+      operationId: get_CmsOverview
+      summary: GET /cms
+      responses:
+        '200': { description: OK }
+        '401': { description: Требуется авторизация }
+        '403': { description: Недостаточно прав }
+  /cms/bootstrap:
+    post:
+      tags: [CMS]
+      operationId: post_CmsBootstrap
+      summary: POST /cms/bootstrap
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200': { description: OK }
+        '401': { description: Требуется авторизация }
+        '403': { description: Недостаточно прав }
+  /cms/theme:
+    get:
+      tags: [CMS]
+      operationId: get_CmsTheme
+      summary: GET /cms/theme
+      responses:
+        '200': { description: OK }
+        '401': { description: Требуется авторизация }
+        '403': { description: Недостаточно прав }
+    patch:
+      tags: [CMS]
+      operationId: patch_CmsTheme
+      summary: PATCH /cms/theme
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200': { description: OK }
+        '401': { description: Требуется авторизация }
+        '403': { description: Недостаточно прав }
+  /cms/navigation:
+    get:
+      tags: [CMS]
+      operationId: get_CmsNavigation
+      summary: GET /cms/navigation
+      responses:
+        '200': { description: OK }
+        '401': { description: Требуется авторизация }
+        '403': { description: Недостаточно прав }
+  /cms/navigation/{handle}:
+    parameters:
+      - name: handle
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [CMS]
+      operationId: get_CmsNavigationMenu
+      summary: GET /cms/navigation/{handle}
+      responses:
+        '200': { description: OK }
+        '404': { description: Не найдено }
+    put:
+      tags: [CMS]
+      operationId: put_CmsNavigationMenu
+      summary: PUT /cms/navigation/{handle}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200': { description: OK }
+        '401': { description: Требуется авторизация }
+        '403': { description: Недостаточно прав }
+    delete:
+      tags: [CMS]
+      operationId: delete_CmsNavigationMenu
+      summary: DELETE /cms/navigation/{handle}
+      responses:
+        '204': { description: OK }
+        '404': { description: Не найдено }
+  /cms/redirects:
+    get:
+      tags: [CMS]
+      operationId: get_CmsRedirects
+      summary: GET /cms/redirects
+      responses:
+        '200': { description: OK }
+    post:
+      tags: [CMS]
+      operationId: post_CmsRedirects
+      summary: POST /cms/redirects
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201': { description: Created }
+  /cms/redirects/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [CMS]
+      operationId: patch_CmsRedirect
+      summary: PATCH /cms/redirects/{id}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200': { description: OK }
+    delete:
+      tags: [CMS]
+      operationId: delete_CmsRedirect
+      summary: DELETE /cms/redirects/{id}
+      responses:
+        '204': { description: OK }
+  /cms/preview-token:
+    post:
+      tags: [CMS]
+      operationId: post_CmsPreviewToken
+      summary: POST /cms/preview-token
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201': { description: Created }
+  /extensions/runtime:
+    get:
+      tags: [Extensions]
+      operationId: get_ExtensionRuntime
+      summary: Extension runtime diagnostics and optional boot check
+      parameters:
+        - name: boot
+          in: query
+          required: false
+          schema: { type: boolean }
+      responses:
+        '200': { description: OK }
+  /extensions/assets/publish:
+    post:
+      tags: [Extensions]
+      operationId: post_ExtensionAssetsPublish
+      summary: Publish extension assets to public/extensions
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                dry_run: { type: boolean }
+              additionalProperties: true
+      responses:
+        '200': { description: OK }
+  /extensions/migrate:
+    post:
+      tags: [Extensions]
+      operationId: post_ExtensionMigrate
+      summary: Run or dry-run extension migrations
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                dry_run: { type: boolean }
+              additionalProperties: true
+      responses:
+        '200': { description: OK }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    apiToken:
+      type: apiKey
+      in: header
+      name: X-API-Token
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          additionalProperties: true
+    GenericObject:
+      type: object
+      additionalProperties: true
+security:
+  - bearerAuth: []
+  - apiToken: []

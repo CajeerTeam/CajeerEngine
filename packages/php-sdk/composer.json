@@ -1,0 +1,15 @@
+{
+  "name": "cajeer/cajeerengine-extension-sdk",
+  "description": "PHP Extension SDK для модулей, плагинов и тем CajeerEngine.",
+  "type": "library",
+  "license": "Apache-2.0",
+  "require": {
+    "php": ">=8.4.1 <9.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "CajeerEngine\\ExtensionSdk\\": "src/"
+    }
+  },
+  "version": "1.1.1"
+}

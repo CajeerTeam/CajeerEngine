@@ -1,0 +1,75 @@
+{
+  "name": "cajeer/cajeerengine",
+  "description": "CajeerEngine — современная API-first CMS на PHP 8.4+ с собственным ядром и Symfony Components.",
+  "type": "project",
+  "license": "Apache-2.0",
+  "minimum-stability": "stable",
+  "prefer-stable": true,
+  "require": {
+    "php": ">=8.4.1 <9.0",
+    "ext-json": "*",
+    "ext-mbstring": "*",
+    "ext-pdo": "*",
+    "psr/container": "^2.0",
+    "psr/event-dispatcher": "^1.0",
+    "psr/log": "^3.0",
+    "symfony/cache": "^8.1",
+    "symfony/config": "^8.1",
+    "symfony/console": "^8.1",
+    "symfony/dependency-injection": "^8.1",
+    "symfony/dotenv": "^8.1",
+    "symfony/event-dispatcher": "^8.1",
+    "symfony/filesystem": "^8.1",
+    "symfony/finder": "^8.1",
+    "symfony/http-foundation": "^8.1",
+    "symfony/password-hasher": "^8.1",
+    "symfony/rate-limiter": "^8.1",
+    "symfony/routing": "^8.1",
+    "symfony/serializer": "^8.1",
+    "symfony/uid": "^8.1",
+    "symfony/validator": "^8.1",
+    "symfony/yaml": "^8.1"
+  },
+  "require-dev": {
+    "phpstan/phpstan": "^2.1",
+    "phpunit/phpunit": "^12.2",
+    "squizlabs/php_codesniffer": "^3.10"
+  },
+  "autoload": {
+    "psr-4": {
+      "CajeerEngine\\": "core/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "CajeerEngine\\Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "check": [
+      "@php -l public/index.php",
+      "@php -l public/install/index.php",
+      "@php -l install.php",
+      "@php -l bin/cajeer",
+      "@php tools/build-release.php --dry-run",
+      "@php -l public/upgrade/index.php",
+      "@php -l upgrade.php",
+      "@php tools/build-release.php --dry-run --all --json"
+    ],
+    "analyse": "phpstan analyse core --level=5",
+    "test": "phpunit"
+  },
+  "config": {
+    "sort-packages": true,
+    "platform": {
+      "php": "8.4.1"
+    }
+  },
+  "suggest": {
+    "ext-pdo_pgsql": "Нужен для PostgreSQL 17+/18+ database driver.",
+    "ext-pdo_mysql": "Нужен для optional MySQL 8.4+/MariaDB 10.11+ database driver.",
+    "ext-redis": "Нужен для Redis cache/queue driver.",
+    "ext-amqp": "Нужен для RabbitMQ queue driver.",
+    "ext-fileinfo": "Рекомендуется для строгой проверки MIME-типа media uploads."
+  }
+}

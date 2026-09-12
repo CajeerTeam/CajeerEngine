@@ -1,0 +1,63 @@
+{
+    "name": "CajeerEngine Admin UI",
+    "version": "1.1.1",
+    "generated_at": "2026-06-19T17:24:42+00:00",
+    "mode": "production-static-spa",
+    "base_path": "/admin/",
+    "api_base": "/api/v1",
+    "source": {
+        "nuxt": true,
+        "static_source": true,
+        "pages": 12,
+        "components": 3,
+        "composables": 2
+    },
+    "quality": {
+        "production_assets": true,
+        "min_app_js_bytes": 18000,
+        "min_app_css_bytes": 3500
+    },
+    "entrypoints": {
+        "html": "/admin/index.html",
+        "script": "/admin/assets/admin-app.js",
+        "style": "/admin/assets/admin-app.css"
+    },
+    "files": {
+        "index": {
+            "path": "/admin/index.html",
+            "file": "index.html",
+            "exists": true,
+            "size": 485,
+            "sha256": "92297275dd0b69ba086f1815670c4be89873be4d81b616b0ccb3efc1f9c3fce0"
+        },
+        "script": {
+            "path": "/admin/assets/admin-app.js",
+            "file": "assets/admin-app.js",
+            "exists": true,
+            "size": 46232,
+            "sha256": "518c3d5b61aead98d2fb1e8efcc3f4e436068e1c52e50fe9f5dd02244b7f5d91"
+        },
+        "style": {
+            "path": "/admin/assets/admin-app.css",
+            "file": "assets/admin-app.css",
+            "exists": true,
+            "size": 5897,
+            "sha256": "1fe4e5a4835af380a5703b9ea7446d414f6574282563b5765c896fd739575dcb"
+        },
+        "legacy_script": {
+            "path": "/admin/assets/admin-preview.js",
+            "file": "assets/admin-preview.js",
+            "exists": true,
+            "size": 37,
+            "sha256": "df4086c8ff8bb84c7b7194564ca88dd3e82166ab2fc2abced2cbee4025e3a372"
+        },
+        "legacy_style": {
+            "path": "/admin/assets/admin-preview.css",
+            "file": "assets/admin-preview.css",
+            "exists": true,
+            "size": 44,
+            "sha256": "f8a2648f337a5b161162e530a6b93655ea5efdefd33969f11d1b332a397b7db0"
+        }
+    },
+    "ready": true
+}

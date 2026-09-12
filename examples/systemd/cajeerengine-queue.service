@@ -1,0 +1,19 @@
+[Unit]
+Description=CajeerEngine Queue Worker
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/cajeerengine
+ExecStart=/usr/bin/php /var/www/cajeerengine/bin/cajeer queue:work --sleep=2 --tries=3
+Restart=always
+RestartSec=5
+User=www-data
+Group=www-data
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/www/cajeerengine/storage /var/www/cajeerengine/bootstrap/cache /var/www/cajeerengine/public/uploads
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+<div class="ce-block" data-block="{{ $block['type'] ?? $block['handle'] ?? 'block' }}">
+  @if (!empty($block['title']))
+    <h2>{{ $block['title'] }}</h2>
+  @endif
+
+  @if (!empty($block['content']))
+    <div>{!! $block['content'] !!}</div>
+  @else
+    <pre>{{ json_encode($block, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) }}</pre>
+  @endif
+</div>

@@ -1,0 +1,18 @@
+[Unit]
+Description=CajeerEngine Scheduler Runner
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/www/cajeerengine
+ExecStart=/usr/bin/php /var/www/cajeerengine/bin/cajeer scheduler:run
+User=www-data
+Group=www-data
+Nice=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/www/cajeerengine/storage /var/www/cajeerengine/bootstrap/cache /var/www/cajeerengine/public/uploads
+
+[Install]
+WantedBy=multi-user.target
