@@ -313,13 +313,20 @@ def configure(c):
         raise
 
 
+def root_controlled_parents(path):
+    # Check from the root down before accessing an untrusted descendant.
+    for parent in reversed(Path(path).absolute().parents):
+        st=parent.lstat()
+        if not stat.S_ISDIR(st.st_mode) or st.st_uid!=0 or st.st_mode & 0o022:
+            raise ValueError(f'Artifact must be in a root-controlled directory: {parent} '
+                             f'(uid={st.st_uid}, mode={stat.S_IMODE(st.st_mode):04o})')
+
+
 def artifact(zip_path, sha, version):
+    root_controlled_parents(zip_path)
     version_tuple(version)
     root_file(zip_path); root_file(Path(str(zip_path)+'.sig'))
     if zip_path.stat().st_size>2*1024**3 or Path(str(zip_path)+'.sig').stat().st_size>8192: raise ValueError('Oversized artifact or signature')
-    for parent in zip_path.absolute().parents:
-        st=parent.lstat()
-        if not stat.S_ISDIR(st.st_mode) or st.st_uid!=0 or st.st_mode & 0o022: raise ValueError('Artifact must be in a root-controlled directory')
     if not re.fullmatch(r'[a-f0-9]{64}',sha): raise ValueError('Expected lowercase SHA256')
     inbox=STATE/'artifacts'; secure_dir(inbox)
     target=inbox/(sha+'.zip')

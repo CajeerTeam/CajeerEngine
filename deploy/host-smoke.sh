@@ -4,8 +4,19 @@ set -euo pipefail
 [[ $EUID == 0 && ${CE_DEPLOY_DISPOSABLE:-} == yes ]] || { echo 'Disposable root host required'; exit 1; }
 artifact=$(realpath "${1:?dist ZIP required}")
 source=$(cd "$(dirname "$0")/.." && pwd)
-for p in /srv/cajeerengine /etc/cajeerengine-deploy /var/lib/cajeerengine-deploy /opt/ce-deploy-smoke; do [[ ! -e $p ]] || { echo "Existing path: $p"; exit 1; }; done
-work=/opt/ce-deploy-smoke
+# Hosted runners may grant write access to /opt. Never use such a parent
+# for a signed deployment candidate or the trusted operator tools.
+work=/var/lib/ce-deploy-smoke
+for p in /srv/cajeerengine /etc/cajeerengine-deploy /var/lib/cajeerengine-deploy "$work"; do [[ ! -e $p && ! -L $p ]] || { echo "Existing path: $p"; exit 1; }; done
+# Use exactly the production path guard before creating any smoke workspace.
+python3 - "$source/deploy" "$work" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from production import root_controlled_parents
+root_controlled_parents(Path(sys.argv[2]))
+PY
+umask 022
 mkdir -m 0755 "$work"
 trap 'systemctl stop cajeerengine-scheduler.timer cajeerengine-scheduler.service cajeerengine-worker.service cajeerengine-php.service 2>/dev/null || true; if [[ ${CE_DEPLOY_KEEP:-} != yes ]]; then rm -rf /srv/cajeerengine /etc/cajeerengine-deploy /var/lib/cajeerengine-deploy "$work"; rm -f /etc/nginx/conf.d/cajeerengine.conf /etc/systemd/system/cajeerengine-{php,worker,scheduler}.service /etc/systemd/system/cajeerengine-scheduler.timer; systemctl daemon-reload; systemctl reload nginx 2>/dev/null || true; fi' EXIT
 mkdir "$work/tool" "$work/inbox"

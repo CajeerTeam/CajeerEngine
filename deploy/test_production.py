@@ -2,6 +2,7 @@
 """Local deployment safety tests; actual Nginx/TLS test when nginx and openssl exist."""
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import socket
@@ -21,6 +22,29 @@ import production as p
 SITE={'domain':'deploy.example.invalid','db_host':'127.0.0.1','db_port':5432,'db_name':'cms','db_user':'cms','db_sslmode':'disable','admin_email':'admin@example.invalid'}
 
 class Safety(unittest.TestCase):
+    @unittest.skipUnless(os.geteuid()==0,'requires root for directory ownership test')
+    def test_root_controlled_artifact_parents(self):
+        import pwd
+        with tempfile.TemporaryDirectory(dir='/var/lib',prefix='ce-path-test-') as d:
+            d=Path(d)
+            inbox=d/'inbox'; inbox.mkdir(mode=0o755)
+            package=inbox/'release.zip'
+            p.root_controlled_parents(package)
+            for mode in (0o775,0o777):
+                with self.subTest(mode=oct(mode)):
+                    d.chmod(mode)
+                    with self.assertRaisesRegex(ValueError,re.escape(str(d))):
+                        p.root_controlled_parents(package)
+                    d.chmod(0o755)
+            os.chown(inbox,pwd.getpwnam('nobody').pw_uid,-1)
+            with self.assertRaisesRegex(ValueError,re.escape(str(inbox))):
+                p.root_controlled_parents(package)
+            os.chown(inbox,0,-1)
+            link=d/'link'; link.symlink_to(inbox,target_is_directory=True)
+            with self.assertRaisesRegex(ValueError,re.escape(str(link))):
+                p.root_controlled_parents(link/'release.zip')
+            p.root_controlled_parents(package)
+
     @unittest.skipUnless(shutil.which('php'),'PHP CLI unavailable')
     def test_php_preflight(self):
         # Exercise the actual PHP probe, including Phar's mixed-case module name.
