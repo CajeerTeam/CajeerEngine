@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.7 — Public Routing Runtime (2026-11-12)
+
+- Transactional SQL route index and deterministic page trees; canonical paths, locale prefixes, redirect history, and published-ancestor visibility.
+- Protected route inspection API, CMS editor tree and parent selection, canonical SEO, sitemap pagination and hreflang.
+- Explicit 404/410 pages, redirect safety, and import/upgrade integration.
+
 ## 1.1.6 — Extension Platform (2026-11-12)
 
 - Signed extension inventory, dependency ordering, guarded package deployment and backup recovery.

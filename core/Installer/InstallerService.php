@@ -466,7 +466,7 @@ final readonly class InstallerService
             if ($users->count() > 0) throw new \RuntimeException('База уже содержит пользователей. Используйте существующую учётную запись администратора.');
             $userId = $users->createAdmin($email, $name, $password);
         }
-        $audit->record('installer.admin_created', $userId, ['email' => mb_strtolower($email), 'source' => 'install-1.1.6']);
+        $audit->record('installer.admin_created', $userId, ['email' => mb_strtolower($email), 'source' => 'install-1.1.7']);
 
         return [
             'roles_seeded' => $roleCount,
@@ -494,8 +494,11 @@ final readonly class InstallerService
             && (bool) ($security['ok'] ?? false)
             && $adminAssets;
 
+        $routing=['ok'=>false];
+        if($ok){try{$routing=(new \CajeerEngine\Public\RouteIndex($this->rootPath,$database))->rebuild();}catch(\Throwable $e){$routing=['ok'=>false,'message'=>$e->getMessage()];$ok=false;}}
         return [
             'ok' => $ok,
+            'routing' => $routing,
             'database' => $databaseHealth,
             'migrations' => [
                 'driver' => $migrationStatus['driver'],
@@ -645,6 +648,6 @@ final readonly class InstallerService
 
     private function version(): string
     {
-        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.6';
+        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.7';
     }
 }

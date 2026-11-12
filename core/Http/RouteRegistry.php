@@ -104,6 +104,7 @@ final class RouteRegistry
             ['GET', '/api/v1/public/sitemap', 'api.v1.public.sitemap', 'public', 'sitemap', null],
             ['GET', '/api/v1/public/preview/{type}/{id}', 'api.v1.public.preview', 'public', 'preview', ['content:read']],
             ['GET', '/api/v1/cms', 'api.v1.cms.overview', 'cms', 'overview', ['content:read']],
+            ['GET', '/api/v1/cms/routes', 'api.v1.cms.routes', 'cms', 'routes', ['content:read']],
             ['POST', '/api/v1/cms/bootstrap', 'api.v1.cms.bootstrap', 'cms', 'bootstrap', ['content:write']],
             ['GET', '/api/v1/cms/theme', 'api.v1.cms.theme.show', 'cms', 'theme', ['content:read']],
             ['PATCH', '/api/v1/cms/theme', 'api.v1.cms.theme.patch', 'cms', 'updateTheme', ['content:write']],

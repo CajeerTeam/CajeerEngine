@@ -21,6 +21,7 @@ final readonly class CmsController
         private RedirectRepository $redirects,
         private PreviewTokenService $previewTokens,
         private CmsBootstrapService $bootstrap,
+        private \CajeerEngine\Public\RouteIndex $routeIndex,
     ) {
     }
 
@@ -41,6 +42,12 @@ final readonly class CmsController
                 ],
             ],
         ]);
+    }
+
+    public function routes(Request $request): JsonResponse
+    {
+        $limit=max(1,min(1000,$request->query->getInt('limit',100)));$offset=max(0,$request->query->getInt('offset',0));
+        return new JsonResponse($this->routeIndex->page($limit,$offset));
     }
 
     public function bootstrap(Request $request): JsonResponse

@@ -47,6 +47,21 @@ id=$(php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ER
 [[ -n $id ]]
 curl -fsS "${auth[@]}" -X POST "$base/api/v1/content/pages/$id/publish" >/dev/null
 curl -fsS "$base/release-smoke" | grep -q 'Release smoke content'
+# Verify SQL-indexed paths, nested moves, historical aliases and publication privacy.
+child=$(curl -fsS "${auth[@]}" -d "{\"title\":\"Nested release child\",\"slug\":\"child\",\"status\":\"published\",\"locale\":\"ru\",\"data\":{\"parent_id\":\"$id\",\"heading\":\"Nested release child\"}}" "$base/api/v1/content/pages")
+childid=$(php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR); echo $j["data"]["id"];' <<< "$child")
+curl -fsS "$base/release-smoke/child" | grep -q 'Nested release child'
+curl -fsS "${auth[@]}" -X PATCH -d '{"data":{"path":"/release-moved"}}' "$base/api/v1/content/pages/$id" >/dev/null
+[[ $(curl -s -o /dev/null -w '%{http_code}' "$base/release-smoke/child") == 301 ]]
+curl -fsS "$base/release-moved/child" | grep -q 'Nested release child'
+[[ $(curl -s -o /dev/null -w '%{http_code}' "$base/release-moved/child/") == 308 ]]
+curl -fsS "${auth[@]}" "$base/api/v1/cms/routes" | grep -q '/release-moved/child'
+curl -fsS "${auth[@]}" -X POST "$base/api/v1/content/pages/$id/unpublish" >/dev/null
+[[ $(curl -s -o /dev/null -w '%{http_code}' "$base/release-moved/child") == 404 ]]
+curl -fsS "${auth[@]}" -X POST "$base/api/v1/content/pages/$id/publish" >/dev/null
+curl -fsS "${auth[@]}" -X PATCH -d '{"data":{"path":"/release-smoke"}}' "$base/api/v1/content/pages/$id" >/dev/null
+curl -fsS "$base/release-smoke/child" | grep -q 'Nested release child'
+php bin/cajeer routing:check --json >/dev/null
 # Auth, RBAC and CSRF regression against actual HTTP/DB runtime.
 status() { curl -s -o "$root/response.json" -w '%{http_code}' "$@"; }
 [[ $(status "$base/api/v1/users") == 401 ]]

@@ -14,7 +14,7 @@ final class BackupManager
     private DatabaseBackup $db;
     private string $base;
     private const DATA_ROOTS=['storage/app','storage/queue','public/uploads','public/extensions','modules','plugins','themes'];
-    private const OMIT=['storage/app/backups','storage/app/updates','storage/app/update-requests','storage/app/support','storage/app/reports','storage/app/operations.lock','storage/app/maintenance.json','storage/app/backup-restore.json','storage/app/import-staging','storage/app/import-requests','storage/app/import-reports','storage/app/extensions/deployment.json','storage/app/extensions/registry.lock'];
+    private const OMIT=['storage/app/backups','storage/app/updates','storage/app/update-requests','storage/app/support','storage/app/reports','storage/app/routing.lock','storage/app/operations.lock','storage/app/maintenance.json','storage/app/backup-restore.json','storage/app/import-staging','storage/app/import-requests','storage/app/import-reports','storage/app/extensions/deployment.json','storage/app/extensions/registry.lock'];
     public function __construct(private readonly string $root, private readonly ConfigRepository $config)
     {
         $this->db=new DatabaseBackup($root,$config);

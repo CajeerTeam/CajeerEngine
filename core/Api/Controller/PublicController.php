@@ -7,6 +7,7 @@ namespace CajeerEngine\Api\Controller;
 use CajeerEngine\Cms\PreviewTokenService;
 use CajeerEngine\Cms\RedirectRepository;
 use CajeerEngine\Public\PublicPageRenderer;
+use CajeerEngine\Public\PublicRouteResolver;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -31,7 +32,10 @@ final readonly class PublicController
     /** @param array<string, mixed> $parameters */
     public function sitemapXml(Request $request, array $parameters = []): Response
     {
-        return new Response($this->renderer->sitemapXml($this->baseUrl($request)), 200, ['Content-Type' => 'application/xml; charset=UTF-8']);
+        $page=$request->query->get('page');
+        if($page!==null&&(!is_string($page)||!ctype_digit($page)||strlen($page)>7))return $this->publicError(404);
+        try{$xml=$this->renderer->sitemapXml($this->baseUrl($request),$page===null?null:(int)$page);}catch(\InvalidArgumentException){return $this->publicError(404);}
+        return new Response($xml,200,['Content-Type'=>'application/xml; charset=UTF-8']);
     }
 
     /** @param array<string, mixed> $parameters */
@@ -56,10 +60,10 @@ final readonly class PublicController
                     'seo' => $page['seo'],
                     'html' => $page['html'],
                 ],
-            ]);
+            ],200,['Cache-Control'=>'private, no-store','X-Robots-Tag'=>'noindex, nofollow','Referrer-Policy'=>'no-referrer']);
         }
 
-        return new Response($page['html'], 200, ['Content-Type' => 'text/html; charset=UTF-8', 'X-CajeerEngine-Preview' => '1']);
+        return new Response($page['html'], 200, ['Content-Type' => 'text/html; charset=UTF-8', 'X-CajeerEngine-Preview' => '1', 'Cache-Control'=>'private, no-store', 'X-Robots-Tag'=>'noindex, nofollow', 'Referrer-Policy'=>'no-referrer']);
     }
 
     /** @param array<string, mixed> $parameters */
@@ -70,77 +74,52 @@ final readonly class PublicController
             return $this->notFound('preview_token_invalid', 'Preview token недействителен или истёк.');
         }
 
-        $page = $this->renderer->renderByTypeAndId((string) ($resolved['type'] ?? ''), (string) ($resolved['entry_id'] ?? ''), true);
+        $page = $this->renderer->renderPreviewId((string) ($resolved['type'] ?? ''), (string) ($resolved['entry_id'] ?? ''));
         if ($page === null) {
             return $this->notFound();
         }
 
         if ($request->query->get('format') === 'json') {
-            return new JsonResponse(['data' => $page + ['preview_token' => $resolved]]);
+            return new JsonResponse(['data' => $page],200,['Cache-Control'=>'private, no-store','X-Robots-Tag'=>'noindex, nofollow','Referrer-Policy'=>'no-referrer']);
         }
 
-        return new Response($page['html'], 200, ['Content-Type' => 'text/html; charset=UTF-8', 'X-CajeerEngine-Preview' => 'token']);
+        return new Response($page['html'], 200, ['Content-Type' => 'text/html; charset=UTF-8', 'X-CajeerEngine-Preview' => 'token', 'Cache-Control'=>'private, no-store', 'X-Robots-Tag'=>'noindex, nofollow', 'Referrer-Policy'=>'no-referrer']);
     }
 
     /** @param array<string, mixed> $parameters */
     public function renderHome(Request $request, array $parameters = []): Response
     {
-        $page = $this->renderer->renderHome(false);
-        if ($page === null) {
-            return new Response($this->defaultHomeHtml(), 200, ['Content-Type' => 'text/html; charset=UTF-8']);
-        }
-
-        return new Response($page['html'], 200, [
-            'Content-Type' => 'text/html; charset=UTF-8',
-            'X-CajeerEngine-Public-Path' => $page['path'],
-        ]);
+        return $this->renderByPath($request,$parameters);
     }
 
-    /** @param array<string, mixed> $parameters */
     public function renderByPath(Request $request, array $parameters): Response
     {
-        $path = (string) ($parameters['path'] ?? $parameters['slug'] ?? '');
-        if ($path === '' || $this->isReservedPath($path)) {
-            return $this->notFound();
+        $result=(new PublicRouteResolver($this->renderer->routeIndex(),$this->redirects))->resolve($request->getPathInfo());
+        if(isset($result['target'])){
+            $target=$result['target'];
+            if(in_array($result['kind'],['normalize','alias'],true)&&($query=$request->getQueryString())!==null&&$query!=='')$target.='?'.$query;
+            return new RedirectResponse($target,$result['status']);
         }
-
-        $redirect = $this->redirects->match('/' . $path);
-        if ($redirect !== null) {
-            return new RedirectResponse((string) $redirect['target_url'], (int) $redirect['status_code']);
-        }
-
-        $page = $this->renderer->renderByPath($path, false);
-        if ($page === null) {
-            return $this->notFound();
-        }
-
-        return new Response($page['html'], 200, [
-            'Content-Type' => 'text/html; charset=UTF-8',
-            'X-CajeerEngine-Public-Path' => $page['path'],
-        ]);
+        if($result['status']!==200)return $this->publicError($result['status']);
+        $page=$this->renderer->renderByPath($result['path']);
+        if($page===null)return $this->publicError(404);
+        $status=$this->renderer->errorStatus($result['path'])??200;
+        $headers=['Content-Type'=>'text/html; charset=UTF-8','X-CajeerEngine-Public-Path'=>$page['path']];
+        if($status!==200)$headers+=['X-Robots-Tag'=>'noindex, nofollow','Cache-Control'=>'no-store'];
+        return new Response($page['html'],$status,$headers);
     }
 
-    /** @param array<string, mixed> $parameters */
-    public function renderBySlug(Request $request, array $parameters): Response
+    public function renderBySlug(Request $request, array $parameters): Response { return $this->renderByPath($request,$parameters); }
+
+    private function publicError(int $status): Response
     {
-        return $this->renderByPath($request, $parameters);
+        $page=$this->renderer->errorPage($status);
+        $message=$status===410?'Страница удалена':'Страница не найдена';
+        $html=$page['html']??('<!doctype html><html lang="ru"><meta charset="utf-8"><title>'.$status.' '.$message.'</title><h1>'.$status.' — '.$message.'</h1><p><a href="/">Главная</a></p></html>');
+        return new Response($html,$status,['Content-Type'=>'text/html; charset=UTF-8','X-Robots-Tag'=>'noindex, nofollow','Cache-Control'=>'no-store']);
     }
 
-    private function defaultHomeHtml(): string
-    {
-        return '<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CajeerEngine</title><style>body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f7f9fc;color:#172033;margin:0}.wrap{max-width:860px;margin:10vh auto;padding:28px}a{color:#1f5eff}.card{background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:26px;box-shadow:0 18px 48px rgba(15,23,42,.08)}</style></head><body><main class="wrap"><section class="card"><h1>CajeerEngine установлен</h1><p>Публичная главная страница пока не опубликована. Запустите <code>php bin/cajeer cms:bootstrap --demo-home</code> или создайте страницу в админке.</p><p><a href="/admin/">Открыть Admin UI</a></p></section></main></body></html>';
-    }
-
-    private function isReservedPath(string $path): bool
-    {
-        $first = explode('/', trim($path, '/'))[0] ?? '';
-        return in_array($first, ['api', 'admin', 'uploads', 'install', 'upgrade'], true);
-    }
-
-    private function baseUrl(Request $request): string
-    {
-        return rtrim($request->getSchemeAndHttpHost(), '/');
-    }
+    private function baseUrl(Request $request): string { return $this->renderer->baseUrl(); }
 
     private function notFound(string $code = 'public_page_not_found', string $message = 'Публичная страница не найдена.'): JsonResponse
     {

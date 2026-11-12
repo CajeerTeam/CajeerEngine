@@ -36,6 +36,11 @@ final class ThemeConfigRepository
     /** @param array<string,mixed> $payload @return array<string,mixed> */
     public function save(array $payload): array
     {
+        return (new \CajeerEngine\Public\RouteIndex($this->rootPath,$this->database()))->mutate(fn() => $this->saveRaw($payload), ['storage/app/cms/theme-config.json']);
+    }
+
+    private function saveRaw(array $payload): array
+    {
         $config = $this->normalize($payload + $this->get());
         if ($this->useDatabase()) {
             $this->saveDatabase($config);
@@ -58,6 +63,10 @@ final class ThemeConfigRepository
             'site_description' => 'Сайт работает на CajeerEngine.',
             'locale' => 'ru',
             'home_slug' => 'home',
+            'locale_strategy' => 'none',
+            'enabled_locales' => ['ru', 'en'],
+            'error_404_path' => '',
+            'error_410_path' => '',
             'primary_menu' => 'primary',
             'accent_color' => '#2563eb',
             'favicon_url' => '',
@@ -127,7 +136,19 @@ final class ThemeConfigRepository
         $seo = is_array($input['seo'] ?? null) ? array_merge($defaults['seo'], $input['seo']) : $defaults['seo'];
         $layout = is_array($input['layout'] ?? null) ? array_merge($defaults['layout'], $input['layout']) : $defaults['layout'];
 
+        $locale = preg_match('/^[a-z]{2}(-[A-Z]{2})?$/', (string) ($input['locale'] ?? '')) ? (string)$input['locale'] : 'ru';
+        $strategy = $input['locale_strategy'] ?? 'none';
+        if (!in_array($strategy,['none','prefix'],true)) throw new \InvalidArgumentException('locale_strategy must be none or prefix');
+        $locales=$input['enabled_locales']??['ru','en'];
+        if (!is_array($locales)||count($locales)>64) throw new \InvalidArgumentException('Invalid enabled locales');
+        foreach($locales as $l) if(!is_string($l)||!preg_match('/^[a-z]{2}(-[A-Z]{2})?$/D',$l)) throw new \InvalidArgumentException('Invalid locale');
+        $locales=array_values(array_unique(array_merge([$locale],$locales)));
+        $errorPath=static function($p){if($p==='')return ''; $path=\CajeerEngine\Public\PublicPath::content((string)$p);if($path==='/')throw new \InvalidArgumentException('Error page cannot be the homepage');return $path;};
         return [
+            'locale_strategy'=>$strategy,
+            'enabled_locales'=>$locales,
+            'error_404_path'=>$errorPath($input['error_404_path']??''),
+            'error_410_path'=>$errorPath($input['error_410_path']??''),
             'site_name' => $this->shortString($input['site_name'] ?? $defaults['site_name'], 120),
             'site_description' => $this->shortString($input['site_description'] ?? $defaults['site_description'], 280),
             'locale' => preg_match('/^[a-z]{2}(-[A-Z]{2})?$/', (string) ($input['locale'] ?? '')) ? (string) $input['locale'] : 'ru',

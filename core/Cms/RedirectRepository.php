@@ -9,6 +9,8 @@ use CajeerEngine\Runtime\ConfigRepository;
 use CajeerEngine\Support\JsonFile;
 use CajeerEngine\Support\Uuid;
 use PDO;
+use CajeerEngine\Public\PublicPath;
+use CajeerEngine\Public\RouteIndex;
 use Throwable;
 
 final class RedirectRepository
@@ -38,46 +40,68 @@ final class RedirectRepository
     /** @return array<string,mixed>|null */
     public function find(string $id): ?array
     {
-        foreach ($this->all() as $redirect) {
-            if (($redirect['id'] ?? null) === $id || ($redirect['source_path'] ?? null) === $this->path($id)) {
-                return $redirect;
-            }
+        if(str_starts_with($id,'/'))return $this->byPath($id);
+        if($this->useDatabase()){
+            $expr=$this->database()->driver()==='pgsql'?'CAST(id AS TEXT)':'CAST(id AS CHAR)';
+            $stmt=$this->pdo()->prepare('SELECT * FROM ce_cms_redirects WHERE '.$expr.' = :id');$stmt->execute(['id'=>$id]);$row=$stmt->fetch(PDO::FETCH_ASSOC);return is_array($row)?$this->mapRow($row):null;
         }
-        return null;
+        foreach($this->all() as $r)if($r['id']===$id)return $r;return null;
     }
 
-    /** @return array<string,mixed>|null */
+    public function byPath(string $path): ?array
+    {
+        $path=PublicPath::normalize($path);
+        if($this->useDatabase()){
+            $stmt=$this->pdo()->prepare('SELECT * FROM ce_cms_redirects WHERE source_path = :path');$stmt->execute(['path'=>$path]);$row=$stmt->fetch(PDO::FETCH_ASSOC);return is_array($row)?$this->mapRow($row):null;
+        }
+        foreach($this->all() as $r)if($r['source_path']===$path)return $r;return null;
+    }
+
     public function match(string $path): ?array
     {
-        $path = $this->path($path);
-        foreach ($this->all() as $redirect) {
-            if (!filter_var($redirect['enabled'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
-                continue;
-            }
-            if (($redirect['source_path'] ?? '') !== $path) {
-                continue;
-            }
-            $this->touch((string) $redirect['id']);
-            return $redirect;
+        $r=$this->byPath($path);if($r===null||!$r['enabled'])return null;
+        if((int)$r['status_code']!==410){
+            try{$this->assertNoLoop($r);}catch(\InvalidArgumentException){return null;}
         }
-        return null;
+        $this->touch($r['id']);return $r;
+    }
+
+    private function assertNoLoop(array $r): void
+    {
+        $base=PublicPath::base((new ConfigRepository($this->rootPath))->string('app.url'));
+        $seen=[$r['source_path']=>true];$target=$r['target_url'];
+        for($i=0;$i<64;$i++){
+            $path=PublicPath::localTarget($target,$base);if($path===null)return;
+            if(isset($seen[$path]))throw new \InvalidArgumentException('Redirect cycle: '.$path);
+            $seen[$path]=true;$next=$this->byPath($path);
+            if($next===null||!$next['enabled']||(int)$next['status_code']===410)return;
+            $target=$next['target_url'];
+        }
+        throw new \InvalidArgumentException('Redirect chain too long');
     }
 
     /** @param array<string,mixed> $payload @return array<string,mixed> */
     public function save(array $payload, ?string $id = null): array
     {
-        $source = $this->path((string) ($payload['source_path'] ?? $payload['source'] ?? ''));
+        return (new RouteIndex($this->rootPath,$this->database()))->mutate(fn()=>$this->saveRaw($payload,$id),['storage/app/cms/redirects.json']);
+    }
+
+    private function saveRaw(array $payload, ?string $id = null): array
+    {
+        $source = PublicPath::content((string) ($payload['source_path'] ?? $payload['source'] ?? ''));
         $target = trim((string) ($payload['target_url'] ?? $payload['target'] ?? ''));
+        if(strlen($source)>700)throw new \InvalidArgumentException('Redirect source is too long');
         if ($source === '/') {
             throw new \InvalidArgumentException('source_path не может быть корнем сайта.');
         }
-        if ($target === '' || (!str_starts_with($target, '/') && filter_var($target, FILTER_VALIDATE_URL) === false)) {
-            throw new \InvalidArgumentException('target_url должен быть абсолютным URL или внутренним путём.');
-        }
         $statusCode = (int) ($payload['status_code'] ?? 301);
-        if (!in_array($statusCode, [301, 302, 307, 308], true)) {
-            throw new \InvalidArgumentException('status_code должен быть 301, 302, 307 или 308.');
-        }
+        if (!in_array($statusCode, [301, 302, 307, 308, 410], true)) throw new \InvalidArgumentException('Invalid redirect status');
+        if($statusCode===410)$target='';else PublicPath::target($target);
+        $existing=$this->byPath($source);
+        $id=$id??($payload['id']??null);
+        if($id!==null&&(!is_string($id)||!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iD',$id)))throw new \InvalidArgumentException('Invalid redirect ID');
+        if($id!==null&&($old=$this->find($id))!==null&&$old['source_path']!==$source)throw new \InvalidArgumentException('Redirect source is immutable; delete and create a new rule');
+        if($existing!==null)$id=$existing['id'];
 
         $item = [
             'id' => $id ?: (string) ($payload['id'] ?? Uuid::v4()),
@@ -85,12 +109,13 @@ final class RedirectRepository
             'target_url' => $target,
             'status_code' => $statusCode,
             'enabled' => filter_var($payload['enabled'] ?? true, FILTER_VALIDATE_BOOLEAN),
-            'hit_count' => (int) ($payload['hit_count'] ?? 0),
-            'last_hit_at' => $payload['last_hit_at'] ?? null,
-            'created_at' => (string) ($payload['created_at'] ?? $this->now()),
+            'hit_count' => (int) ($existing['hit_count'] ?? 0),
+            'last_hit_at' => $existing['last_hit_at'] ?? null,
+            'created_at' => (string) ($existing['created_at'] ?? $this->now()),
             'updated_at' => $this->now(),
         ];
 
+        if($item['enabled'] && $statusCode!==410)$this->assertNoLoop($item);
         if ($this->useDatabase()) {
             return $this->saveDatabase($item);
         }
@@ -114,9 +139,15 @@ final class RedirectRepository
 
     public function delete(string $id): bool
     {
+        return (new RouteIndex($this->rootPath,$this->database()))->mutate(fn()=>$this->deleteRaw($id),['storage/app/cms/redirects.json']);
+    }
+
+    private function deleteRaw(string $id): bool
+    {
         if ($this->useDatabase()) {
-            $stmt = $this->pdo()->prepare('DELETE FROM ce_cms_redirects WHERE id = :id OR source_path = :path');
-            $stmt->execute(['id' => $id, 'path' => $this->path($id)]);
+            $existing=$this->find($id);if($existing===null)return false;
+            $stmt = $this->pdo()->prepare('DELETE FROM ce_cms_redirects WHERE id = :id');
+            $stmt->execute(['id' => $existing['id']]);
             return $stmt->rowCount() > 0;
         }
         $items = $this->all();
@@ -141,6 +172,7 @@ final class RedirectRepository
             $stmt->execute(['id' => $id, 'last_hit_at' => $now]);
             return;
         }
+        (new RouteIndex($this->rootPath,$this->database()))->withWriteLock(function()use($id):void{
         $items = $this->all();
         foreach ($items as $index => $item) {
             if (($item['id'] ?? null) !== $id) {
@@ -151,6 +183,7 @@ final class RedirectRepository
             $this->persist($items);
             return;
         }
+        });
     }
 
     /** @return list<array<string,mixed>> */
@@ -184,7 +217,7 @@ final class RedirectRepository
             'created_at' => $this->nowForDatabase(),
             'updated_at' => $this->nowForDatabase(),
         ]);
-        return $this->find((string) $item['source_path']) ?? $item;
+        return $this->byPath((string) $item['source_path']) ?? $item;
     }
 
     /** @param array<string,mixed> $row @return array<string,mixed> */
@@ -195,7 +228,7 @@ final class RedirectRepository
             'source_path' => (string) $row['source_path'],
             'target_url' => (string) $row['target_url'],
             'status_code' => (int) $row['status_code'],
-            'enabled' => (bool) $row['enabled'],
+            'enabled' => in_array($row['enabled'],[true,1,'1','t','true'],true),
             'hit_count' => (int) $row['hit_count'],
             'last_hit_at' => $row['last_hit_at'] !== null ? (string) $row['last_hit_at'] : null,
             'storage' => 'database',
@@ -258,7 +291,7 @@ final class RedirectRepository
 
     private function boolParam(bool $value): int|bool
     {
-        return $this->database()->driver() === 'pgsql' ? $value : ($value ? 1 : 0);
+        return $value ? 1 : 0;
     }
 
     private function now(): string

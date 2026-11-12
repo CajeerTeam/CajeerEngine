@@ -1,4 +1,4 @@
-# CajeerEngine 1.1.6
+# CajeerEngine 1.1.7
 
 API-first CMS на PHP с собственным ядром (`core/`), шаблонами `.cjr`, REST API (`api/openapi.yaml`) и статической админкой (`admin/static`, опубликованные файлы `public/admin`). CLI: `bin/cajeer`.
 
@@ -45,3 +45,7 @@ ZIP export v3 переносит контент, медиа, CMS-конфигу�
 ## Расширения
 
 Версия 1.1.6 поддерживает подписанные модули, плагины и темы, зависимости, расширяемые административные действия, очередь, scheduler и безопасный upgrade с резервным копированием. [Руководство Extension Platform](docs/extensions-platform.md); рабочие примеры находятся в `examples/extensions/`.
+
+## Public Routing Runtime 1.1.7
+
+После обновления запустите `php bin/cajeer migrate`, `php bin/cajeer routing:rebuild --json` и `php bin/cajeer routing:check --json`. См. [Public routing](docs/public-routing.md).

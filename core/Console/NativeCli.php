@@ -105,6 +105,8 @@ final class NativeCli
                 'admin:assets' => (new AdminAssetPublisher($rootPath))->manifest(self::has($argv, 'write-manifest') && !self::has($argv, 'check')),
                 'cms:bootstrap' => (new CmsBootstrapService($rootPath))->run(self::has($argv, 'demo-home')),
                 'cms:sitemap' => self::cmsSitemap($rootPath, $config, $argv),
+                'routing:rebuild' => (new \CajeerEngine\Public\RouteIndex($rootPath))->rebuild(),
+                'routing:check' => (new \CajeerEngine\Public\RouteIndex($rootPath))->check(),
                 'make:extension' => self::makeExtension($rootPath, $argv),
                 'extension:list' => ['ok' => true, 'data' => (new ExtensionRegistry($rootPath, $config))->all(), 'meta' => (new ExtensionRegistry($rootPath, $config))->diagnostics()],
                 'extension:doctor' => ['ok' => true, 'data' => (new ExtensionRegistry($rootPath, $config))->diagnostics()],
@@ -140,7 +142,7 @@ final class NativeCli
         return [
             'ok' => true,
             'mode' => 'native-no-vendor',
-            'commands' => ['doctor','fix','fix:permissions','fix:env','fix:security','fix:admin-assets','fix:storage','nginx:config','scheduler:install','worker:install','post-install:report','backup:create','backup:list','backup:verify','backup:restore','backup:keygen','release:keygen','release:sign','update:verify-signature','update:stage','update:requests','update:run','update:status','install','install:check','rc:doctor','api:lint','install:web-token','system:report','stable:status','stable:smoke-test','stable:lock','security:doctor','security:harden','migrate','migrate:status','migrate:repair','release:build','release:artifacts','release:checksums','release:verify','update','update:prepare','update:apply','update:check','update:rollback','maintenance:on','maintenance:off','maintenance:status','export:create','export:list','import:diff','import:run','import:execute','import:requests','admin:assets','cms:bootstrap','cms:sitemap','make:extension','extension:list','extension:doctor','extension:runtime','extension:runtime:boot','extension:install','extension:enable','extension:disable','extension:uninstall','extension:assets','extension:migrate','extension:event:dispatch','extension:sign','extension:package:install','extension:package:upgrade','extension:package:enable','extension:package:uninstall','extension:package:recover'],
+            'commands' => ['doctor','fix','fix:permissions','fix:env','fix:security','fix:admin-assets','fix:storage','nginx:config','scheduler:install','worker:install','post-install:report','backup:create','backup:list','backup:verify','backup:restore','backup:keygen','release:keygen','release:sign','update:verify-signature','update:stage','update:requests','update:run','update:status','install','install:check','rc:doctor','api:lint','install:web-token','system:report','stable:status','stable:smoke-test','stable:lock','security:doctor','security:harden','migrate','migrate:status','migrate:repair','release:build','release:artifacts','release:checksums','release:verify','update','update:prepare','update:apply','update:check','update:rollback','maintenance:on','maintenance:off','maintenance:status','export:create','export:list','import:diff','import:run','import:execute','import:requests','admin:assets','cms:bootstrap','cms:sitemap','routing:rebuild','routing:check','make:extension','extension:list','extension:doctor','extension:runtime','extension:runtime:boot','extension:install','extension:enable','extension:disable','extension:uninstall','extension:assets','extension:migrate','extension:event:dispatch','extension:sign','extension:package:install','extension:package:upgrade','extension:package:enable','extension:package:uninstall','extension:package:recover'],
             'message' => 'Symfony Console не найден, включён native fallback для эксплуатационных команд.',
         ];
     }
@@ -641,6 +643,6 @@ PHP_STUB;
 
     private static function version(string $rootPath): string
     {
-        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.1.6';
+        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.1.7';
     }
 }

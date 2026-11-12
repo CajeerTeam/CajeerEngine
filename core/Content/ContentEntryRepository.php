@@ -21,8 +21,8 @@ final class ContentEntryRepository
 
     public function __construct(private readonly string $rootPath, ?DatabaseManager $database = null)
     {
-        $this->database = $database;
-        $this->types = new ContentTypeRepository($this->rootPath, $database);
+        $this->database = $database ?? new DatabaseManager(new ConfigRepository($rootPath));
+        $this->types = new ContentTypeRepository($this->rootPath, $this->database);
         $this->audit = new AuditLogger($this->rootPath);
     }
 
@@ -79,16 +79,49 @@ final class ContentEntryRepository
             return $this->findInDatabase($typeHandle, $idOrSlug);
         }
 
-        foreach ($this->list($typeHandle, ['status' => 'all']) as $entry) {
-            if (($entry['id'] ?? null) === $idOrSlug || ($entry['slug'] ?? null) === $idOrSlug) {
-                return $entry;
-            }
+        if($this->types->find($typeHandle)===null)return null;
+        $items=$this->read($typeHandle)['entries']??[];
+        foreach($items as $entry)if($entry['id']===$idOrSlug)return $entry;
+        $matches=array_values(array_filter($items,static fn($e)=>$e['slug']===$idOrSlug));
+        if(count($matches)>1)throw new \DomainException('Ambiguous slug; use the entry UUID');
+        return $matches[0]??null;
+    }
+
+    /** Join the indexed route and publication in a single database snapshot. */
+    public function findPublishedRoute(string $path): ?array
+    {
+        if(!$this->useDatabase())throw new \LogicException('SQL route lookup requires database storage');
+        $id=$this->database()->driver()==='pgsql'?'CAST(r.entry_id AS UUID)':'r.entry_id';
+        $stmt=$this->pdo()->prepare("SELECT e.*, ct.handle AS type_handle, r.payload AS route_payload FROM ce_public_routes r JOIN ce_content_entries e ON e.id = $id JOIN ce_content_types ct ON ct.id=e.content_type_id WHERE r.route_key=:key AND r.kind='page' AND e.status='published' AND e.deleted_at IS NULL");
+        $stmt->execute(['key'=>hash('sha256',$path)]);$row=$stmt->fetch(PDO::FETCH_ASSOC);
+        if(!is_array($row))return null;
+        $route=json_decode($row['route_payload'],true,flags:JSON_THROW_ON_ERROR);
+        return ($route['path']??null)===$path?['route'=>$route,'entry'=>$this->mapEntryRow($row,['handle'=>$row['type_handle']])]:null;
+    }
+
+    /** Exact primary-key lookup for the public route index. */
+    public function findById(string $typeHandle, string $id): ?array
+    {
+        if (!$this->useDatabase()) {
+            if($this->types->find($typeHandle)===null)return null;
+            foreach ($this->read($typeHandle)['entries'] ?? [] as $entry) if ($entry['id'] === $id) return $entry;
+            return null;
         }
-        return null;
+        if(!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iD',$id))return null;
+        $stmt = $this->pdo()->prepare('SELECT e.*, ct.handle AS type_handle FROM ce_content_entries e JOIN ce_content_types ct ON ct.id = e.content_type_id WHERE e.id = :id AND ct.handle = :handle AND e.deleted_at IS NULL');
+        $stmt->execute(['id'=>$id,'handle'=>$typeHandle]);
+        $row=$stmt->fetch(PDO::FETCH_ASSOC);
+        return is_array($row) ? $this->mapEntryRow($row,['handle'=>$typeHandle]) : null;
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
     public function create(string $typeHandle, array $payload, ?string $importId = null): array
+    {
+        $index = new \CajeerEngine\Public\RouteIndex($this->rootPath, $this->database());
+        return $index->mutate(fn() => $this->createRaw($typeHandle, $payload, $importId), ['storage/app/content/' . basename($this->path($typeHandle))]);
+    }
+
+    private function createRaw(string $typeHandle, array $payload, ?string $importId = null): array
     {
         if ($this->useDatabase()) {
             return $this->createInDatabase($typeHandle, $payload, $importId);
@@ -129,14 +162,21 @@ final class ContentEntryRepository
     /** @param array<string, mixed> $payload @return array<string, mixed>|null */
     public function update(string $typeHandle, string $idOrSlug, array $payload): ?array
     {
+        $index = new \CajeerEngine\Public\RouteIndex($this->rootPath, $this->database());
+        return $index->mutate(fn() => $this->updateRaw($typeHandle, $idOrSlug, $payload), ['storage/app/content/' . basename($this->path($typeHandle))]);
+    }
+
+    private function updateRaw(string $typeHandle, string $idOrSlug, array $payload): ?array
+    {
         if ($this->useDatabase()) {
             return $this->updateInDatabase($typeHandle, $idOrSlug, $payload, 'updated');
         }
 
         $type = $this->contentType($typeHandle);
+        $existing=$this->find($typeHandle,$idOrSlug);if($existing===null)return null;
         $items = $this->list($typeHandle, ['status' => 'all']);
         foreach ($items as $index => $entry) {
-            if (($entry['id'] ?? null) !== $idOrSlug && ($entry['slug'] ?? null) !== $idOrSlug) {
+            if ($entry['id']!==$existing['id']) {
                 continue;
             }
 
@@ -172,6 +212,12 @@ final class ContentEntryRepository
     /** @return array<string, mixed>|null */
     public function publish(string $typeHandle, string $idOrSlug): ?array
     {
+        $index = new \CajeerEngine\Public\RouteIndex($this->rootPath, $this->database());
+        return $index->mutate(fn() => $this->publishRaw($typeHandle, $idOrSlug), ['storage/app/content/' . basename($this->path($typeHandle))]);
+    }
+
+    private function publishRaw(string $typeHandle, string $idOrSlug): ?array
+    {
         $entry = $this->find($typeHandle, $idOrSlug);
         if ($entry === null) {
             return null;
@@ -186,6 +232,12 @@ final class ContentEntryRepository
 
     /** @return array<string, mixed>|null */
     public function unpublish(string $typeHandle, string $idOrSlug): ?array
+    {
+        $index = new \CajeerEngine\Public\RouteIndex($this->rootPath, $this->database());
+        return $index->mutate(fn() => $this->unpublishRaw($typeHandle, $idOrSlug), ['storage/app/content/' . basename($this->path($typeHandle))]);
+    }
+
+    private function unpublishRaw(string $typeHandle, string $idOrSlug): ?array
     {
         $entry = $this->find($typeHandle, $idOrSlug);
         if ($entry === null) {
@@ -202,6 +254,12 @@ final class ContentEntryRepository
     /** @return array<string, mixed>|null */
     public function archive(string $typeHandle, string $idOrSlug): ?array
     {
+        $index = new \CajeerEngine\Public\RouteIndex($this->rootPath, $this->database());
+        return $index->mutate(fn() => $this->archiveRaw($typeHandle, $idOrSlug), ['storage/app/content/' . basename($this->path($typeHandle))]);
+    }
+
+    private function archiveRaw(string $typeHandle, string $idOrSlug): ?array
+    {
         $entry = $this->find($typeHandle, $idOrSlug);
         if ($entry === null) {
             return null;
@@ -216,21 +274,20 @@ final class ContentEntryRepository
 
     public function delete(string $typeHandle, string $idOrSlug): bool
     {
+        $index = new \CajeerEngine\Public\RouteIndex($this->rootPath, $this->database());
+        return $index->mutate(fn() => $this->deleteRaw($typeHandle, $idOrSlug), ['storage/app/content/' . basename($this->path($typeHandle))]);
+    }
+
+    private function deleteRaw(string $typeHandle, string $idOrSlug): bool
+    {
         if ($this->useDatabase()) {
             return $this->deleteFromDatabase($typeHandle, $idOrSlug);
         }
 
-        $items = $this->list($typeHandle, ['status' => 'all']);
-        $before = count($items);
-        $deletedId = null;
-        $items = array_values(array_filter($items, static function (array $entry) use ($idOrSlug, &$deletedId): bool {
-            $match = ($entry['id'] ?? null) === $idOrSlug || ($entry['slug'] ?? null) === $idOrSlug;
-            if ($match) {
-                $deletedId = (string) ($entry['id'] ?? $idOrSlug);
-            }
-            return !$match;
-        }));
-
+        $entry=$this->find($typeHandle,$idOrSlug);if($entry===null)return false;
+        $deletedId=$entry['id'];
+        $items=$this->list($typeHandle,['status'=>'all']);$before=count($items);
+        $items=array_values(array_filter($items,static fn($e)=>$e['id']!==$deletedId));
         if (count($items) === $before) {
             return false;
         }
@@ -259,6 +316,12 @@ final class ContentEntryRepository
     /** Restore historical snapshots only on newly imported entries. Keep the current revision last. */
     public function importHistory(string $typeHandle, string $id, array $history): void
     {
+        $index = new \CajeerEngine\Public\RouteIndex($this->rootPath, $this->database());
+        $index->mutate(fn() => $this->importHistoryRaw($typeHandle, $id, $history), ['storage/app/content/' . basename($this->path($typeHandle))]);
+    }
+
+    private function importHistoryRaw(string $typeHandle, string $id, array $history): void
+    {
         $entry=$this->find($typeHandle,$id);
         if ($entry===null || (int)$entry['revision']!==1) throw new \RuntimeException('History can only be installed on a new entry');
         if (count($history)>10000) throw new \InvalidArgumentException('Too many historical revisions');
@@ -285,6 +348,12 @@ final class ContentEntryRepository
     }
 
     public function restoreRevision(string $typeHandle, string $idOrSlug, int $revision): ?array
+    {
+        $index = new \CajeerEngine\Public\RouteIndex($this->rootPath, $this->database());
+        return $index->mutate(fn() => $this->restoreRevisionRaw($typeHandle, $idOrSlug, $revision), ['storage/app/content/' . basename($this->path($typeHandle))]);
+    }
+
+    private function restoreRevisionRaw(string $typeHandle, string $idOrSlug, int $revision): ?array
     {
         $entry = $this->find($typeHandle, $idOrSlug);
         if ($entry === null) {
@@ -335,6 +404,12 @@ final class ContentEntryRepository
 
     /** @param array<string, mixed> $payload @return array<string, mixed>|null */
     public function createLocalization(string $typeHandle, string $idOrSlug, array $payload): ?array
+    {
+        $index = new \CajeerEngine\Public\RouteIndex($this->rootPath, $this->database());
+        return $index->mutate(fn() => $this->createLocalizationRaw($typeHandle, $idOrSlug, $payload), ['storage/app/content/' . basename($this->path($typeHandle))]);
+    }
+
+    private function createLocalizationRaw(string $typeHandle, string $idOrSlug, array $payload): ?array
     {
         $entry = $this->find($typeHandle, $idOrSlug);
         if ($entry === null) {
@@ -557,12 +632,12 @@ final class ContentEntryRepository
     /** @return array<string, mixed>|null */
     private function findInDatabase(string $typeHandle, string $idOrSlug): ?array
     {
-        $type = $this->contentType($typeHandle);
-        $idExpr = $this->database()->driver() === 'pgsql' ? 'CAST(e.id AS TEXT)' : 'CAST(e.id AS CHAR)';
-        $stmt = $this->pdo()->prepare('SELECT e.*, ct.handle AS type_handle FROM ce_content_entries e JOIN ce_content_types ct ON ct.id = e.content_type_id WHERE ct.handle = :handle AND e.deleted_at IS NULL AND (' . $idExpr . ' = :id OR e.slug = :slug) LIMIT 1');
-        $stmt->execute(['handle' => $type['handle'], 'id' => $idOrSlug, 'slug' => $idOrSlug]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return is_array($row) ? $this->mapEntryRow($row, $type) : null;
+        $type=$this->contentType($typeHandle);
+        $exact=$this->findById($typeHandle,$idOrSlug);if($exact!==null)return $exact;
+        $stmt=$this->pdo()->prepare('SELECT e.*, ct.handle AS type_handle FROM ce_content_entries e JOIN ce_content_types ct ON ct.id=e.content_type_id WHERE ct.handle=:handle AND e.deleted_at IS NULL AND e.slug=:slug LIMIT 2');
+        $stmt->execute(['handle'=>$type['handle'],'slug'=>$idOrSlug]);$rows=$stmt->fetchAll(PDO::FETCH_ASSOC);
+        if(count($rows)>1)throw new \DomainException('Ambiguous slug; use the entry UUID');
+        return isset($rows[0])?$this->mapEntryRow($rows[0],$type):null;
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */

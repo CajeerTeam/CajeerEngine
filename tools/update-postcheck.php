@@ -17,6 +17,7 @@ try {
     $status=$runner->status($db->migrationDriver());
     if ($status['pending']!==[]||$status['failed']!==[]||array_filter($status['applied'],static fn($r)=>!($r['checksum_ok']??false))) throw new RuntimeException('Migration verification failed');
     $health=$db->health(); if (!($health['ok']??false)||!($health['schema_ready']??false)) throw new RuntimeException('DB schema not ready');
+    (new CajeerEngine\Public\RouteIndex($root,$db))->rebuild();
     if (!(new AdminAssetPublisher($root))->manifest()['ready']) throw new RuntimeException('Admin assets invalid');
     $doctor=(new ServerDoctorService($root))->run(false); if (!($doctor['ok']??false)) throw new RuntimeException('Doctor failed');
     $app=CajeerEngine\Kernel\Application::boot($root);

@@ -130,6 +130,23 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "get_CmsRoutes": {
+        "method": "GET",
+        "path": "/cms/routes",
+        "parameters": [
+            {
+                "name": "limit",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "offset",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
     "get_CmsTheme": {
         "method": "GET",
         "path": "/cms/theme",

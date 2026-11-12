@@ -219,6 +219,8 @@ final class DatabaseManager
             'ce_outbox',
             'ce_webhook_deliveries',
             'ce_failed_jobs',
+            'ce_public_route_state',
+            'ce_public_routes',
         ];
 
         $result = [];

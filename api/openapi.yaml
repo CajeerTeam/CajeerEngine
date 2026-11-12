@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.1.6",
+    "version": "1.1.7",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -12555,6 +12555,158 @@
         }
       }
     },
+    "/cms/routes": {
+      "get": {
+        "tags": [
+          "CMS"
+        ],
+        "operationId": "get_CmsRoutes",
+        "summary": "Indexed public routes and historical aliases",
+        "x-cajeer-route": "api.v1.cms.routes",
+        "x-cajeer-required-scopes": [
+          "content:read"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "description": "Требуется авторизация. Права: content:read.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "page",
+                              "alias"
+                            ]
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "path",
+                          "id",
+                          "type"
+                        ],
+                        "additionalProperties": true
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Требуется авторизация",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Недостаточно прав или CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Сервис недоступен / maintenance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
+      }
+    },
     "/cms/bootstrap": {
       "post": {
         "tags": [
@@ -13625,7 +13777,14 @@
                     "type": "string"
                   },
                   "status_code": {
-                    "type": "integer"
+                    "type": "integer",
+                    "enum": [
+                      301,
+                      302,
+                      307,
+                      308,
+                      410
+                    ]
                   },
                   "enabled": {
                     "type": "boolean"
@@ -13633,8 +13792,7 @@
                 },
                 "additionalProperties": true,
                 "required": [
-                  "source_path",
-                  "target_url"
+                  "source_path"
                 ]
               }
             }
@@ -13805,7 +13963,14 @@
                     "type": "string"
                   },
                   "status_code": {
-                    "type": "integer"
+                    "type": "integer",
+                    "enum": [
+                      301,
+                      302,
+                      307,
+                      308,
+                      410
+                    ]
                   },
                   "enabled": {
                     "type": "boolean"
@@ -18453,6 +18618,29 @@
             "additionalProperties": true
           },
           "favicon_url": {
+            "type": "string"
+          },
+          "home_slug": {
+            "type": "string"
+          },
+          "locale_strategy": {
+            "type": "string",
+            "enum": [
+              "none",
+              "prefix"
+            ]
+          },
+          "enabled_locales": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64
+          },
+          "error_404_path": {
+            "type": "string"
+          },
+          "error_410_path": {
             "type": "string"
           }
         },

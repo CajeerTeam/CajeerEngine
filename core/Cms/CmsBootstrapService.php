@@ -32,7 +32,7 @@ final class CmsBootstrapService
             $created[] = 'content_type:pages';
         }
 
-        if ($withDemoHome && $entries->find('pages', 'home') === null) {
+        if ($withDemoHome && !array_filter($entries->list('pages',['locale'=>'ru']),static fn($e)=>$e['slug']==='home')) {
             $entries->create('pages', [
                 'title' => 'Главная страница',
                 'slug' => 'home',

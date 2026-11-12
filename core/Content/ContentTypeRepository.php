@@ -64,6 +64,11 @@ final class ContentTypeRepository
     /** @param array<string, mixed> $payload @return array<string, mixed> */
     public function create(array $payload): array
     {
+        return (new \CajeerEngine\Public\RouteIndex($this->rootPath,$this->database()))->mutate(fn() => $this->createRaw($payload), ['storage/app/content-types.json']);
+    }
+
+    private function createRaw(array $payload): array
+    {
         $payload = ContentTypeValidator::normalize($payload);
 
         if ($this->find((string) $payload['handle']) !== null) {
@@ -98,6 +103,13 @@ final class ContentTypeRepository
     /** @param array<string, mixed> $payload @return array<string, mixed> */
     public function update(string $handle, array $payload): array
     {
+        return (new \CajeerEngine\Public\RouteIndex($this->rootPath,$this->database()))->mutate(fn() => $this->updateRaw($handle, $payload), ['storage/app/content-types.json']);
+    }
+
+    private function updateRaw(string $handle, array $payload): array
+    {
+        $current=$this->find($handle);
+        if ($current!==null && isset($payload['handle']) && $payload['handle']!==$current['handle']) throw new \InvalidArgumentException('Content type handle is immutable');
         if ($this->useDatabase()) {
             return $this->updateInDatabase($handle, $payload);
         }
@@ -126,6 +138,13 @@ final class ContentTypeRepository
 
     public function delete(string $handle): bool
     {
+        return (new \CajeerEngine\Public\RouteIndex($this->rootPath,$this->database()))->mutate(fn() => $this->deleteRaw($handle), ['storage/app/content-types.json']);
+    }
+
+    private function deleteRaw(string $handle): bool
+    {
+        $type=$this->find($handle);
+        if($type!==null && (new ContentEntryRepository($this->rootPath,$this->database()))->list($type['handle'])!==[])throw new \DomainException('Delete the entries before deleting their content type');
         if ($this->useDatabase()) {
             return $this->deleteFromDatabase($handle);
         }

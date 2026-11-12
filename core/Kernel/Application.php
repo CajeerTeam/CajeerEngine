@@ -143,7 +143,7 @@ final class Application
     public function handle(Request $request): Response
     {
         $response = $this->pipeline->handle($request, fn (Request $request): Response => $this->router->dispatch($request));
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.1.6'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.1.7'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -234,6 +234,7 @@ final class Application
             $c->get(MediaRepository::class),
             $c->get(ThemeConfigRepository::class),
             $c->get(NavigationRepository::class),
+            new \CajeerEngine\Public\RouteIndex($rootPath,$c->get(DatabaseManager::class)),
         ));
 
         $container->set(ManagedQueueDriverInterface::class, fn (ServiceContainer $c): ManagedQueueDriverInterface => (new QueueFactory($rootPath, $c->get(ConfigRepository::class), $c->get(DatabaseManager::class)))->make());
@@ -343,6 +344,7 @@ final class Application
             $c->get(RedirectRepository::class),
             $c->get(PreviewTokenService::class),
             $c->get(CmsBootstrapService::class),
+            new \CajeerEngine\Public\RouteIndex($rootPath,$c->get(DatabaseManager::class)),
         ));
     }
 

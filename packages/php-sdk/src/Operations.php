@@ -192,6 +192,27 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'get_CmsRoutes' => 
+  array (
+    'method' => 'GET',
+    'path' => '/cms/routes',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'limit',
+        'in' => 'query',
+        'required' => false,
+      ),
+      1 => 
+      array (
+        'name' => 'offset',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'get_CmsTheme' => 
   array (
     'method' => 'GET',

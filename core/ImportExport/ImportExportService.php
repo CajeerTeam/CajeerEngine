@@ -84,7 +84,7 @@ final class ImportExportService
                 $filename=$filename?:'cajeerengine-export-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(4)).'.zip';
                 $this->filename($filename); $path=$this->directory('exports').'/'.$filename;
                 if(file_exists($path)||is_link($path))throw new \InvalidArgumentException('Export already exists');
-                $manifest=$package->write($path,$data,$this->config->string('app.version','1.1.6'),str_ends_with($filename,'.json'));
+                $manifest=$package->write($path,$data,$this->config->string('app.version','1.1.7'),str_ends_with($filename,'.json'));
                 return ['ok'=>true,'path'=>$path,'file'=>$filename,'sha256'=>F::hash($path),'manifest'=>$manifest];
             } finally { $package->close(); }
         });
@@ -171,7 +171,7 @@ final class ImportExportService
             $result['backup_id']=$snapshot['id'];
             DatabaseBackup::useProcessLock($snapshot['target'].'/'.$lease);
             try {
-                $work=function()use($plan,$package,&$result){$mask=umask(0002);try{$this->applyPlan($plan,$package);$result['imported']=$plan['options']['sections'];}finally{umask($mask);}};
+                $work=function()use($plan,$package,&$result){$mask=umask(0002);try{(new \CajeerEngine\Public\RouteIndex($this->rootPath,$this->db))->mutate(fn()=>$this->applyPlan($plan,$package),[],true);$result['imported']=$plan['options']['sections'];}finally{umask($mask);}};
                 if($this->databaseMode($plan['options']['sections']))$this->db->transaction($work);else $work();
                 $this->db->disconnect();
                 $this->report($result+['state'=>'completed']); F::remove($marker);
@@ -316,7 +316,10 @@ final class ImportExportService
         $redirects=[];foreach($this->redirects->all() as $r)$redirects[$r['source_path']]=$r;$p['state']['redirects']=$redirects;$seen=[];
         foreach($this->rows($cms['redirects']??[],'redirects') as $r){
             $source=$r['source_path']??'';$target=$this->rewrite($r['target_url']??'',$p['mapping']);
-            if(!is_string($source)||!str_starts_with($source,'/')||$source==='/'||preg_match('~[\x00-\x20?#\\\\]|//|/$|^/(?:admin|api|install|upgrade|preview)(?:/|$)~i',$source)||isset($seen[$source])||!is_string($target)||SafeHtml::url($target)===''||$source===$target||!in_array($r['status_code']??301,[301,302,307,308],true))throw new \InvalidArgumentException('Invalid redirect');$seen[$source]=true;
+            if(!is_string($source)||!is_string($target)||!str_starts_with($source,'/'))throw new \InvalidArgumentException('Invalid redirect');
+            $source=\CajeerEngine\Public\PublicPath::content($source);$status=$r['status_code']??301;
+            if($source==='/'||strlen($source)>700||isset($seen[$source])||!in_array($status,[301,302,307,308,410],true))throw new \InvalidArgumentException('Invalid redirect');
+            if($status===410)$target='';else {\CajeerEngine\Public\PublicPath::target($target);if($source===$target)throw new \InvalidArgumentException('Redirect cycle');}$seen[$source]=true;
             $incoming=['source_path'=>$source,'target_url'=>$target,'status_code'=>$r['status_code']??301,'enabled'=>filter_var($r['enabled']??true,FILTER_VALIDATE_BOOLEAN)];$existing=$redirects[$source]??null;$action=$this->decision($existing,$incoming,$strategy);$this->action($p,'redirects',$source,$action);if(in_array($action,['create','update'],true))$p['actions']['redirects'][$source]=['data'=>$incoming,'id'=>$existing['id']??$this->stableId('redirect:'.$source)];
         }
     }

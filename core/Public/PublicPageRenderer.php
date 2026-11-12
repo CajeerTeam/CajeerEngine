@@ -22,135 +22,82 @@ final readonly class PublicPageRenderer
         private MediaRepository $media,
         private ?ThemeConfigRepository $theme = null,
         private ?NavigationRepository $navigation = null,
+        private ?RouteIndex $routes = null,
     ) {
     }
 
-    /** @return array{type:array<string,mixed>,entry:array<string,mixed>,html:string,path:string,seo:array<string,mixed>}|null */
+    public function routeIndex(): RouteIndex { return $this->routes ?? new RouteIndex($this->rootPath); }
+
+    public function baseUrl(): string
+    {
+        return PublicPath::base((new \CajeerEngine\Runtime\ConfigRepository($this->rootPath))->string('app.url'));
+    }
+
     public function renderByTypeAndId(string $typeHandle, string $idOrSlug, bool $preview = false): ?array
     {
-        $type = $this->types->find($typeHandle);
-        if ($type === null) {
-            return null;
-        }
-
-        $entry = $this->entries->find($typeHandle, $idOrSlug);
-        if ($entry === null) {
-            return null;
-        }
-
-        if (!$preview && ($entry['status'] ?? null) !== 'published') {
-            return null;
-        }
-
-        return $this->renderEntry($type, $entry, $preview);
+        $type=$this->types->find($typeHandle); if($type===null)return null;
+        $entry=$this->entries->find($typeHandle,$idOrSlug); if($entry===null)return null;
+        $index=$this->routeIndex();$route=$index->forEntry($entry['id']);
+        if(!$preview&&($route===null||$entry['status']!=='published'))return null;
+        if(!$preview)return $this->renderByPath($route['path']);
+        $path=$index->previewPath($entry['id'])??'/';
+        return $this->renderEntry($type,$entry,true,$path);
     }
 
-    /** @return array{type:array<string,mixed>,entry:array<string,mixed>,html:string,path:string,seo:array<string,mixed>}|null */
-    public function renderBySlug(string $slug, bool $preview = false): ?array
+    public function renderPreviewId(string $typeHandle,string $id): ?array
     {
-        return $this->renderByPath($slug, $preview);
+        $entry=$this->entries->findById($typeHandle,$id);$type=$this->types->find($typeHandle);
+        if($entry===null||$type===null)return null;
+        return $this->renderEntry($type,$entry,true,$this->routeIndex()->previewPath($id)??'/');
     }
 
-    /** @return array{type:array<string,mixed>,entry:array<string,mixed>,html:string,path:string,seo:array<string,mixed>}|null */
+    public function renderBySlug(string $slug, bool $preview = false): ?array { return $this->renderByPath($slug,$preview); }
+
     public function renderByPath(string $path, bool $preview = false): ?array
     {
-        $path = $this->normalizePath($path);
-        $slugCandidate = trim($path, '/');
-
-        foreach ($this->types->all() as $type) {
-            $handle = (string) ($type['handle'] ?? '');
-            if ($handle === '') {
-                continue;
-            }
-
-            $direct = $slugCandidate !== '' ? $this->entries->find($handle, $slugCandidate) : null;
-            if ($direct !== null && ($preview || ($direct['status'] ?? null) === 'published') && $this->normalizePath($this->entryPath($direct)) === $path) {
-                return $this->renderEntry($type, $direct, $preview);
-            }
-
-            $entries = $this->entries->list($handle, ['status' => $preview ? 'all' : 'published', 'published_only' => !$preview]);
-            foreach ($entries as $entry) {
-                if (!$preview && ($entry['status'] ?? null) !== 'published') {
-                    continue;
-                }
-                if ($this->normalizePath($this->entryPath($entry)) === $path) {
-                    return $this->renderEntry($type, $entry, $preview);
-                }
-            }
-        }
-
-        return null;
+        // Drafts are only resolved by authenticated ID or preview token, never a public path.
+        $resolved=$this->routeIndex()->publishedEntry($path);if($resolved===null)return null;
+        $route=$resolved['route'];$entry=$resolved['entry'];$type=$this->types->find($route['type']);
+        if($type===null||$entry===null||$entry['status']!=='published')return null;
+        return $this->renderEntry($type,$entry,$preview,$route['path']);
     }
 
-    /** @return array{type:array<string,mixed>,entry:array<string,mixed>,html:string,path:string,seo:array<string,mixed>}|null */
-    public function renderHome(bool $preview = false): ?array
+    public function renderHome(bool $preview = false): ?array { return $this->renderByPath('/',$preview); }
+
+    public function errorPage(int $status): ?array
     {
-        $theme = $this->themeConfig();
-        $homeSlug = trim((string) ($theme['home_slug'] ?? 'home'), '/');
-        foreach (array_values(array_unique([$homeSlug, '', 'home', 'index', 'main'])) as $path) {
-            $page = $this->renderByPath($path === '' ? '/' : $path, $preview);
-            if ($page !== null) {
-                return $page;
-            }
-        }
-
-        foreach ($this->types->all() as $type) {
-            $handle = (string) ($type['handle'] ?? '');
-            if ($handle === '') {
-                continue;
-            }
-            $entries = $this->entries->list($handle, ['published_only' => !$preview, 'status' => $preview ? 'all' : 'published']);
-            foreach ($entries as $entry) {
-                if (!$preview && ($entry['status'] ?? null) !== 'published') {
-                    continue;
-                }
-                return $this->renderEntry($type, $entry, $preview);
-            }
-        }
-
-        return null;
+        $path=$this->themeConfig()['error_'.$status.'_path']??'';
+        return $path!==''?$this->renderByPath($path):null;
     }
 
-    /** @return list<array<string, mixed>> */
+    public function errorStatus(string $path): ?int
+    {
+        $theme=$this->themeConfig();foreach([404,410] as $status)if(($theme['error_'.$status.'_path']??'')===$path)return $status;return null;
+    }
+
     public function sitemap(): array
     {
-        $items = [];
-        foreach ($this->types->all() as $type) {
-            $handle = (string) ($type['handle'] ?? '');
-            if ($handle === '') {
-                continue;
-            }
-            foreach ($this->entries->list($handle, ['published_only' => true]) as $entry) {
-                $data = is_array($entry['data'] ?? null) ? $entry['data'] : [];
-                if (filter_var($data['seo_noindex'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
-                    continue;
-                }
-                $path = $this->entryPath($entry);
-                $items[] = [
-                    'type' => $handle,
-                    'id' => (string) ($entry['id'] ?? ''),
-                    'title' => (string) ($entry['title'] ?? ''),
-                    'slug' => (string) ($entry['slug'] ?? ''),
-                    'path' => $path,
-                    'locale' => (string) ($entry['locale'] ?? 'ru'),
-                    'updated_at' => (string) ($entry['updated_at'] ?? ''),
-                    'priority' => $path === '/' ? '1.0' : '0.7',
-                    'changefreq' => $path === '/' ? 'daily' : 'weekly',
-                ];
-            }
+        $theme=$this->themeConfig();if(!$theme['sitemap_enabled']||!$theme['robots_index'])return [];
+        $items=[];$base=$this->baseUrl();$routes=$this->routeIndex()->all();
+        foreach($routes as $r){
+            if($r['kind']!=='page'||$r['noindex']||in_array($r['path'],[$theme['error_404_path'],$theme['error_410_path']],true))continue;
+            if($this->canonical($r['canonical'],$r['path'],$routes)!==$base.$r['path'])continue;
+            $items[]=array_intersect_key($r,array_flip(['type','id','title','slug','path','locale','updated_at','translation_group']))+['priority'=>$r['path']==='/'?'1.0':'0.7','changefreq'=>$r['path']==='/'?'daily':'weekly'];
         }
-
-        usort($items, static fn (array $a, array $b): int => strcmp((string) ($b['updated_at'] ?? ''), (string) ($a['updated_at'] ?? '')));
-        return $items;
+        usort($items,static fn($a,$b)=>strcmp($a['path'],$b['path']));return $items;
     }
 
-    public function sitemapXml(string $baseUrl): string
+    public function sitemapXml(string $baseUrl, ?int $page=null): string
     {
-        $baseUrl = rtrim($baseUrl, '/');
+        $baseUrl = PublicPath::base($baseUrl);
+        $items=$this->sitemap();$size=500;$pages=(int)ceil(count($items)/$size);
+        if($page!==null&&($page<1||$page>max(1,$pages)))throw new \InvalidArgumentException('Invalid sitemap page');
+        if($page===null&&$pages>1){$xml='<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';for($i=1;$i<=$pages;$i++)$xml.='<sitemap><loc>'.htmlspecialchars($baseUrl.'/sitemap.xml?page='.$i,ENT_XML1|ENT_QUOTES,'UTF-8').'</loc></sitemap>';return $xml.'</sitemapindex>'; }
+        $defaultLocale=$this->themeConfig()['locale'];$groups=[];foreach($items as $item)$groups[$item['translation_group']][$item['locale']]=$item['path'];
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
-        foreach ($this->sitemap() as $item) {
-            $loc = $baseUrl . $this->normalizePath((string) ($item['path'] ?? '/'));
+        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">' . "\n";
+        foreach (array_slice($items,(($page??1)-1)*$size,$size) as $item) {
+            $loc = $baseUrl . PublicPath::normalize((string) ($item['path'] ?? '/'));
             $lastmod = $this->dateOnly((string) ($item['updated_at'] ?? ''));
             $xml .= "  <url>\n";
             $xml .= '    <loc>' . htmlspecialchars($loc, ENT_XML1 | ENT_COMPAT, 'UTF-8') . "</loc>\n";
@@ -159,6 +106,10 @@ final readonly class PublicPageRenderer
             }
             $xml .= '    <changefreq>' . htmlspecialchars((string) ($item['changefreq'] ?? 'weekly'), ENT_XML1 | ENT_COMPAT, 'UTF-8') . "</changefreq>\n";
             $xml .= '    <priority>' . htmlspecialchars((string) ($item['priority'] ?? '0.7'), ENT_XML1 | ENT_COMPAT, 'UTF-8') . "</priority>\n";
+            $alternates=$groups[$item['translation_group']]??[];
+            if(count($alternates)>1){foreach($alternates as $locale=>$alternate)$xml.='    <xhtml:link rel="alternate" hreflang="'.htmlspecialchars($locale,ENT_XML1|ENT_QUOTES,'UTF-8').'" href="'.htmlspecialchars($baseUrl.$alternate,ENT_XML1|ENT_QUOTES,'UTF-8').'" />'."\n";
+                $default=$defaultLocale;if(isset($alternates[$default]))$xml.='    <xhtml:link rel="alternate" hreflang="x-default" href="'.htmlspecialchars($baseUrl.$alternates[$default],ENT_XML1|ENT_QUOTES,'UTF-8').'" />'."\n";
+            }
             $xml .= "  </url>\n";
         }
         return $xml . "</urlset>\n";
@@ -172,14 +123,14 @@ final readonly class PublicPageRenderer
             'User-agent: *',
             $index ? 'Allow: /' : 'Disallow: /',
         ];
-        if (filter_var($theme['sitemap_enabled'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
+        if ($index && filter_var($theme['sitemap_enabled'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
             $lines[] = 'Sitemap: ' . rtrim($baseUrl, '/') . '/sitemap.xml';
         }
         return implode("\n", $lines) . "\n";
     }
 
     /** @param array<string,mixed> $type @param array<string,mixed> $entry @return array{type:array<string,mixed>,entry:array<string,mixed>,html:string,path:string,seo:array<string,mixed>} */
-    private function renderEntry(array $type, array $entry, bool $preview): array
+    private function renderEntry(array $type, array $entry, bool $preview, string $path): array
     {
         $data = is_array($entry['data'] ?? null) ? $entry['data'] : [];
         $template = $this->templateFor($type, $entry);
@@ -190,8 +141,8 @@ final readonly class PublicPageRenderer
         $navigation = $this->navigation();
         foreach ($navigation['primary']['items'] ?? [] as $i => $item) { $navigation['primary']['items'][$i]['url'] = SafeHtml::url((string) ($item['url'] ?? '')) ?: '#'; }
         if (is_array($data['blocks'] ?? null)) foreach ($data['blocks'] as $i => $block) { if (is_array($block)) $data['blocks'][$i]['content_html'] = SafeHtml::sanitize((string) ($block['content'] ?? '')); }
-        $path = $this->entryPath($entry);
         $seo = $this->seo($entry, $theme, $path);
+        if($preview||$this->errorStatus($path)!==null) $seo['robots']='noindex,nofollow';
         $content = (string) ($data['body'] ?? $data['content'] ?? '');
         $title = (string) ($entry['title'] ?? ($data['title'] ?? $data['heading'] ?? ''));
         $context = [
@@ -239,23 +190,24 @@ final readonly class PublicPageRenderer
         return [
             'title' => $title,
             'description' => $description,
-            'canonical_url' => SafeHtml::url((string) ($data['canonical_url'] ?? $path)) ?: $path,
+            'canonical_url' => $this->canonical((string)($data['canonical_url']??''),$path),
             'og_title' => trim((string) ($data['og_title'] ?? $title)),
             'og_description' => trim((string) ($data['og_description'] ?? $description)),
             'og_image' => SafeHtml::url((string) ($data['og_image'] ?? $themeSeo['og_image'] ?? '')),
-            'robots' => filter_var($data['seo_noindex'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 'noindex,nofollow' : 'index,follow',
+            'robots' => (filter_var($data['seo_noindex'] ?? false, FILTER_VALIDATE_BOOLEAN)||!$theme['robots_index']) ? 'noindex,nofollow' : ($theme['robots_follow']?'index,follow':'index,nofollow'),
         ];
     }
 
-    /** @param array<string,mixed> $entry */
-    private function entryPath(array $entry): string
+    private function canonical(string $value,string $path,?array $routes=null): string
     {
-        $data = is_array($entry['data'] ?? null) ? $entry['data'] : [];
-        $path = trim((string) ($data['path'] ?? $data['_path'] ?? ''));
-        if ($path !== '') {
-            return $this->normalizePath($path);
-        }
-        return $this->normalizePath((string) ($entry['slug'] ?? ''));
+        $base=$this->baseUrl();if($value==='')return $base.$path;
+        try {
+            PublicPath::target($value);$p=parse_url($value);
+            if(isset($p['fragment'])||isset($p['query']))return $base.$path;
+            $local=PublicPath::localTarget($value,$base);
+            if($local!==null){if($local===$path)return $base.$path;$row=$routes===null?$this->routeIndex()->lookup($local):($routes[$local]??null);return $base.(($row['kind']??null)==='alias'?$row['target']:(($row['kind']??null)==='page'?$local:$path));}
+            return $value;
+        }catch(\InvalidArgumentException){return $base.$path;}
     }
 
     /** @return array<string,mixed> */
@@ -270,10 +222,13 @@ final readonly class PublicPageRenderer
         $repo = $this->navigation ?? new NavigationRepository($this->rootPath);
         $theme = $this->themeConfig();
         $handle = (string) ($theme['primary_menu'] ?? 'primary');
-        return [
-            'primary' => $repo->find($handle) ?? $repo->primary(),
-            'menus' => $repo->all(),
-        ];
+        $menus=$repo->all();$primary=$repo->find($handle)??$repo->primary();$ids=[];
+        $collect=function(array $items)use(&$collect,&$ids){foreach($items as $item){if(!empty($item['entry_id']))$ids[]=$item['entry_id'];$collect($item['children']??[]);}};
+        foreach(array_merge($menus,[$primary]) as $menu)$collect($menu['items']??[]);
+        $paths=$this->routeIndex()->pathsForEntries($ids);
+        $resolve=function(array $items)use(&$resolve,$paths){$out=[];foreach($items as $item){$id=$item['entry_id']??null;if($id){if(!isset($paths[$id]))continue;$item['url']=$paths[$id];}$item['children']=$resolve($item['children']??[]);$out[]=$item;}return $out;};
+        foreach($menus as &$menu)$menu['items']=$resolve($menu['items']??[]);unset($menu);$primary['items']=$resolve($primary['items']??[]);
+        return ['primary'=>$primary,'menus'=>$menus];
     }
 
     /** @param array<string,mixed> $type @param array<string,mixed> $entry */
@@ -312,13 +267,6 @@ final readonly class PublicPageRenderer
             return $engine->render($root.'/page.cjr',$context);
         }
         return null;
-    }
-
-    private function normalizePath(string $path): string
-    {
-        $path = '/' . trim($path, " \t\n\r\0\x0B/");
-        $path = preg_replace('#/+#', '/', $path) ?: $path;
-        return $path === '/' ? '/' : rtrim($path, '/');
     }
 
     private function dateOnly(string $date): string

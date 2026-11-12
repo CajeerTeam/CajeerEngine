@@ -31,6 +31,9 @@ final class PreviewTokenService
         if ($type === '' || $entryId === '') {
             throw new \InvalidArgumentException('type и entry_id обязательны для preview token.');
         }
+        $entry=(new \CajeerEngine\Content\ContentEntryRepository($this->rootPath,$this->database))->find($type,$entryId);
+        if($entry===null)throw new \InvalidArgumentException('Preview entry not found');
+        $entryId=$entry['id'];
         $ttlSeconds = max(60, min($ttlSeconds, 86400));
         $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
         $hash = hash('sha256', $token);

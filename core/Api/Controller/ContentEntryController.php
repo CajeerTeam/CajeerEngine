@@ -29,6 +29,8 @@ final readonly class ContentEntryController
             'published_only' => filter_var($request->query->get('published_only', false), FILTER_VALIDATE_BOOLEAN),
         ]);
 
+        $paths=(new \CajeerEngine\Public\RouteIndex($this->rootPath))->pathsForEntries(array_column($items,'id'));
+        foreach($items as &$item)$item['public_path']=$paths[$item['id']]??null;unset($item);
         return new JsonResponse([
             'data' => $items,
             'meta' => [
