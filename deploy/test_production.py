@@ -22,6 +22,70 @@ import production as p
 SITE={'domain':'deploy.example.invalid','db_host':'127.0.0.1','db_port':5432,'db_name':'cms','db_user':'cms','db_sslmode':'disable','admin_email':'admin@example.invalid'}
 
 class Safety(unittest.TestCase):
+    @unittest.skipUnless(os.geteuid()==0 and Path(p.FPM_BIN).is_file(),'requires root and PHP-FPM 8.4')
+    def test_fpm_journal_socket_startup(self):
+        # systemd connects stderr to an AF_UNIX stream socket. Unlike a pipe,
+        # /proc/self/fd/2 cannot be opened by FPM as a writable log file.
+        import pwd,grp,struct
+        uid=pwd.getpwnam('nobody').pw_uid
+        gid=grp.getgrnam('nogroup').gr_gid
+        with tempfile.TemporaryDirectory(prefix='ce-fpm-') as d:
+            d=Path(d); d.chmod(0o755)
+            runtime=d/'run'; runtime.mkdir(mode=0o750); os.chown(runtime,uid,gid)
+            endpoint=runtime/'php.sock'
+            script=d/'index.php'; script.write_text('<?php echo "fpm-ready";')
+            script.chmod(0o644)
+            with patch.object(p,'USER','nobody'),patch.object(p,'GROUP','nogroup'):
+                config,units,_=p.service_config(SITE)
+            self.assertIn('error_log = syslog',config)
+            self.assertIn('StandardError=journal',units[p.FPM])
+            conf=d/'fpm.conf'
+            conf.write_text(config.replace('/run/cajeerengine/php.sock',str(endpoint)))
+            conf.chmod(0o644)
+            parent,child=socket.socketpair()
+            process=None
+            try:
+                process=subprocess.Popen([p.FPM_BIN,'--nodaemonize','--fpm-config',str(conf)],
+                    stdout=subprocess.DEVNULL,stderr=child,user=uid,group=gid,extra_groups=[])
+                child.close()
+                with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as client:
+                    client.settimeout(3)
+                    for _ in range(50):
+                        if process.poll() is not None:
+                            parent.settimeout(.2)
+                            self.fail('PHP-FPM exited during startup: '+parent.recv(4096).decode(errors='replace'))
+                        try:
+                            client.connect(str(endpoint)); break
+                        except (FileNotFoundError,ConnectionRefusedError):
+                            time.sleep(.1)
+                    else: self.fail('PHP-FPM did not create its socket')
+                    self.assertEqual(stat.S_IMODE(endpoint.stat().st_mode),0o660)
+                    # Real FastCGI request, not just a socket/config test.
+                    def record(kind,body):
+                        return struct.pack('!BBHHBB',1,kind,1,len(body),0,0)+body
+                    params={'SCRIPT_FILENAME':str(script),'SCRIPT_NAME':'/index.php',
+                            'REQUEST_METHOD':'GET','REQUEST_URI':'/index.php',
+                            'SERVER_PROTOCOL':'HTTP/1.1','REDIRECT_STATUS':'200'}
+                    payload=b''.join(bytes((len(k),len(v)))+k.encode()+v.encode() for k,v in params.items())
+                    client.sendall(record(1,struct.pack('!HB5x',1,0))+record(4,payload)+record(4,b'')+record(5,b''))
+                    with client.makefile('rb') as response:
+                        stdout=b''
+                        while True:
+                            header=response.read(8)
+                            self.assertEqual(len(header),8)
+                            version,kind,request,length,padding,_=struct.unpack('!BBHHBB',header)
+                            body=response.read(length); response.read(padding)
+                            if kind==6: stdout+=body
+                            if kind==3: break
+                        self.assertIn(b'fpm-ready',stdout)
+            finally:
+                child.close(); parent.close()
+                if process is not None and process.poll() is None:
+                    process.terminate()
+                    try: process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill(); process.wait(timeout=5)
+
     @unittest.skipUnless(shutil.which('php'),'PHP CLI unavailable')
     def test_install_client_selection_and_safe_diagnostics(self):
         installer=str(Path(p.__file__).with_name('install.php'))

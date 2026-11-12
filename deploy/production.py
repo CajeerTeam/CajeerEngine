@@ -145,7 +145,9 @@ ProtectHome=true
 ReadWritePaths={' '.join(str(APP/p) for p in MUTABLE)}
 '''
     fpm=f'''[global]
-error_log = /proc/self/fd/2
+error_log = syslog
+syslog.ident = cajeerengine-php
+syslog.facility = daemon
 daemonize = no
 [app]
 user = {USER}
@@ -163,6 +165,7 @@ security.limit_extensions = .php
 request_terminate_timeout = 120s
 php_admin_flag[display_errors] = off
 php_admin_flag[log_errors] = on
+php_admin_value[error_log] = syslog
 php_admin_value[upload_max_filesize] = 64M
 php_admin_value[post_max_size] = 65M
 php_admin_value[memory_limit] = 256M
@@ -173,6 +176,8 @@ After=network.target
 [Service]
 {common}RuntimeDirectory=cajeerengine
 RuntimeDirectoryMode=0750
+StandardOutput=journal
+StandardError=journal
 ExecCondition=/usr/bin/test -f {FPM_ALLOWED}
 ExecStart={FPM_BIN} --nodaemonize --fpm-config {ETC}/fpm.conf
 Restart=on-failure
@@ -372,7 +377,19 @@ def health(version):
                 if h.get('version')==version and h.get('status')=='ok': return
         except (ValueError,subprocess.SubprocessError): pass
         time.sleep(1)
-    raise RuntimeError('Nginx/PHP-FPM readiness failed')
+    # Collect safe service/socket metadata before the failure handler stops FPM.
+    # Never dump request bodies, environment values or application logs.
+    try:
+        run('systemctl','show',FPM,'--property=ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,MainPID,NRestarts,ConditionResult')
+    except subprocess.SubprocessError:
+        pass
+    for path in (Path('/run/cajeerengine'),Path('/run/cajeerengine/php.sock')):
+        try:
+            st=path.lstat()
+            print(f'FPM path {path}: uid={st.st_uid} gid={st.st_gid} mode={stat.S_IMODE(st.st_mode):04o} socket={stat.S_ISSOCK(st.st_mode)}',file=sys.stderr)
+        except OSError as e:
+            print(f'FPM path {path}: errno={e.errno}',file=sys.stderr)
+    raise RuntimeError('Nginx/PHP-FPM readiness failed; inspect journalctl -u '+FPM+' and Nginx error log')
 
 
 def verify_installed(version,sha256):
