@@ -143,7 +143,7 @@ final class Application
     public function handle(Request $request): Response
     {
         $response = $this->pipeline->handle($request, fn (Request $request): Response => $this->router->dispatch($request));
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.1.3'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.1.4'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -317,7 +317,7 @@ final class Application
         $container->set('controller.import_export', fn (ServiceContainer $c): ImportExportController => new ImportExportController($c->get(ImportExportService::class)));
         $container->set('controller.updates', fn (ServiceContainer $c): UpdateController => new UpdateController($c->get(ConfigRepository::class)));
         $container->set('controller.rc', fn (ServiceContainer $c): ReleaseCandidateController => new ReleaseCandidateController($c->get(ReleaseCandidateAuditor::class)));
-        $container->set('controller.stable', fn (ServiceContainer $c): StableController => new StableController($c->get(StableReleaseService::class)));
+        $container->set('controller.stable', fn (ServiceContainer $c): StableController => new StableController($c->get(StableReleaseService::class), $c->get(ConfigRepository::class)));
         $container->set('controller.queue', fn (ServiceContainer $c): QueueController => new QueueController($c->get(ManagedQueueDriverInterface::class), $c->get(QueueWorker::class)));
         $container->set('controller.scheduler', fn (ServiceContainer $c): SchedulerController => new SchedulerController($c->get(SchedulerRunner::class)));
         $container->set('controller.media', fn (ServiceContainer $c): MediaController => new MediaController($c->get(MediaRepository::class)));
@@ -433,6 +433,7 @@ final class Application
             'storage/app/exports',
             'storage/app/imports',
             'storage/app/updates',
+            'storage/app/update-requests',
             'storage/app/support',
             'storage/app/backups',
             'storage/app/stable',

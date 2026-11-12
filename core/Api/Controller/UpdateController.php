@@ -20,7 +20,7 @@ final readonly class UpdateController
     public function diagnostics(Request $request, array $parameters): JsonResponse
     {
         $resolver = new UpdateResolver($this->config->get('updates', []), $this->config->rootPath());
-        return new JsonResponse(['data' => $resolver->diagnostics($this->config->string('app.version', '1.1.3'))]);
+        return new JsonResponse(['data' => $resolver->diagnostics($this->config->string('app.version', '1.1.4')) + ['wizard'=>$this->manager()->wizardState(),'staged'=>$this->manager()->staged(),'requests'=>$this->manager()->pending()]]);
     }
 
     /** @param array<string, mixed> $parameters */
@@ -45,14 +45,13 @@ final readonly class UpdateController
     /** @param array<string, mixed> $parameters */
     public function apply(Request $request, array $parameters): JsonResponse
     {
-        return new JsonResponse(['error' => ['code' => 'update_suspended', 'message' => 'Apply/rollback отключены до production updater 1.1.4.']], 503);
+        return $this->requestOperation($request, 'apply');
     }
 
     /** @param array<string, mixed> $parameters */
     public function rollback(Request $request, array $parameters): JsonResponse
     {
-        $payload = $this->json($request);
-        return new JsonResponse(['error' => ['code' => 'update_suspended', 'message' => 'Apply/rollback отключены до production updater 1.1.4.']], 503);
+        return $this->requestOperation($request, 'rollback');
     }
 
     /** @param array<string, mixed> $parameters */
@@ -71,7 +70,15 @@ final readonly class UpdateController
     /** @param array<string, mixed> $parameters */
     public function maintenanceOff(Request $request, array $parameters): JsonResponse
     {
-        return new JsonResponse(['data' => $this->manager()->disableMaintenance()]);
+        try { return new JsonResponse(['data' => $this->manager()->disableMaintenance()]); } catch (\RuntimeException $e) { return new JsonResponse(['error'=>['code'=>'recovery_required','message'=>$e->getMessage()]],409); }
+    }
+
+    private function requestOperation(Request $request, string $action): JsonResponse
+    {
+        if (!$this->config->bool('updates.web_upgrade.enabled')) return new JsonResponse(['error'=>['code'=>'web_upgrade_disabled','message'=>'Enable UPDATE_WEB_UPGRADE_ENABLED or use CLI.']],403);
+        $identity=$request->attributes->get('auth');
+        try { $result=$this->manager()->request($action,$this->json($request),(string)($identity['user_id']??'api-token')); return new JsonResponse(['data'=>$result],202); }
+        catch (\RuntimeException $e) { return new JsonResponse(['error'=>['code'=>'update_request_rejected','message'=>$e->getMessage()]],422); }
     }
 
     private function manager(): UpdateManager

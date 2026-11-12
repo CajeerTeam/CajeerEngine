@@ -56,11 +56,12 @@ try {
  reject(fn()=> $import->import($export['path'],['delete_missing_content'=>true]),'destructive import blocked');
  reject(fn()=> $import->import($export['path'],['create_missing_users'=>true]),'privileged provisioning blocked');
  $payload=json_decode(file_get_contents($export['path']),true);$payload['data']['settings']=['injected'=>true];file_put_contents($export['path'],json_encode($payload));reject(fn()=> $import->diff($export['path']),'tampered export rejected');
- $manager=new UpdateManager($work,$config);reject(fn()=> $manager->apply(['package'=>'/tmp/no.zip','force'=>true]),'production apply blocked even with force');reject(fn()=> $manager->rollback(),'production rollback blocked');
+ $manager=new UpdateManager($work,$config);reject(fn()=> $manager->apply(['package'=>'/tmp/no.zip','force'=>true]),'unsigned update blocked even with force');reject(fn()=> $manager->rollback(),'unconfirmed rollback blocked');
  $release=(new ReleaseBuilder($root))->build(false,'source',$work.'/release');
- ok($manager->verifyPackage($release['target'],$release['sha256'])['ok'],'real release checksum verifies');ok(!$manager->verifyPackage($release['target'])['ok'],'missing external checksum rejected');ok(!$manager->verifyPackage($release['target'],str_repeat('0',64))['ok'],'wrong external checksum rejected');
+ ok(!$manager->verifyPackage($release['target'],$release['sha256'])['ok'],'unsigned real release rejected');\CajeerEngine\Update\ReleaseSignature::generate($work.'-sign.key',$work.'-sign.pub');putenv('UPDATE_TRUSTED_PUBLIC_KEY_FILE='.$work.'-sign.pub');\CajeerEngine\Update\ReleaseSignature::sign($release['target'],$work.'-sign.key');ok($manager->verifyPackage($release['target'],$release['sha256'])['ok'],'signed real release verifies');ok(!$manager->verifyPackage($release['target'],str_repeat('0',64))['ok'],'wrong external checksum rejected');
  $nginx=(new NginxConfigGenerator($work))->generate()['config'];ok(str_contains($nginx,'location ~* \\.(?:php')&&!str_contains($nginx,'location ~ \\.php$'),'Nginx denies arbitrary PHP execution');
  reject(fn()=> (new NginxConfigGenerator($work))->generate(['root'=>"/tmp/x;\ninclude /etc/passwd;"]),'Nginx config injection rejected');
 }finally{
+ foreach([$work.'-sign.key',$work.'-sign.pub'] as $key)if(is_file($key))unlink($key);
  foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($work,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST) as $item){if($item->isDir()&&!$item->isLink())rmdir($item->getPathname());else unlink($item->getPathname());}rmdir($work);
 }

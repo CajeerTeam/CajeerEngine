@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,14 +17,14 @@
     "docs": "GitFlic Wiki",
     "updates": "GitFlic Releases / Registry",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.1.3-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.1.3-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.1.4-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.1.4-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.1.3-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.1.4-artifacts.json",
     "support_bundle": "storage/app/support",
-    "backup": "storage/app/backups",
+    "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
-    "update_reports": "storage/app/updates/reports"
+    "update_reports": "storage/app/updates/last-update.json"
   },
   "release_policy": {
     "semver": true,
@@ -34,7 +34,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
-    "OpenAPI 119 operations, runtime contract validation, mandatory route permissions, browser HttpOnly sessions and CSRF, safe uploads, outbound SSRF protection, setup token, update/import safety gates."
+    "Production updater with Ed25519 signature verification, staging, operation lease, mandatory authenticated DB/file backup, durable recovery journal and automatic rollback."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -45,7 +45,8 @@
     "1.0.9": "Import/export and updater hardening release: content/media import, dry-run diff, maintenance mode, rollback snapshots and post-update checks.",
     "1.1.0": "Extension Runtime release: PHP providers, services, hooks/events, lifecycle install/uninstall, extension migrations and assets publishing.",
     "1.1.2": "Clean Dist & Release Recovery",
-    "1.1.3": "OpenAPI & Security"
+    "1.1.3": "OpenAPI & Security",
+    "1.1.4": "Production Updater & Backup"
   },
   "stability": "stable"
 }

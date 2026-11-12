@@ -728,7 +728,7 @@ export const operations = {
         "method": "POST",
         "path": "/stable/backup",
         "parameters": [],
-        "bodyRequired": false
+        "bodyRequired": true
     },
     "post_StableReleaseLock": {
         "method": "POST",
@@ -752,7 +752,7 @@ export const operations = {
         "method": "POST",
         "path": "/updates/apply",
         "parameters": [],
-        "bodyRequired": false
+        "bodyRequired": true
     },
     "post_UpdatesCheck": {
         "method": "POST",
@@ -788,7 +788,7 @@ export const operations = {
         "method": "POST",
         "path": "/updates/rollback",
         "parameters": [],
-        "bodyRequired": false
+        "bodyRequired": true
     },
     "post_UsersStore": {
         "method": "POST",

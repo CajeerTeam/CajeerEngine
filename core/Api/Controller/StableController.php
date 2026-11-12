@@ -10,7 +10,7 @@ use Symfony\Component\HttpFoundation\Request;
 
 final readonly class StableController
 {
-    public function __construct(private StableReleaseService $stable)
+    public function __construct(private StableReleaseService $stable, private \CajeerEngine\Runtime\ConfigRepository $config)
     {
     }
 
@@ -36,8 +36,9 @@ final readonly class StableController
     /** @param array<string, mixed> $parameters */
     public function backup(Request $request, array $parameters): JsonResponse
     {
-        $result = $this->stable->backup($this->json($request));
-        return new JsonResponse(['data' => $result], $result['ok'] === true ? 201 : 422);
+        $identity=$request->attributes->get('auth');
+        try { $result=(new \CajeerEngine\Update\UpdateManager($this->config->rootPath(),$this->config))->request('backup',$this->json($request),(string)($identity['user_id']??'api-token')); return new JsonResponse(['data'=>$result],202); }
+        catch (\RuntimeException $e) { return new JsonResponse(['error'=>['code'=>'backup_request_rejected','message'=>$e->getMessage()]],422); }
     }
 
     /** @param array<string, mixed> $parameters */

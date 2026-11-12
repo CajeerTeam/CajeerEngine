@@ -38,7 +38,7 @@ final readonly class StableReleaseService
         $lockValid = $this->lockValid($lock, $version);
 
         $checks = [
-            'version_is_1_1_2' => $version === '1.1.3',
+            'version_is_1_1_2' => $version === '1.1.4',
             'release_channel_stable' => ($release['channel'] ?? null) === 'stable',
             'release_stability_stable' => ($release['stability'] ?? null) === 'stable',
             'engine_api_1_1' => ($release['engine_api_version'] ?? null) === '1.1',
@@ -85,7 +85,7 @@ final readonly class StableReleaseService
     public function smokeTest(): array
     {
         $checks = [];
-        $checks[] = $this->check('version', $this->version() === '1.1.3', 'VERSION содержит 1.1.3.');
+        $checks[] = $this->check('version', $this->version() === '1.1.4', 'VERSION содержит 1.1.4.');
         $checks[] = $this->check('composer_autoload', $this->composerAutoloadReady(), 'Composer PSR-4 указывает на core/.');
         $checks[] = $this->check('openapi', is_file($this->rootPath . '/api/openapi.yaml') && str_contains((string) file_get_contents($this->rootPath . '/api/openapi.yaml'), '/stable'), 'OpenAPI содержит stable endpoints.');
         $checks[] = $this->check('admin_assets', (bool) ((new AdminAssetPublisher($this->rootPath))->manifest(false)['ready'] ?? false), 'Prebuilt Admin assets присутствуют.');
@@ -150,24 +150,7 @@ final readonly class StableReleaseService
     /** @param array<string, mixed> $options @return array<string, mixed> */
     public function backup(array $options = []): array
     {
-        $includeUploads = (bool) ($options['include_uploads'] ?? true);
-        $target = $this->rootPath . '/storage/app/backups/cajeerengine-backup-' . date('Ymd-His') . '.zip';
-        $manifest = ['format' => 'cajeerengine.backup.v1', 'version' => $this->version(), 'created_at' => $this->now(), 'include_uploads' => $includeUploads, 'files' => []];
-        if (!class_exists(\ZipArchive::class)) {
-            return ['ok' => false, 'error' => 'PHP ZipArchive extension не установлен.', 'target' => $target];
-        }
-        if (!is_dir(dirname($target))) { mkdir(dirname($target), 0775, true); }
-        $zip = new \ZipArchive();
-        if ($zip->open($target, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) { throw new \RuntimeException('Не удалось создать backup ZIP: ' . $target); }
-        foreach ($this->backupFiles($includeUploads) as $relative) {
-            $absolute = $this->rootPath . '/' . $relative;
-            if (!is_file($absolute)) { continue; }
-            $zip->addFile($absolute, $relative);
-            $manifest['files'][$relative] = hash_file('sha256', $absolute) ?: '';
-        }
-        $zip->addFromString('backup-manifest.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL);
-        $zip->close();
-        return ['ok' => true, 'target' => $target, 'size' => filesize($target) ?: 0, 'sha256' => hash_file('sha256', $target) ?: '', 'files' => count($manifest['files']), 'created_at' => $manifest['created_at']];
+        return (new \CajeerEngine\Backup\BackupManager($this->rootPath, $this->config))->create();
     }
 
     /** @param array<string, mixed> $options @return array<string, mixed> */
@@ -300,7 +283,7 @@ final readonly class StableReleaseService
 
     private function version(): string
     {
-        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.3';
+        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.4';
     }
 
     private function now(): string

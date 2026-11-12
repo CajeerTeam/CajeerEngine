@@ -96,6 +96,22 @@ use Symfony\Component\Dotenv\Dotenv;
 
 $root = dirname(__DIR__);
 $autoload = $root . '/vendor/autoload.php';
+require_once $root . '/core/Update/OperationFiles.php';
+require_once $root . '/core/Update/OperationLock.php';
+require_once $root . '/core/Console/OperationsCli.php';
+if (CajeerEngine\Console\OperationsCli::handles($argv)) {
+    if (is_file($autoload)) require $autoload;
+    else require_once $root . '/core/Console/NativeCli.php';
+    exit(CajeerEngine\Console\OperationsCli::run($root, $argv));
+}
+try {
+    $activityLease = CajeerEngine\Update\OperationLock::acquire($root, false);
+    if ((CajeerEngine\Update\OperationLock::active($root)||is_file($root.'/storage/app/backup-restore.json')) && !in_array($argv[1]??'', ['list','--version'],true)) throw new RuntimeException('Recovery required; use operational CLI.');
+    if (CajeerEngine\Update\OperationLock::maintenance($root) && !in_array($argv[1] ?? '', ['list','--version','doctor','rc:doctor','system:report','stable:status','update:check','update:prepare','update','api:lint','release:verify','admin:assets','migrate:status','migrate:verify'], true)) {
+        throw new RuntimeException('Maintenance active; CLI writes disabled.');
+    }
+} catch (Throwable $e) { fwrite(STDERR, '[FAIL] '.$e->getMessage().PHP_EOL); exit(1); }
+
 if (($argv[1] ?? '') === 'install:web-token') {
     require_once $root . '/core/Installer/SetupToken.php';
     try { echo CajeerEngine\Installer\SetupToken::issue($root) . PHP_EOL; exit(0); }
@@ -113,7 +129,7 @@ if (is_file($root . '/.env')) {
     (new Dotenv())->usePutenv()->loadEnv($root . '/.env');
 }
 
-$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.1.3');
+$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.1.4');
 
 /** @var list<Symfony\Component\Console\Command\Command> $commands */
 $commands = [

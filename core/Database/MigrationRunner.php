@@ -57,7 +57,7 @@ final readonly class MigrationRunner
                     $this->pdo->exec($sql);
                 }
                 $this->insertMigration($name, $checksum, $batch, (int) round((microtime(true) - $startedAt) * 1000), 'applied', null);
-                $this->pdo->commit();
+                if ($this->pdo->inTransaction()) $this->pdo->commit();
                 $count++;
                 $executed[] = ['migration' => $name, 'checksum' => $checksum, 'batch' => $batch, 'status' => 'applied'];
             } catch (Throwable $e) {

@@ -1051,7 +1051,7 @@ final class Operations {
     'parameters' => 
     array (
     ),
-    'bodyRequired' => false,
+    'bodyRequired' => true,
   ),
   'post_StableReleaseLock' => 
   array (
@@ -1087,7 +1087,7 @@ final class Operations {
     'parameters' => 
     array (
     ),
-    'bodyRequired' => false,
+    'bodyRequired' => true,
   ),
   'post_UpdatesCheck' => 
   array (
@@ -1141,7 +1141,7 @@ final class Operations {
     'parameters' => 
     array (
     ),
-    'bodyRequired' => false,
+    'bodyRequired' => true,
   ),
   'post_UsersStore' => 
   array (

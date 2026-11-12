@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
 $lock = $root . '/storage/app/installed.lock';
+require_once $root . '/core/Update/OperationFiles.php';
+require_once $root . '/core/Update/OperationLock.php';
+try { $installActivityLease=CajeerEngine\Update\OperationLock::acquire($root,false); if (CajeerEngine\Update\OperationLock::maintenance($root)) throw new RuntimeException('Maintenance'); }
+catch (Throwable) { http_response_code(503); echo 'Maintenance'; exit; }
+
 
 spl_autoload_register(static function (string $class) use ($root): void {
     $prefix = 'CajeerEngine\\';
@@ -132,7 +137,7 @@ header('Content-Type: text/html; charset=utf-8');
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CajeerEngine Install UX 1.1.3</title>
+    <title>CajeerEngine Install UX 1.1.4</title>
     <style>
         :root{color-scheme:light;--bg:#f6f7fb;--card:#fff;--border:#d8dee9;--text:#111827;--muted:#64748b;--ok:#147a35;--fail:#b42318;--warn:#a15c00;--primary:#1f5eff}
         body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
@@ -142,7 +147,7 @@ header('Content-Type: text/html; charset=utf-8');
 </head>
 <body>
 <main>
-    <h1>CajeerEngine Install UX <span class="pill">1.1.3</span></h1>
+    <h1>CajeerEngine Install UX <span class="pill">1.1.4</span></h1>
     <p>Web Installer создаёт `.env`, проверяет окружение, подключается к БД, запускает миграции, создаёт первого администратора, генерирует секреты и блокирует `/install` после установки.</p>
 
     <?php if ($error !== null): ?><section class="card error"><h2>Ошибка установки</h2><p><?= ce_h($error) ?></p></section><?php endif; ?>

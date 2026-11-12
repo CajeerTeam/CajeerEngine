@@ -239,7 +239,7 @@ final readonly class ReleaseBuilder
     /** @return array<string, mixed> */
     private function releaseRequirements(string $mode): array
     {
-        $required = array_merge(['VERSION', 'release.json', 'README.md', 'CHANGELOG.md', 'composer.json', '.env.example', 'bin/cajeer', 'public/index.php', 'public/install/index.php', 'core/Console/NativeCli.php', 'public/admin/index.html', 'public/admin/assets/admin-app.js', 'public/admin/assets/admin-app.css', 'public/admin/assets/admin-manifest.json'], ReleaseFilePolicy::KEEP);
+        $required = array_merge(['VERSION', 'release.json', 'README.md', 'CHANGELOG.md', 'composer.json', '.env.example', 'bin/cajeer', 'public/index.php', 'public/install/index.php', 'public/upgrade/index.php', 'public/upgrade/upgrade.js', 'tools/update-postcheck.php', 'tools/update-recovery.php', 'core/Backup/BackupManager.php', 'core/Update/UpdateManager.php', 'core/Console/NativeCli.php', 'public/admin/index.html', 'public/admin/assets/admin-app.js', 'public/admin/assets/admin-app.css', 'public/admin/assets/admin-manifest.json'], ReleaseFilePolicy::KEEP);
         if ($mode === 'dist') $required = array_merge($required, ['vendor/autoload.php', 'vendor/composer/installed.json', 'composer.lock']);
         $checks = [];
         foreach ($required as $file) $checks[$file] = is_file($this->rootPath . '/' . $file) && !is_link($this->rootPath . '/' . $file);

@@ -15,7 +15,7 @@ final class ReleaseFilePolicy
         'modules/.gitkeep', 'plugins/.gitkeep', 'themes/.gitkeep',
     ];
     private const ROOT = ['.env.example', 'VERSION', 'composer.json', 'composer.lock', 'release.json', 'README.md', 'CHANGELOG.md', 'LICENSE', 'NOTICE', 'SECURITY.md', 'THIRD_PARTY_NOTICES.md', 'TRADEMARKS.md', 'install.php', 'upgrade.php', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md'];
-    private const PUBLIC = ['public/index.php', 'public/install/index.php', 'public/upgrade/index.php', 'public/admin/index.html', 'public/admin/assets/admin-app.js', 'public/admin/assets/admin-app.css', 'public/admin/assets/admin-preview.js', 'public/admin/assets/admin-preview.css', 'public/admin/assets/admin-manifest.json'];
+    private const PUBLIC = ['public/index.php', 'public/install/index.php', 'public/upgrade/index.php', 'public/upgrade/upgrade.js', 'public/admin/index.html', 'public/admin/assets/admin-app.js', 'public/admin/assets/admin-app.css', 'public/admin/assets/admin-preview.js', 'public/admin/assets/admin-preview.css', 'public/admin/assets/admin-manifest.json'];
 
     public static function traverses(string $path, string $mode): bool
     {
@@ -29,7 +29,7 @@ final class ReleaseFilePolicy
         if (str_contains($path, '\\') || str_contains($path, ':') || str_contains($path, '//') || str_starts_with($path, '/') || preg_match('/[\x00-\x1f\x7f]/', $path)) return false;
         if (in_array($path, self::KEEP, true) || in_array($path, self::ROOT, true) || in_array($path, self::PUBLIC, true)) return true;
         if (preg_match('/\.(?:log|tmp|sqlite3?|db|pem|key|zip|bak)$/i', $path)) return false;
-        if (str_starts_with($path, 'tools/')) return in_array($path, ['tools/build-release.php', 'tools/ci-check.php', 'tools/release-pipeline.sh', 'tools/release-smoke.sh', 'tools/release-regression.php', 'tools/security-regression.php', 'tools/generate-api-sdk.php'], true) && ($mode === 'source' || in_array($path, ['tools/build-release.php', 'tools/ci-check.php'], true));
+        if (str_starts_with($path, 'tools/')) return in_array($path, ['tools/build-release.php', 'tools/ci-check.php', 'tools/release-pipeline.sh', 'tools/release-smoke.sh', 'tools/release-regression.php', 'tools/security-regression.php', 'tools/generate-api-sdk.php', 'tools/update-postcheck.php', 'tools/update-recovery.php', 'tools/update-regression.php', 'tools/update-dist-smoke.sh', 'tools/backup-db-regression.php'], true) && ($mode === 'source' || in_array($path, ['tools/build-release.php', 'tools/ci-check.php', 'tools/update-postcheck.php', 'tools/update-recovery.php'], true));
         if (preg_match('~^(core|config|migrations|templates|installer|api|resources|docs)/~', $path)) return true;
         if ($path === 'bin/cajeer') return true;
         if ($mode === 'dist') return str_starts_with($path, 'vendor/');

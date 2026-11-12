@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.4 — Production Updater & Backup (2026-11-12)
+
+- Ed25519 release signatures, verified staging, exclusive operation lease, durable update journal, automatic recovery and CLI rollback.
+- Authenticated recovery sets with database dumps, full managed code/data inventory and encrypted environment; exact restore and integrity validation.
+- Protected web upgrade requests executed by an explicitly selected CLI operator; no web code replacement.
+- Database and failure-injection regression scenarios; external storage/queues require separately validated recovery.
+
 ## 1.1.3 — OpenAPI & Security (2026-11-12)
 
 - Single route registry and strict OpenAPI 3.1.1 parity for 119 core operations; runtime JSON input validation.

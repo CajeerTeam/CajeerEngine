@@ -53,7 +53,7 @@ status() { curl -s -o "$root/response.json" -w '%{http_code}' "$@"; }
 [[ $(status --path-as-is "$base/api/v1/%75sers") == 401 ]]
 [[ $(status -I "$base/api/v1/users") == 401 ]]
 [[ $(status "${auth[@]}" -d '{"email":"bad"}' "$base/api/v1/auth/login") == 422 ]]
-[[ $(status "${auth[@]}" -d '{"force":true,"package":"test.zip"}' "$base/api/v1/updates/apply") == 503 ]]
+[[ $(status "${auth[@]}" -d '{"force":true,"package":"test.zip"}' "$base/api/v1/updates/apply") == 422 ]]
 viewer=$(curl -fsS "${auth[@]}" -d '{"email":"viewer@example.invalid","name":"Viewer","password":"ReleaseSmokeOnly-9X!","roles":["viewer"]}' "$base/api/v1/users")
 viewerid=$(php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR); echo $j["data"]["id"];' <<< "$viewer")
 viewerlogin=$(curl -fsS -H 'Content-Type: application/json' -d '{"email":"viewer@example.invalid","password":"ReleaseSmokeOnly-9X!"}' "$base/api/v1/auth/login")

@@ -33,6 +33,9 @@ php tools/build-release.php --all --target-dir="$out" --json > "$out/build-repor
 version=$(cat VERSION)
 for mode in source dist; do
   php bin/cajeer release:verify --"$mode" --strict --artifact="$out/cajeerengine-$version-$mode.zip" --json
+  if [[ -n ${RELEASE_SIGNING_KEY_FILE:-} ]]; then
+    php bin/cajeer release:sign --package="$out/cajeerengine-$version-$mode.zip" --secret-key="$RELEASE_SIGNING_KEY_FILE"
+  fi
  done
 # This is a candidate until installation smoke tests have passed.
 echo "Verified release artifacts in $out"

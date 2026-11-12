@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.1.3'
+const ADMIN_VERSION = '1.1.4'
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
 localStorage.removeItem(TOKEN_KEY) // remove legacy bearer credentials
@@ -274,7 +274,7 @@ function dashboardView() {
   const dashboard = dataOf(state.cache.dashboard, {})
   const cards = dashboard.cards || []
   const bootstrap = dataOf(state.cache.bootstrap, {})
-  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.1.3 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
+  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.1.4 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
 }
 
 function contentTypesView() {
@@ -414,12 +414,11 @@ function bindExtensions() {
 }
 
 function updatesView() {
-  return `<div class="grid two"><div class="card"><h2>Update diagnostics</h2><pre class="json">${escapeHtml(JSON.stringify(dataOf(state.cache.updates, state.cache.updates), null, 2))}</pre></div><div><div class="card"><h2>Maintenance</h2><pre class="json">${escapeHtml(JSON.stringify(dataOf(state.cache.maintenance, state.cache.maintenance), null, 2))}</pre><div class="toolbar"><button class="btn secondary" data-update-action="maintenance/on">Включить</button><button class="btn ghost" data-update-action="maintenance/off">Выключить</button></div></div><div class="card"><h2>Rollback</h2><form class="form" data-form="rollback"><input class="input" name="backup" placeholder="storage/app/updates/rollback/rollback-...zip"><button class="btn danger" type="submit">Rollback</button></form></div></div></div>`
+  return `<div class="grid two"><div class="card"><h2>Production updater</h2><p>Подписанный dist, обязательный backup и восстановление. Подготовка и запуск выполняются отдельным CLI-процессом.</p><a class="btn" href="/upgrade/">Открыть мастер обновления</a><pre class="json">${escapeHtml(JSON.stringify(dataOf(state.cache.updates, state.cache.updates), null, 2))}</pre></div><div class="card"><h2>Maintenance</h2><pre class="json">${escapeHtml(JSON.stringify(dataOf(state.cache.maintenance, state.cache.maintenance), null, 2))}</pre><div class="toolbar"><button class="btn secondary" data-update-action="maintenance/on">Включить</button><button class="btn ghost" data-update-action="maintenance/off">Выключить</button></div></div></div>`
 }
 
 function bindUpdates() {
   document.querySelectorAll('[data-update-action]').forEach((button) => button.addEventListener('click', async () => { try { const payload = await api(`/updates/${button.dataset.updateAction}`, { method: 'POST', body: '{}' }); setNotice('ok', 'Update action выполнен.', payload); await routeLoad('updates') } catch (error) { setNotice('error', error.message, error.payload) } }))
-  document.querySelector('[data-form="rollback"]')?.addEventListener('submit', async (event) => { event.preventDefault(); const backup = new FormData(event.currentTarget).get('backup'); if (!confirm('Запустить rollback?')) return; try { const payload = await api('/updates/rollback', { method: 'POST', body: JSON.stringify({ backup }) }); setNotice('ok', 'Rollback выполнен.', payload); await routeLoad('updates') } catch (error) { setNotice('error', error.message, error.payload) } })
 }
 
 function searchView() {

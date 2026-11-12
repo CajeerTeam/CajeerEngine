@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.1.3",
+    "version": "1.1.4",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -9474,11 +9474,10 @@
             "CsrfToken": []
           }
         ],
-        "description": "Требуется авторизация. Права: *. Операция приостановлена: production update 1.1.4 / безопасный installer.",
-        "deprecated": true,
+        "description": "Администратор с CSRF (для browser session) создаёт подтверждённый запрос. Оператор выполняет его отдельным CLI update:run; PHP-FPM не изменяет код.",
         "responses": {
           "503": {
-            "description": "Операция отключена в этой версии",
+            "description": "Maintenance / recovery in progress",
             "content": {
               "application/json": {
                 "schema": {
@@ -9564,6 +9563,34 @@
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
+              }
+            }
+          },
+          "202": {
+            "description": "Запрос принят, ожидает оператора",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UpdateOperationRequest"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateApplyRequest"
               }
             }
           }
@@ -9593,11 +9620,10 @@
             "CsrfToken": []
           }
         ],
-        "description": "Требуется авторизация. Права: *. Операция приостановлена: production update 1.1.4 / безопасный installer.",
-        "deprecated": true,
+        "description": "Администратор с CSRF (для browser session) создаёт подтверждённый запрос. Оператор выполняет его отдельным CLI update:run; PHP-FPM не изменяет код.",
         "responses": {
           "503": {
-            "description": "Операция отключена в этой версии",
+            "description": "Maintenance / recovery in progress",
             "content": {
               "application/json": {
                 "schema": {
@@ -9683,6 +9709,34 @@
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
+              }
+            }
+          },
+          "202": {
+            "description": "Запрос принят, ожидает оператора",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UpdateOperationRequest"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRollbackRequest"
               }
             }
           }
@@ -10088,6 +10142,16 @@
           },
           "500": {
             "description": "Внутренняя ошибка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Операция требует CLI или восстановления",
             "content": {
               "application/json": {
                 "schema": {
@@ -10929,48 +10993,18 @@
             "CsrfToken": []
           }
         ],
-        "description": "Требуется авторизация. Права: *.",
+        "description": "Подтверждённый запрос на полный backup. Оператор выполняет update:run --id=...; PHP-FPM не получает эксклюзивную блокировку.",
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "include_uploads": {
-                    "type": "boolean"
-                  }
-                },
-                "additionalProperties": true
+                "$ref": "#/components/schemas/UpdateRollbackRequest"
               }
             }
           }
         },
         "responses": {
-          "201": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "additionalProperties": true
-                    },
-                    "meta": {
-                      "type": "object",
-                      "additionalProperties": true
-                    }
-                  },
-                  "additionalProperties": true,
-                  "required": [
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
           "401": {
             "description": "Требуется авторизация",
             "content": {
@@ -11078,6 +11112,34 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Операция требует CLI или восстановления",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Запрос принят, ожидает оператора",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UpdateOperationRequest"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
                 }
               }
             }
@@ -17502,8 +17564,7 @@
             "type": "string"
           },
           "production_apply_enabled": {
-            "type": "boolean",
-            "const": false
+            "type": "boolean"
           }
         },
         "additionalProperties": true,
@@ -17525,7 +17586,6 @@
           "mode": {
             "type": "string",
             "enum": [
-              "source",
               "dist"
             ]
           },
@@ -17701,6 +17761,81 @@
           "version",
           "checks"
         ]
+      },
+      "UpdateApplyRequest": {
+        "type": "object",
+        "properties": {
+          "package": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "package",
+          "sha256",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateRollbackRequest": {
+        "type": "object",
+        "properties": {
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateOperationRequest": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "apply",
+              "rollback",
+              "backup"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "failed"
+            ]
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "ok",
+          "id",
+          "action",
+          "state",
+          "requested_at"
+        ],
+        "additionalProperties": true
       }
     }
   }

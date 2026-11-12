@@ -178,7 +178,7 @@ final readonly class ServerFixerService
             'APP_ENV' => $existing['APP_ENV'] ?? 'production',
             'APP_DEBUG' => $existing['APP_DEBUG'] ?? 'false',
             'APP_KEY' => $this->secret($existing['APP_KEY'] ?? null, 'base64:' . base64_encode(random_bytes(32))),
-            'APP_VERSION' => trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.3',
+            'APP_VERSION' => trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.4',
             'JWT_SECRET' => $this->secret($existing['JWT_SECRET'] ?? null, bin2hex(random_bytes(48))),
             'API_TOKEN_SECRET' => $this->secret($existing['API_TOKEN_SECRET'] ?? null, bin2hex(random_bytes(48))),
             'WEBHOOK_SIGNING_SECRET' => $this->secret($existing['WEBHOOK_SIGNING_SECRET'] ?? null, bin2hex(random_bytes(48))),

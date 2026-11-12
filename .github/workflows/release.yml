@@ -24,7 +24,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, pdo_sqlite, pdo_pgsql, zip, dom, xml, xmlwriter, curl, openssl
+          extensions: mbstring, pdo_sqlite, pdo_pgsql, sodium, zip, dom, xml, xmlwriter, curl, openssl
           tools: composer:v2
       - uses: actions/setup-node@v4
         with:
@@ -33,6 +33,28 @@ jobs:
       - run: php tools/generate-api-sdk.php --check
       - run: php bin/cajeer api:lint --strict --json
       - run: php tools/release-regression.php
+      - run: php tools/update-regression.php
+      - name: Install matching PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/ce-pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+      - name: PostgreSQL backup restore round-trip
+        env:
+          PGPASSWORD: release-smoke
+          CE_BACKUP_DB_TEST: '1'
+          DB_DRIVER: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '5432'
+          DB_DATABASE: cajeer_backup_test
+          DB_USERNAME: cajeer
+          DB_PASSWORD: release-smoke
+        run: |
+          createdb -h 127.0.0.1 -U cajeer cajeer_backup_test
+          php tools/backup-db-regression.php
       - run: bash tools/release-pipeline.sh "$RUNNER_TEMP/release"
       - run: bash tools/release-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip" sqlite
       - run: bash tools/release-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip" pgsql
@@ -40,12 +62,14 @@ jobs:
           CE_DB_NAME: cajeer_smoke
           CE_DB_USER: cajeer
           CE_DB_PASSWORD: release-smoke
+      - run: bash tools/update-dist-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: cajeerengine-verified-release
           path: |
             ${{ runner.temp }}/release/*.zip
             ${{ runner.temp }}/release/*.sha256
+            ${{ runner.temp }}/release/*.sig
             ${{ runner.temp }}/release/*.manifest.json
             ${{ runner.temp }}/release/*-artifacts.json
           if-no-files-found: error

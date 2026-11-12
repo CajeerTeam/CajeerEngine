@@ -28,7 +28,7 @@ final class ReleaseArtifactVerifier
                     $name = $raw->getNameIndex($i);
                     if (!is_string($name) || isset($actual[$name])) throw new \RuntimeException('Duplicate ZIP entry');
                     $actual[$name] = true;
-                    if ($raw->getExternalAttributesIndex($i, $os, $attr) && $os === 3 && (($attr >> 16) & 0170000) === 0120000) throw new \RuntimeException('ZIP symlink');
+                    if ($raw->getExternalAttributesIndex($i, $os, $attr) && $os === 3 && !in_array((($attr >> 16) & 0170000),[0,0100000],true)) throw new \RuntimeException('ZIP nonregular entry');
                 }
             } finally { $raw->close(); }
         } else {
@@ -42,6 +42,10 @@ final class ReleaseArtifactVerifier
                 if (isset($actual[$name])) throw new \RuntimeException('Duplicate ZIP entry');
                 $actual[$name] = true;
             }
+            $process=proc_open(['unzip','-Z','-l',$path],[1=>['pipe','w'],2=>['file','/dev/null','w']],$pipes);
+            if (!is_resource($process)) throw new \RuntimeException('Cannot inspect ZIP attributes');
+            $attributes=stream_get_contents($pipes[1]); fclose($pipes[1]);
+            if (proc_close($process)!==0||preg_match('/^[dlbcps][rwxStTs-]{9}\s/m',$attributes)) throw new \RuntimeException('ZIP nonregular entry');
         }
         unset($actual[$manifestName]);
         $total = 0;
@@ -58,7 +62,7 @@ final class ReleaseArtifactVerifier
             unset($actual[$prefix . $file]);
         }
         if ($actual !== []) throw new \RuntimeException('Unlisted ZIP entries: ' . implode(', ', array_keys($actual)));
-        $required = array_merge(['VERSION', 'release.json', 'composer.json', '.env.example', 'bin/cajeer', 'public/index.php', 'public/install/index.php', 'public/admin/index.html', 'public/admin/assets/admin-app.js', 'public/admin/assets/admin-app.css', 'public/admin/assets/admin-manifest.json'], ReleaseFilePolicy::KEEP);
+        $required = array_merge(['VERSION', 'release.json', 'composer.json', '.env.example', 'bin/cajeer', 'public/index.php', 'public/install/index.php', 'public/upgrade/index.php', 'public/upgrade/upgrade.js', 'tools/update-postcheck.php', 'tools/update-recovery.php', 'core/Backup/BackupManager.php', 'core/Update/UpdateManager.php', 'public/admin/index.html', 'public/admin/assets/admin-app.js', 'public/admin/assets/admin-app.css', 'public/admin/assets/admin-manifest.json'], ReleaseFilePolicy::KEEP);
         if ($mode === 'dist') $required = array_merge($required, ['composer.lock'], ReleaseDependencyInventory::AUTOLOAD_FILES);
         foreach ($required as $file) if (!in_array($file, $files, true)) throw new \RuntimeException('Required ZIP entry missing: ' . $file);
         foreach (['pgsql', 'mysql', 'sqlite'] as $driver) {
