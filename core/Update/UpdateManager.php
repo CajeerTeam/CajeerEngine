@@ -102,6 +102,7 @@ final class UpdateManager
                 $journal['state']='committed'; $this->journal($journal);
                 $result=$report+['applied_files'=>$plan['files'],'removed_files'=>$plan['removed_files'],'backup'=>['id'=>$journal['backup']],'state'=>'committed'];
                 $this->finish($journal,$result);
+                \CajeerEngine\Observability\OperationsMonitor::marker($this->rootPath,'update');
                 return $result;
             } catch (\Throwable $e) {
                 $journal['failure']='Update failed: '.$e->getMessage();
@@ -112,9 +113,10 @@ final class UpdateManager
                     }
                     $journal['state']='rolled_back'; $this->journal($journal);
                     $result=['ok'=>false,'id'=>$id,'state'=>'rolled_back','error'=>$journal['failure'],'backup'=>['id'=>$journal['backup']]];
-                    $this->finish($journal,$result); return $result;
+                    $this->finish($journal,$result); \CajeerEngine\Observability\OperationsMonitor::marker($this->rootPath,'update','failure'); return $result;
                 } catch (\Throwable $recovery) {
                     $journal['state']='recovery_required'; $journal['recovery_error']=$recovery->getMessage(); $this->journal($journal);
+                    \CajeerEngine\Observability\OperationsMonitor::marker($this->rootPath,'update','failure');
                     $this->report(['ok'=>false,'id'=>$id,'state'=>'recovery_required','error'=>'Automatic recovery failed; maintenance remains enabled','backup'=>['id'=>$journal['backup']]]);
                     throw new \RuntimeException('Recovery required; run update:rollback under maintenance: '.$recovery->getMessage());
                 }

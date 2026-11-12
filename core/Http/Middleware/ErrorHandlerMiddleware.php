@@ -23,7 +23,7 @@ final readonly class ErrorHandlerMiddleware implements MiddlewareInterface
         try {
             return $next($request);
         } catch (\CajeerEngine\Search\SearchUnavailable $e) {
-            $this->logger->error('Search catalog unavailable',['exception'=>$e->getPrevious()?->getMessage()]);
+            $this->logger->error('Search catalog unavailable',['exception'=>$e::class]);
             return $this->jsonError($request, 'search_unavailable', 'Поиск временно недоступен.', 503);
         } catch (\CajeerEngine\Database\DatabaseUnavailable $e) {
             $this->logger->error('Database storage unavailable',['exception'=>$e::class]);
@@ -41,6 +41,8 @@ final readonly class ErrorHandlerMiddleware implements MiddlewareInterface
             $requestId = (string) $request->attributes->get('request_id', '');
             $this->logger->error('Unhandled HTTP exception', [
                 'request_id' => $requestId,
+                'trace_id' => $request->attributes->get('trace_id'),
+                'span_id' => $request->attributes->get('span_id'),
                 'method' => $request->getMethod(),
                 'path' => $request->getPathInfo(),
                 'exception' => $e::class,

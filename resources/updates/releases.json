@@ -4,6 +4,26 @@
   "generated_at": "2026-06-19T00:00:00+00:00",
   "releases": [
     {
+      "version": "1.2.3",
+      "channel": "stable",
+      "stability": "stable",
+      "released_at": "2026-11-12T00:00:00+00:00",
+      "notes": "Observability & Operations: readiness, metrics, structured logs and operational diagnostics.",
+      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.2.3",
+      "artifacts": {
+        "source": {
+          "name": "cajeerengine-1.2.3-source.zip",
+          "checksum_name": "cajeerengine-1.2.3-source.zip.sha256",
+          "signature_name": "cajeerengine-1.2.3-source.zip.sig"
+        },
+        "dist": {
+          "name": "cajeerengine-1.2.3-dist.zip",
+          "checksum_name": "cajeerengine-1.2.3-dist.zip.sha256",
+          "signature_name": "cajeerengine-1.2.3-dist.zip.sig"
+        }
+      }
+    },
+    {
       "version": "1.2.2",
       "channel": "stable",
       "stability": "stable",

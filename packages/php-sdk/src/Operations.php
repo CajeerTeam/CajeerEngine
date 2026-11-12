@@ -1005,6 +1005,15 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'get_SystemOperations' => 
+  array (
+    'method' => 'GET',
+    'path' => '/system/operations',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
   'get_UpdatesDiagnostics' => 
   array (
     'method' => 'GET',

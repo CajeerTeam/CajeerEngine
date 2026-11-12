@@ -99,6 +99,16 @@ $autoload = $root . '/vendor/autoload.php';
 require_once $root . '/core/Update/OperationFiles.php';
 require_once $root . '/core/Update/OperationLock.php';
 require_once $root . '/core/Console/OperationsCli.php';
+if (in_array($argv[1]??'', ['ops:check','ops:report','ops:metrics','ops:traces:flush'],true)) {
+    if (is_file($autoload)) require_once $autoload; else require_once $root.'/core/Console/NativeCli.php';
+    CajeerEngine\Console\OperationsCli::loadEnv($root);
+    try { $monitor=new CajeerEngine\Observability\OperationsMonitor($root); $cmd=$argv[1];
+        if($cmd==='ops:metrics'){echo $monitor->prometheus();exit(0);}
+        if($cmd==='ops:traces:flush'){$result=(new CajeerEngine\Observability\TraceExporter($root))->flush();echo json_encode($result,JSON_THROW_ON_ERROR).PHP_EOL;exit($result['ok']?0:1);}
+        $result=$cmd==='ops:check'?$monitor->readiness():$monitor->report();
+        echo json_encode($result,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR).PHP_EOL;exit($result['ok']?0:1);
+    }catch(Throwable){fwrite(STDERR,'Operations diagnostic failed'.PHP_EOL);exit(1);}
+}
 if (in_array($argv[1]??'', ['media:list','media:check','media:migrate','media:variants','media:repair','media:recover','media:usage','media:s3-sync','media:gc'],true)) {
     if (is_file($autoload)) require_once $autoload; else require_once $root.'/core/Console/NativeCli.php';
     exit(\CajeerEngine\Media\MediaOperations::run($root,$argv));
@@ -149,7 +159,7 @@ if (is_file($root . '/.env')) {
     (new Dotenv())->usePutenv()->loadEnv($root . '/.env');
 }
 
-$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.2.2');
+$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.2.3');
 
 /** @var list<Symfony\Component\Console\Command\Command> $commands */
 $commands = [

@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.2.2'
+const ADMIN_VERSION = '1.2.3'
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
 localStorage.removeItem(TOKEN_KEY) // remove legacy bearer credentials
@@ -168,7 +168,7 @@ async function routeLoad(route) {
     if (route === 'updates') await Promise.allSettled([loadSilent('updates', '/updates'), loadSilent('maintenance', '/updates/maintenance')])
     if (route === 'search') await loadSilent('searchDiagnostics', '/search/diagnostics')
     if (route === 'import-export') await Promise.allSettled([loadSilent('exports', '/import-export/exports'),loadSilent('importRequests','/import-export/requests')])
-    if (route === 'system') await Promise.allSettled([loadSilent('system', '/system'), loadSilent('runtime', '/runtime'), loadSilent('database', '/database'), loadSilent('security', '/security'), loadSilent('rc', '/rc/readiness'), loadSilent('stable', '/stable'), loadSilent('queue', '/queue'), loadSilent('scheduler', '/scheduler/tasks')])
+    if (route === 'system') await loadSilent('operations', '/system/operations')
   } catch {}
 }
 
@@ -267,7 +267,7 @@ function dashboardView() {
   const dashboard = dataOf(state.cache.dashboard, {})
   const cards = dashboard.cards || []
   const bootstrap = dataOf(state.cache.bootstrap, {})
-  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.2.2 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
+  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.2.3 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
 }
 
 function contentTypesView() {
@@ -578,8 +578,11 @@ function bindImportExport() {
 }
 
 function systemView() {
-  const blocks = [['System', state.cache.system], ['Runtime', state.cache.runtime], ['Database', state.cache.database], ['Security', state.cache.security], ['RC', state.cache.rc], ['Stable', state.cache.stable], ['Queue', state.cache.queue], ['Scheduler', state.cache.scheduler]]
-  return `<div class="grid two">${blocks.map(([name, data]) => `<div class="card"><h2>${escapeHtml(name)}</h2><pre class="json">${escapeHtml(JSON.stringify(dataOf(data, data), null, 2))}</pre></div>`).join('')}</div>`
+  const r=state.cache.operations
+  if(!r || r.error)return `<section class="card"><h2>Эксплуатация</h2><p>${escapeHtml(r?.error?.message||'Загрузка диагностики...')}</p><button class="btn secondary" data-ops-refresh>Обновить</button></section>`
+  const rows=Object.entries(r.checks||{}).map(([name,c])=>`<tr><td>${escapeHtml(name)}</td><td><span class="badge ${c.ok?'success':'danger'}">${c.ok?'OK':'Проблема'}</span></td><td>${escapeHtml(String(c.latency_ms??'—'))} мс</td><td>${escapeHtml(JSON.stringify(Object.fromEntries(Object.entries(c).filter(([k])=>!['ok','latency_ms'].includes(k)))))}</td></tr>`).join('')
+  return `<section class="card"><h2>Эксплуатация · ${escapeHtml(r.status)}</h2><p>Проверено: ${escapeHtml(r.time||'')}</p><button class="btn secondary" data-ops-refresh>Обновить</button><div class="grid two"><div><h3>Диск</h3><p>${r.disk?.free_bytes==null?'Недоступно':(r.disk.free_bytes/1073741824).toFixed(2)+' ГиБ свободно'}</p></div><div><h3>Предупреждения</h3>${(r.alerts||[]).map(a=>`<p>${escapeHtml(a)}</p>`).join('')||'<p>Нет предупреждений</p>'}</div></div><h3>HTTP · накопленные метрики</h3><p>Запросы: ${escapeHtml(String(r.http?.requests??0))} · 5xx: ${escapeHtml(String(r.http?.errors_5xx??0))} · среднее: ${escapeHtml(String(r.http?.average_ms??"—"))} мс · p95 bucket: ${escapeHtml(String(r.http?.p95_bucket_ms??"—"))} мс</p><h3>Readiness</h3>${Object.entries(r.readiness?.checks||{}).map(([k,v])=>`<p>${escapeHtml(k)}: ${v?'OK':'FAIL'}</p>`).join('')}<div class="table-wrap"><table><thead><tr><th>Компонент</th><th>Статус</th><th>Задержка</th><th>Детали</th></tr></thead><tbody>${rows}</tbody></table></div></section>`
 }
+document.addEventListener('click',async e=>{if(e.target.closest('[data-ops-refresh]')){await routeLoad('system');render()}})
 
 bootstrap()

@@ -54,6 +54,7 @@ final class BackupManager
             ksort($manifest['files']); F::json($dir.'/manifest.json',$manifest);
             $key=$this->secretKey(); try { F::write($dir.'/manifest.mac',hash_hmac('sha256',(string)file_get_contents($dir.'/manifest.json'),$key)); } finally { sodium_memzero($key); }
             $this->verify($id);
+            \CajeerEngine\Observability\OperationsMonitor::marker($this->root,'backup');
             return ['ok'=>true,'id'=>$id,'target'=>$dir,'sha256'=>F::hash($dir.'/manifest.json'),'files'=>count($manifest['files']),'database'=>$manifest['database']['driver'],'version'=>$manifest['version']];
         } catch (\Throwable $e) { F::json($dir.'/incomplete.json',['error'=>'Backup failed','at'=>gmdate(DATE_ATOM)]); throw $e; }
     }

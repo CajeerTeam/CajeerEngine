@@ -11,7 +11,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'stable:status', description: 'Показать stable status CajeerEngine 1.2.2.')]
+#[AsCommand(name: 'stable:status', description: 'Показать stable status CajeerEngine 1.2.3.')]
 final class StableStatusCommand extends BaseCommand
 {
     protected function configure(): void

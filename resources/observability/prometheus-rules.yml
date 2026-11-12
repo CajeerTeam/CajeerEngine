@@ -1,0 +1,51 @@
+groups:
+  - name: cajeerengine.operations
+    rules:
+      - alert: CajeerEngineScrapeDown
+        expr: up{job="cajeerengine"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "CajeerEngine metrics target is unavailable"
+      - alert: CajeerEngineNotReady
+        expr: cajeer_ready == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "CMS is not ready; check maintenance and database"
+      - alert: CajeerEngineDependencyUnavailable
+        expr: cajeer_dependency_up{component=~"database|storage|queue|cache|search|scheduler|worker|backup|traces|update"} == 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "CajeerEngine component {{ $labels.component }} is unhealthy"
+      - alert: CajeerEngineHTTP5xx
+        expr: sum by (instance) (rate(cajeer_http_requests_total{status_class="5xx"}[5m])) / clamp_min(sum by (instance) (rate(cajeer_http_requests_total[5m])), 0.001) > 0.01
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "HTTP 5xx exceed 1% of observed requests"
+      - alert: CajeerEngineQueueBacklog
+        expr: cajeer_queue_oldest_ready_age_seconds > 300
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Oldest ready job has waited over 5 minutes"
+      - alert: CajeerEngineFailedJobs
+        expr: cajeer_queue_jobs{state="failed"} > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Failed jobs require operator attention"
+      - alert: CajeerEngineDiskLow
+        expr: cajeer_disk_free_bytes < 1073741824
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Storage disk has less than 1 GiB free"
+      - alert: CajeerEngineTraceSpoolFull
+        expr: cajeer_trace_spool_pending >= 900
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Trace spool near capacity; inspect collector"

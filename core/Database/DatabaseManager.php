@@ -37,8 +37,10 @@ final class DatabaseManager
             return $this->pdo;
         }
 
-        $factory = new ConnectionFactory($this->config->get('database', []));
-        try{$pdo=$factory->create($driver);}catch(\PDOException $e){throw new DatabaseUnavailable('Database connection unavailable',0,$e);}
+        $factory = new ConnectionFactory($this->config->get('database', []),new \CajeerEngine\Observability\Metrics($this->config->rootPath()));
+        $start=hrtime(true);$outcome='failure';
+        try{$pdo=$factory->create($driver);$outcome='success';}catch(\PDOException $e){throw new DatabaseUnavailable('Database connection unavailable',0,$e);}
+        finally{(new \CajeerEngine\Observability\Metrics($this->config->rootPath()))->buffered('database','connect',$outcome,(hrtime(true)-$start)/1e9);}
 
         if ($driver === null) {
             $this->pdo = $pdo;
@@ -60,18 +62,19 @@ final class DatabaseManager
             $pdo->exec('SAVEPOINT '.$savepoint);
         }
 
+        $start=hrtime(true);$wall=microtime(true);$trace=\CajeerEngine\Observability\TraceScope::child();$previousTrace=\CajeerEngine\Observability\TraceScope::enter($trace);$outcome='failure';
         try {
             $result = $callback($pdo);
             if ($started) $pdo->commit();
             elseif($savepoint!==null) $pdo->exec('RELEASE SAVEPOINT '.$savepoint);
-            return $result;
+            $outcome='success';return $result;
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 if($started)$pdo->rollBack();
                 elseif($savepoint!==null){$pdo->exec('ROLLBACK TO SAVEPOINT '.$savepoint);$pdo->exec('RELEASE SAVEPOINT '.$savepoint);}
             }
             throw $e;
-        }
+        }finally{\CajeerEngine\Observability\TraceScope::leave($previousTrace);$duration=(hrtime(true)-$start)/1e9;(new \CajeerEngine\Observability\Metrics($this->config->rootPath()))->buffered('database','transaction',$outcome,$duration);(new \CajeerEngine\Observability\TraceExporter($this->config->rootPath()))->record($trace,'database','transaction',$wall,$duration,$outcome==='success');}
     }
 
     /** Consistent count + page without taking a publication writer lock. */

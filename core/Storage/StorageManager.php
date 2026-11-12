@@ -24,7 +24,7 @@ final readonly class StorageManager
         $name = $name !== null && $name !== '' ? $name : $this->driver();
         return match ($name) {
             'local' => new LocalDisk($this->localRoot()),
-            's3' => new S3CompatibleDisk($this->config->array('storage.disks.s3', [])),
+            's3' => new S3CompatibleDisk((array)$this->config->get('storage.disks.s3', [])),
             default => throw new \InvalidArgumentException('Неподдерживаемый storage driver: ' . $name),
         };
     }
@@ -110,11 +110,11 @@ final readonly class StorageManager
         try {
             $probePath = '.storage-probe-' . bin2hex(random_bytes(4));
             $disk = $this->disk();
-            $disk->put($probePath, 'ok');
-            $driverProbe['ok'] = $disk->exists($probePath);
-            $disk->delete($probePath);
+            try { $disk->put($probePath, 'ok'); $driverProbe['ok'] = $disk->exists($probePath) && $disk->get($probePath)==='ok'; }
+            finally { $disk->delete($probePath); }
+            $driverProbe['ok'] = $driverProbe['ok'] && !$disk->exists($probePath);
         } catch (\Throwable $e) {
-            $driverProbe['error'] = $e->getMessage();
+            $driverProbe['ok'] = false; $driverProbe['error'] = $e->getMessage();
         }
 
         return [

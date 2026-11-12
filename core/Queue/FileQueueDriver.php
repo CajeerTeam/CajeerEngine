@@ -96,8 +96,8 @@ final readonly class FileQueueDriver implements LeaseQueueDriverInterface
     public function failed(?string $queue=null): array { $q=QueueOptions::queue($queue);return $this->locked($q,function()use($q){$this->recoverLocked($q,100);return array_values(array_filter(array_map($this->read(...),$this->files('failed',$q)),fn($d)=>$d['status']==='failed'));}); }
     public function diagnostics(): array
     {
-        $queues=[];foreach($this->names() as $q)$queues[$q]=$this->locked($q,function()use($q){$counts=['pending'=>0,'reserved'=>0,'processed'=>0,'failed'=>0];foreach(['pending','processed','failed'] as $bucket)foreach($this->files($bucket,$q)as $path){$d=$this->read($path);$counts[$d['status']]=($counts[$d['status']]??0)+1;}return $counts;});
-        return ['driver'=>'file','root'=>$this->rootPath.'/storage/queue','writable'=>is_writable($this->rootPath.'/storage/queue')||(!is_dir($this->rootPath.'/storage/queue')&&is_writable($this->rootPath.'/storage')),'lease_seconds'=>QueueOptions::lease($this->leaseSeconds),'queues'=>$queues];
+        $queues=[];$oldest=0;foreach($this->names() as $q)$queues[$q]=$this->locked($q,function()use($q,&$oldest){$counts=['pending'=>0,'reserved'=>0,'processed'=>0,'failed'=>0];foreach(['pending','processed','failed'] as $bucket)foreach($this->files($bucket,$q)as $path){$d=$this->read($path);$counts[$d['status']]=($counts[$d['status']]??0)+1;if($d['status']==='pending'&&($at=strtotime($d['available_at']))!==false&&$at<=time())$oldest=max($oldest,time()-$at);}return $counts;});
+        return ['driver'=>'file','oldest_ready_age_seconds'=>$oldest,'root'=>$this->rootPath.'/storage/queue','writable'=>is_writable($this->rootPath.'/storage/queue')||(!is_dir($this->rootPath.'/storage/queue')&&is_writable($this->rootPath.'/storage')),'lease_seconds'=>QueueOptions::lease($this->leaseSeconds),'queues'=>$queues];
     }
     public function cleanupProcessed(int $olderThanSeconds=604800): int
     {

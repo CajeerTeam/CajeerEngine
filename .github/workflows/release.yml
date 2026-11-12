@@ -53,6 +53,8 @@ jobs:
       - run: php tools/search-regression.php --database
       - run: php tools/performance-regression.php
       - run: php tools/queue-regression.php
+      - run: php tools/observability-regression.php
+      - run: php tools/observability-regression.php --database
       - run: php tools/queue-regression.php --redis
         env:
           CE_QUEUE_REDIS_HOST: 127.0.0.1

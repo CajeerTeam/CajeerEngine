@@ -774,6 +774,12 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "get_SystemOperations": {
+        "method": "GET",
+        "path": "/system/operations",
+        "parameters": [],
+        "bodyRequired": false
+    },
     "get_UpdatesDiagnostics": {
         "method": "GET",
         "path": "/updates",

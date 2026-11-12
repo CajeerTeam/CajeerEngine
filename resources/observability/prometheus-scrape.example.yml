@@ -1,0 +1,14 @@
+# Merge into your Prometheus configuration, change target and secret path.
+scrape_configs:
+  - job_name: cajeerengine
+    scheme: https
+    metrics_path: /metrics
+    scrape_interval: 30s
+    scrape_timeout: 25s
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/secrets/cajeerengine-metrics-token
+    static_configs:
+      - targets: ['cms.example.com:443']
+rule_files:
+  - /etc/prometheus/rules/cajeerengine.yml

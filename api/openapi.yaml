@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.2.2",
+    "version": "1.2.3",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -19063,6 +19063,129 @@
           },
           "422": {
             "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/system/operations": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "get_SystemOperations",
+        "summary": "GET /system/operations",
+        "x-cajeer-route": "api.v1.system.operations",
+        "x-cajeer-required-scopes": [
+          "system:read"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "description": "Требуется авторизация. Права: system:read.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "status",
+                    "readiness",
+                    "checks",
+                    "alerts",
+                    "disk"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ready",
+                        "degraded",
+                        "not_ready"
+                      ]
+                    },
+                    "readiness": {
+                      "type": "object"
+                    },
+                    "checks": {
+                      "type": "object"
+                    },
+                    "alerts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "disk": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Требуется авторизация",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Недостаточно прав или CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Сервис недоступен / maintenance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка",
             "content": {
               "application/json": {
                 "schema": {

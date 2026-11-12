@@ -124,7 +124,6 @@ final class Application
             new RateLimitMiddleware($config, $container->get(RateLimiter::class)),
             new AuthenticationMiddleware($config, $authService, $router),
             new \CajeerEngine\Http\Middleware\ApiContractMiddleware(new \CajeerEngine\Api\ApiContract($rootPath)),
-            new RuntimeLogMiddleware($logger),
         ];
         $pipeline = new MiddlewarePipeline($middleware);
         $container->instance('http.middleware', $pipeline->names());
@@ -142,13 +141,24 @@ final class Application
 
     public function handle(Request $request): Response
     {
-        $response = $this->pipeline->handle($request, fn (Request $request): Response => $this->router->dispatch($request));
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.2.2'));
+        $started=hrtime(true);$wall=microtime(true);
+        $trace=\CajeerEngine\Observability\TraceContext::start($request->headers->get('traceparent'));
+        foreach($trace->fields() as $key=>$value)$request->attributes->set($key,$value);
+        $previousTrace=\CajeerEngine\Observability\TraceScope::enter($trace);
+        try{$response = $this->pipeline->handle($request, fn (Request $request): Response => $this->router->dispatch($request));}
+        finally{\CajeerEngine\Observability\TraceScope::leave($previousTrace);}
+        $duration=(hrtime(true)-$started)/1e9;
+        $route=(string)$request->attributes->get('route_name',$request->attributes->get('matched_route','unmatched'));
+        (new \CajeerEngine\Observability\Metrics($this->rootPath))->observe('http',$route,intdiv($response->getStatusCode(),100).'xx',$duration);
+        (new \CajeerEngine\Observability\TraceExporter($this->rootPath))->record($trace,'http',$route,$wall,$duration,$response->getStatusCode()<500);
+        $response->headers->set('traceparent',$trace->header());
+        $response->headers->set('X-Runtime-Ms',(string)round($duration*1000));
+        $this->container->get(RuntimeLogger::class)->info('HTTP request handled',$trace->fields()+['request_id'=>(string)$request->attributes->get('request_id',''),'method'=>$request->getMethod(),'route'=>$route,'status'=>$response->getStatusCode(),'duration_ms'=>round($duration*1000,3)]);
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.2.3'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
             'method' => $request->getMethod(),
-            'path' => $request->getPathInfo(),
             'status' => $response->getStatusCode(),
             'route' => (string) $request->attributes->get('route_name', ''),
         ]));

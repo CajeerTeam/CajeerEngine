@@ -42,6 +42,7 @@ final readonly class SchedulerRunner
         $results['queue.cleanup_processed']=$store->run('queue.cleanup_processed',86400,fn()=>['removed'=>$this->queue->cleanupProcessed()]);
         $results['search.index_published']=$store->run('search.index_published',60,fn()=>$this->searchIndexer->reconcile());
         $results['webhooks.dispatch_pending']=$store->run('webhooks.dispatch_pending',60,fn()=>$this->webhooks->enqueuePending($this->queue,50));
+        if(\CajeerEngine\Observability\TraceExporter::enabled())$results['observability.export_traces']=$store->run('observability.export_traces',60,fn()=>(new \CajeerEngine\Observability\TraceExporter($this->rootPath))->flush());
         $results['extensions']=$this->platform?->runTasks($this->rootPath,$store)??[];
         $ok=true;foreach($results as $name=>$result){if($name==='extensions'){foreach($result as $r)if(($r['ok']??true)===false)$ok=false;}elseif(($result['ok']??true)===false)$ok=false;}
         $this->writeLog($results);
@@ -74,6 +75,8 @@ final readonly class SchedulerRunner
         if (!is_dir(dirname($path))) {
             mkdir(dirname($path), 0775, true);
         }
-        file_put_contents($path, json_encode(['created_at' => (new \DateTimeImmutable())->format(DATE_ATOM), 'results' => $results], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND | LOCK_EX);
+        $summary=[];foreach($results as $name=>$result){if($name==='extensions')continue;$summary[$name]=['ok'=>$result['ok']??true,'skipped'=>isset($result['skipped'])];}
+        // Detailed task state lives in TaskRunStore. Keep the rotating runtime log bounded.
+        (new \CajeerEngine\Runtime\RuntimeLogger($this->rootPath))->info('Scheduled task finished',['status'=>in_array(false,array_column($summary,'ok'),true)?'failure':'success']);
     }
 }

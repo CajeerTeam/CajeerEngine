@@ -9,7 +9,7 @@ use PDO;
 final readonly class ConnectionFactory
 {
     /** @param array<string, mixed> $config */
-    public function __construct(private array $config)
+    public function __construct(private array $config, private ?\CajeerEngine\Observability\Metrics $metrics = null)
     {
     }
 
@@ -57,7 +57,7 @@ final readonly class ConnectionFactory
 
         $user = (string) ($connection['username'] ?? '');
         $password = (string) ($connection['password'] ?? '');
-        $pdo=new PDO($dsn, $user, $password, $options);
+        $pdo=$this->metrics===null?new PDO($dsn,$user,$password,$options):new MeasuredPDO($dsn,$user,$password,$options,$this->metrics);
         if($driver==='sqlite'){
             $pdo->exec('PRAGMA foreign_keys = ON');
             $pdo->exec('PRAGMA busy_timeout = '.self::bounded($connection,'busy_timeout_ms',5000,0,60000));

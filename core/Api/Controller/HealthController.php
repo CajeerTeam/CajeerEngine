@@ -23,7 +23,8 @@ final readonly class HealthController
         $storageWritable = is_writable($this->rootPath . '/storage');
         $logsWritable = is_writable($this->rootPath . '/storage/logs') || is_writable($this->rootPath . '/storage');
         $appWritable = is_writable($this->rootPath . '/storage/app') || is_writable($this->rootPath . '/storage');
-        $status = ($storageWritable && $logsWritable && $appWritable) ? 'ok' : 'degraded';
+        $ready=(new \CajeerEngine\Observability\OperationsMonitor($this->rootPath,$config))->readiness();
+        $status = $ready['ok'] ? 'ok' : 'degraded';
 
         return new JsonResponse([
             'status' => $status,
@@ -34,7 +35,7 @@ final readonly class HealthController
             'php' => PHP_VERSION,
             'time' => (new \DateTimeImmutable())->format(DATE_ATOM),
             'request_id' => (string) $request->attributes->get('request_id', ''),
-            'checks' => [
+            'checks' => $ready['checks'] + [
                 'storage_writable' => $storageWritable,
                 'logs_writable' => $logsWritable,
                 'app_storage_writable' => $appWritable,

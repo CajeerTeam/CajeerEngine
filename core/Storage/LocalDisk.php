@@ -1,46 +1,22 @@
 <?php
-
 declare(strict_types=1);
-
 namespace CajeerEngine\Storage;
 
-use Symfony\Component\Filesystem\Filesystem;
+use CajeerEngine\Update\OperationFiles;
 
+/** Local storage uses the same checked, durable filesystem operations as backup. */
 final readonly class LocalDisk implements StorageDiskInterface
 {
-    public function __construct(private string $root, private Filesystem $filesystem = new Filesystem())
+    public function __construct(private string $root) {}
+    public function put(string $path,string $contents): void
     {
+        $full=$this->fullPath($path);OperationFiles::write($full,$contents,0660);
     }
-
-    public function put(string $path, string $contents): void
-    {
-        $fullPath = $this->fullPath($path);
-        $this->filesystem->mkdir(dirname($fullPath));
-        file_put_contents($fullPath, $contents);
-    }
-
     public function get(string $path): string
     {
-        $contents = file_get_contents($this->fullPath($path));
-        if ($contents === false) {
-            throw new \RuntimeException("Файл не прочитан: {$path}");
-        }
-
-        return $contents;
+        $full=$this->fullPath($path);if(!is_file($full)||($data=file_get_contents($full))===false)throw new \RuntimeException('Storage file unavailable');return $data;
     }
-
-    public function exists(string $path): bool
-    {
-        return is_file($this->fullPath($path));
-    }
-
-    public function delete(string $path): void
-    {
-        $this->filesystem->remove($this->fullPath($path));
-    }
-
-    private function fullPath(string $path): string
-    {
-        return rtrim($this->root, '/') . '/' . ltrim($path, '/');
-    }
+    public function exists(string $path): bool{return is_file($this->fullPath($path));}
+    public function delete(string $path): void{OperationFiles::remove($this->fullPath($path));}
+    private function fullPath(string $path): string{return OperationFiles::path($this->root,$path);}
 }

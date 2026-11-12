@@ -30,10 +30,15 @@ php -r '$j=json_decode(file_get_contents($argv[1]),true,512,JSON_THROW_ON_ERROR)
 [[ -s storage/app/installed.lock ]]
 export CONTENT_STORAGE=database CMS_STORAGE=database
 php bin/cajeer cms:bootstrap --json >/dev/null
+export OBSERVABILITY_METRICS_TOKEN="$(php -r 'echo bin2hex(random_bytes(32));')"
 php -S "127.0.0.1:$port" -t public > "$root/http.log" 2>&1 &
 pid=$!
 base="http://127.0.0.1:$port"
 for i in $(seq 1 40); do if curl -fsS "$base/api/v1/health" >/dev/null 2>&1; then break; fi; sleep 0.25; done
+curl -fsS "$base/health/live" | grep -q alive
+curl -fsS "$base/health/ready" | grep -q ready
+[[ $(curl -s -o /dev/null -w '%{http_code}' "$base/metrics") == 401 ]]
+curl -fsS -H "Authorization: Bearer $OBSERVABILITY_METRICS_TOKEN" "$base/metrics" | grep -q 'cajeer_ready 1'
 curl -fsS "$base/admin/" | grep -q 'admin-app.js'
 curl -fsS "$base/admin/assets/admin-app.js" >/dev/null
 [[ $(curl -s -o /dev/null -w '%{http_code}' "$base/install/") == 403 ]]
@@ -42,6 +47,8 @@ token=$(php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON
 [[ -n $token ]]
 auth=(-H "Authorization: Bearer $token" -H 'Content-Type: application/json')
 curl -fsS "${auth[@]}" "$base/api/v1/admin/dashboard" >/dev/null
+curl -fsS "${auth[@]}" "$base/api/v1/system/operations" | grep -q '"readiness"'
+[[ $(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/system/operations") == 401 ]]
 entry=$(curl -fsS "${auth[@]}" -d '{"title":"Release smoke content","slug":"release-smoke","status":"draft","locale":"ru","data":{"heading":"Release smoke content","path":"/release-smoke","body":"<p>Verified installation</p>"}}' "$base/api/v1/content/pages")
 id=$(php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR); echo $j["data"]["id"]??"";' <<< "$entry")
 [[ -n $id ]]

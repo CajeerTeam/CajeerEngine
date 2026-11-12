@@ -29,10 +29,12 @@ final readonly class TaskRunStore
             if(isset($state['slot'])&&(int)$state['slot']>=$slot)return ['skipped'=>'already run','status'=>$state['status']??'unknown'];
             $history=$state['history']??[];
             if(isset($state['slot'])){$prev=$state;unset($prev['history']);if($prev['status']==='running')$prev['status']='interrupted';$history[]=$prev;}
-            $state=['name'=>$name,'slot'=>$slot,'interval_seconds'=>$interval,'started_at'=>gmdate(DATE_ATOM,$now),'status'=>'running','last_success_at'=>$state['last_success_at']??null,'history'=>array_slice($history,-50)];$this->write($name,$state);
+            $started=hrtime(true);$wall=microtime(true);$trace=\CajeerEngine\Observability\TraceScope::child();$state=['name'=>$name,'slot'=>$slot,'interval_seconds'=>$interval,'started_at'=>gmdate(DATE_ATOM,$now),'status'=>'running','last_success_at'=>$state['last_success_at']??null,'history'=>array_slice($history,-50)];$this->write($name,$state);
+            $previousTrace=\CajeerEngine\Observability\TraceScope::enter($trace);
             try {$result=$handler();if(is_array($result)&&($result['ok']??true)===false)throw new \RuntimeException((string)($result['error']??'Scheduled task returned failure'));$state['status']='success';$state['last_success_at']=gmdate(DATE_ATOM);$result=is_array($result)?$result:[];}
             catch(\Throwable $e){$state['status']='failed';$state['error']=\CajeerEngine\Queue\QueueOptions::error($e->getMessage(),1000);$result=['ok'=>false,'error'=>$state['error']];}
-            $state['finished_at']=gmdate(DATE_ATOM);$this->write($name,$state);return $result+['ok'=>$state['status']==='success'];
+            finally{\CajeerEngine\Observability\TraceScope::leave($previousTrace);}
+            $state['finished_at']=gmdate(DATE_ATOM);$this->write($name,$state);$duration=(hrtime(true)-$started)/1e9;(new \CajeerEngine\Observability\TraceExporter($this->root))->record($trace,'scheduler',$name,$wall,$duration,$state['status']==='success');(new \CajeerEngine\Observability\Metrics($this->root))->observe('scheduler',$name,$state['status']==='success'?'success':'failure',$duration);(new \CajeerEngine\Runtime\RuntimeLogger($this->root))->info('Scheduled task finished',$trace->fields()+['status'=>$state['status'],'duration_ms'=>round($duration*1000,3)]);return $result+['ok'=>$state['status']==='success'];
         });
     }
     private function locked(string $name,callable $fn): array

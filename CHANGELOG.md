@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.3 — Observability & Operations
+
+- Independent liveness/readiness, protected Prometheus endpoint and operations API/CLI.
+- Cross-process HTTP, database, job and scheduler histograms; queue age, backup and worker timestamps.
+- Bounded rotating runtime JSON logs and W3C trace correlation.
+- Real admin operational status dashboard and alert rules.
+
 ## 1.2.2 — Queue & Scheduler Reliability
 
 - Durable queue reservations with fencing tokens, heartbeat, expiry recovery and delayed exponential retry.
