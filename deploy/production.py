@@ -34,6 +34,23 @@ TIMER = 'cajeerengine-scheduler.timer'
 SERVICES = (TIMER, SCHEDULER, WORKER, FPM)
 PHP = '/usr/bin/php8.4'
 FPM_BIN = '/usr/sbin/php-fpm8.4'
+PHP_PREFLIGHT = """
+$errors = [];
+if (PHP_VERSION_ID < 80401 || PHP_VERSION_ID >= 90000) {
+    $errors[] = "Unsupported PHP version: " . PHP_VERSION . " (required >=8.4.1 <9.0)";
+}
+$missing = array_filter(
+    ["pdo_pgsql", "sodium", "mbstring", "fileinfo", "openssl", "phar", "gd"],
+    static fn(string $name): bool => !extension_loaded($name)
+);
+if ($missing) {
+    $errors[] = "Missing PHP extensions: " . implode(", ", $missing);
+}
+if ($errors) {
+    fwrite(STDERR, implode(PHP_EOL, $errors) . PHP_EOL);
+    exit(1);
+}
+"""
 MUTABLE = ('storage', 'bootstrap/cache', 'public/uploads', 'public/extensions')
 
 
@@ -392,7 +409,7 @@ def deploy(args,c):
     for binary in ('psql','pg_dump','pg_restore','nginx','openssl','curl','systemctl','runuser','unzip'):
         if not shutil.which(binary): raise ValueError('Missing host tool: '+binary)
     if not Path(FPM_BIN).is_file(): raise ValueError('PHP-FPM 8.4 missing')
-    run(PHP,'-r','if (PHP_VERSION_ID < 80401 || PHP_VERSION_ID >= 90000 || array_diff(["pdo_pgsql","sodium","mbstring","fileinfo","openssl","phar","gd"], get_loaded_extensions())) exit(1);')
+    run(PHP,'-r',PHP_PREFLIGHT)
     package=artifact(args.artifact,args.sha256,args.version)
     journal=json.loads(JOURNAL.read_text()) if JOURNAL.exists() else {}
     retry_empty=not APP.exists() and not APP.is_symlink() and (not journal or (journal.get('previous') is None and journal.get('version')==args.version and journal.get('sha256')==args.sha256 and journal.get('site')==c))
