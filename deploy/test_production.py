@@ -98,7 +98,13 @@ class Safety(unittest.TestCase):
                     def request(path):
                         req=urllib.request.Request('https://127.0.0.1:'+str(tls)+path,headers={'Host':SITE['domain']})
                         try:
-                            with urllib.request.urlopen(req,context=ssl._create_unverified_context(),timeout=3) as r: return r.status,r.read()
+                            with urllib.request.urlopen(req,context=ssl._create_unverified_context(),timeout=3) as r:
+                                if r.status==200 and path.startswith('/admin/'):
+                                    self.assertEqual(r.headers.get('X-Content-Type-Options'),'nosniff')
+                                    self.assertEqual(r.headers.get('X-Frame-Options'),'SAMEORIGIN')
+                                    self.assertIn('frame-ancestors',r.headers.get('Content-Security-Policy',''))
+                                    self.assertEqual(r.headers.get('Strict-Transport-Security'),'max-age=31536000')
+                                return r.status,r.read()
                         except urllib.error.HTTPError as e: return e.code,e.read()
                     self.assertEqual(request('/admin/assets/admin-app.js'),(200,b'asset'))
                     self.assertEqual(request('/admin/deep')[0],200)

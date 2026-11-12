@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 — Integration Certification / Production Stable
+
+- Real TLS production HTTP security, CMS lifecycle and concurrent mixed workload acceptance with per-route latency and throughput budgets.
+- Dependency audit and artifact-bound acceptance evidence required before signing and GitHub publication.
+- Hardened request throttling and static administration security headers.
+- Production admission is conditional on passing the complete release CI; local stable status is not certification.
+
 ## 1.2.5 — GitHub distribution migration
 
 - GitHub Releases REST discovery, canonical release assets and signed draft-first publication after release verification.

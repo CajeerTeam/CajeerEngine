@@ -38,3 +38,5 @@
 !/public/extensions/.gitkeep
 
 /deploy/__pycache__/
+
+/tools/__pycache__/

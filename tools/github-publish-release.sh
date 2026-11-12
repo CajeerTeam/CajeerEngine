@@ -8,7 +8,8 @@ tag=$2
 repo=$3
 version=$(cat "$root/VERSION")
 [[ "$tag" == "v$version" && "${repo,,}" == cajeerteam/cajeerengine ]] || { echo 'Tag or repository mismatch' >&2; exit 1; }
-files=()
+python3 "$root/tools/certification-evidence.py" verify "$dir"
+files=("$dir/certification.json" "$dir/production-acceptance.json" "$dir/dependency-audit.json")
 for mode in source dist; do
   name="cajeerengine-$version-$mode.zip"
   for suffix in '' .sha256 .sig; do

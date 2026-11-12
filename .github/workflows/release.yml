@@ -40,6 +40,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y nginx
           sudo python3 deploy/test_production.py
+      - name: Concurrent rate limiter and certification regressions
+        run: |
+          php tools/rate-limit-concurrency.php
+          python3 tools/certification-regression.py
       - run: php tools/security-regression.php
       - run: php tools/generate-api-sdk.php --check
       - run: php bin/cajeer api:lint --strict --json
@@ -122,6 +126,11 @@ jobs:
         run: |
           createdb -h 127.0.0.1 -U cajeer cajeer_performance_test
           php tools/performance-regression.php --pgsql
+      - name: Audit locked runtime dependencies (fail closed)
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          test -s composer.lock
+          composer audit --locked --no-dev --format=json --abandoned=fail > "$RUNNER_TEMP/release/dependency-audit.json"
       - run: bash tools/release-pipeline.sh "$RUNNER_TEMP/release"
       - run: bash tools/release-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip" sqlite
       - run: bash tools/release-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip" pgsql
@@ -138,7 +147,10 @@ jobs:
           CE_DEPLOY_DISPOSABLE: 'yes'
         run: |
           sudo apt-get install -y php8.4-fpm php8.4-pgsql php8.4-mbstring php8.4-gd php8.4-curl php8.4-xml php8.4-zip
-          sudo --preserve-env=CE_DB_USER,CE_DB_PASSWORD,CE_DEPLOY_DISPOSABLE bash deploy/host-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip"
+          export CE_CERT_REPORT="$RUNNER_TEMP/release/production-acceptance.json"
+          sudo --preserve-env=CE_DB_USER,CE_DB_PASSWORD,CE_DEPLOY_DISPOSABLE,CE_CERT_REPORT bash deploy/host-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip"
+      - name: Seal production certification for exact release bytes
+        run: python3 tools/certification-evidence.py seal "$RUNNER_TEMP/release"
       - uses: actions/upload-artifact@v4
         with:
           name: cajeerengine-verified-release
@@ -148,6 +160,9 @@ jobs:
             ${{ runner.temp }}/release/*.sig
             ${{ runner.temp }}/release/*.manifest.json
             ${{ runner.temp }}/release/*-artifacts.json
+            ${{ runner.temp }}/release/certification.json
+            ${{ runner.temp }}/release/production-acceptance.json
+            ${{ runner.temp }}/release/dependency-audit.json
           if-no-files-found: error
 
   publish:
@@ -172,6 +187,8 @@ jobs:
         with:
           name: cajeerengine-verified-release
           path: ${{ runner.temp }}/verified-release
+      - name: Verify production certification before accessing signing key
+        run: python3 tools/certification-evidence.py verify "$RUNNER_TEMP/verified-release"
       - name: Sign verified artifacts
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}

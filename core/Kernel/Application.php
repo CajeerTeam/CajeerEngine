@@ -120,8 +120,8 @@ final class Application
             new RequestIdMiddleware(),
             new SecurityHeadersMiddleware(),
             new ErrorHandlerMiddleware($config, $logger),
-            new JsonBodyMiddleware(),
             new RateLimitMiddleware($config, $container->get(RateLimiter::class)),
+            new JsonBodyMiddleware(),
             new AuthenticationMiddleware($config, $authService, $router),
             new \CajeerEngine\Http\Middleware\ApiContractMiddleware(new \CajeerEngine\Api\ApiContract($rootPath)),
         ];
@@ -154,7 +154,7 @@ final class Application
         $response->headers->set('traceparent',$trace->header());
         $response->headers->set('X-Runtime-Ms',(string)round($duration*1000));
         $this->container->get(RuntimeLogger::class)->info('HTTP request handled',$trace->fields()+['request_id'=>(string)$request->attributes->get('request_id',''),'method'=>$request->getMethod(),'route'=>$route,'status'=>$response->getStatusCode(),'duration_ms'=>round($duration*1000,3)]);
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.2.5'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.3.0'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),

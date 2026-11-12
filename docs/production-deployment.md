@@ -1,4 +1,6 @@
-# Production Deployment — 1.2.5
+# Production Deployment — 1.3.0
+
+See [Production certification](production-certification.md) for the release and operator go/no-go gates.
 
 ## Supported profile
 
@@ -41,7 +43,7 @@ The DB password must be 24–128 ASCII base64url characters (`A-Z a-z 0-9 _ -`),
 ## Deploy and verify
 
 ```sh
-sudo python3 /opt/cajeerengine-deploy/deploy/production.py deploy /opt/releases/cajeerengine-1.2.5-dist.zip --version=1.2.5 --sha256=APPROVED_64_HEX_SHA256
+sudo python3 /opt/cajeerengine-deploy/deploy/production.py deploy /opt/releases/cajeerengine-1.3.0-dist.zip --version=1.3.0 --sha256=APPROVED_64_HEX_SHA256
 sudo python3 /opt/cajeerengine-deploy/deploy/production.py status
 ```
 
@@ -54,7 +56,7 @@ Repeat the same command with identical signed artifact and SHA: it verifies inst
 `status` reports the root journal, gate and service states. On interrupted/failed recovery the persistent gate remains closed; investigate `journalctl -u cajeerengine-php -u cajeerengine-worker -u cajeerengine-scheduler`, the application update journal, and `docs/update-backup.md` / `docs/disaster-recovery.md`. For an interrupted update use the documented recovery launcher or `update:rollback --yes` as the runtime user while all runtime services are stopped. If the first attempt failed before the application directory was published, retry the identical artifact after fixing host configuration. For a failed initial install after publication there is no prior DB: preserve diagnostics, repair or restore the dedicated DB and files explicitly; do not blindly rerun against a partially migrated DB. Never remove the maintenance gate by hand. Once the exact signed release has been recovered and the CMS is installed, resume:
 
 ```sh
-sudo python3 /opt/cajeerengine-deploy/deploy/production.py resume --version=1.2.5 --sha256=APPROVED_64_HEX_SHA256
+sudo python3 /opt/cajeerengine-deploy/deploy/production.py resume --version=1.3.0 --sha256=APPROVED_64_HEX_SHA256
 ```
 
 Resume only accepts recorded artifact identities, re-verifies every immutable file, checks recovery markers and readiness and starts the units. The source controller retains the approved artifacts and root journal in `/var/lib/cajeerengine-deploy`; back these up with host configuration, trust key and separate backup encryption key. The CMS backup remains in `storage/app/backups/production`; export encrypted copies off-host using the 1.2.4 disaster recovery commands. Configure independent monitoring, retention and periodic restore drills. No zero-downtime/HA, external DB failover, automatic certificate issuance or OS package locking is claimed.

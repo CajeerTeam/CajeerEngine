@@ -213,6 +213,14 @@ WantedBy=timers.target
         fastcgi_param HTTPS on;
         fastcgi_pass unix:/run/cajeerengine/php.sock;
         fastcgi_read_timeout 120s;'''
+    static_security = """add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options SAMEORIGIN always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        add_header Permissions-Policy 'camera=(), microphone=(), geolocation=()' always;
+        add_header Strict-Transport-Security 'max-age=31536000' always;"""
+    admin_security = static_security + """
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'" always;
+        add_header Cache-Control 'no-cache' always;"""
     nginx=f'''server {{
     listen 80;
     server_name {c['domain']};
@@ -234,10 +242,10 @@ server {{
     location = /index.php {{ {fastcgi} }}
     location ~* \\.(php[0-9]*|phtml|phar)(/|$) {{ return 404; }}
     location = /admin {{ return 308 /admin/; }}
-    location /admin/assets/ {{ try_files $uri =404; add_header Cache-Control "no-cache"; }}
-    location /admin/ {{ try_files $uri $uri/ /admin/index.html; index index.html; add_header Cache-Control "no-cache"; }}
-    location /uploads/ {{ try_files $uri =404; add_header X-Content-Type-Options nosniff; }}
-    location /extensions/ {{ try_files $uri =404; }}
+    location /admin/assets/ {{ try_files $uri =404; {admin_security} }}
+    location /admin/ {{ try_files $uri $uri/ /admin/index.html; index index.html; {admin_security} }}
+    location /uploads/ {{ try_files $uri =404; {static_security} }}
+    location /extensions/ {{ try_files $uri =404; {static_security} }}
     location / {{ try_files $uri /index.php?$query_string; }}
 }}
 server {{

@@ -31,21 +31,26 @@ final readonly class RateLimiter
 
         try {
             if (!flock($handle, LOCK_EX)) { throw new \RuntimeException('Rate limit lock failed'); }
+            // Read the clock after acquiring the inter-process lock.
+            $now = time();
+            $state = ['hits' => 0, 'reset_at' => $now + $windowSeconds];
             $raw = stream_get_contents($handle);
+            if ($raw === false) throw new \RuntimeException('Rate limit read failed');
             if (is_string($raw) && trim($raw) !== '') {
                 $decoded = json_decode($raw, true);
-                if (is_array($decoded)) {
-                    $state['hits'] = (int) ($decoded['hits'] ?? 0);
-                    $state['reset_at'] = (int) ($decoded['reset_at'] ?? ($now + $windowSeconds));
+                if (!is_array($decoded) || !is_int($decoded['hits'] ?? null) || $decoded['hits'] < 0 || !is_int($decoded['reset_at'] ?? null) || $decoded['reset_at'] < 0) {
+                    throw new \RuntimeException('Corrupt rate limit state');
                 }
+                $state = $decoded;
             }
 
             if ($state['reset_at'] <= $now) {
                 $state = ['hits' => 0, 'reset_at' => $now + $windowSeconds];
             }
 
-            $state['hits']++;
-            $allowed = $state['hits'] <= $limit;
+            $allowed = $state['hits'] < $limit;
+            // Saturate at the limit instead of incrementing on every rejected request.
+            if ($allowed) $state['hits']++;
             $remaining = max(0, $limit - $state['hits']);
             $retryAfter = $allowed ? 0 : max(1, $state['reset_at'] - $now);
 

@@ -38,7 +38,7 @@ final readonly class StableReleaseService
         $lockValid = $this->lockValid($lock, $version);
 
         $checks = [
-            'version_is_1_1_2' => $version === '1.2.5',
+            'version_is_1_3_0' => $version === '1.3.0',
             'release_channel_stable' => ($release['channel'] ?? null) === 'stable',
             'release_stability_stable' => ($release['stability'] ?? null) === 'stable',
             'engine_api_1_1' => ($release['engine_api_version'] ?? null) === '1.1',
@@ -59,6 +59,7 @@ final readonly class StableReleaseService
         return [
             'version' => $version,
             'stable' => !in_array(false, $checks, true),
+            'production_admission' => ['status' => 'not_evaluated', 'scope' => 'local diagnostics only', 'evidence' => 'Release CI certification.json plus operator acceptance for the actual environment'],
             'checks' => $checks,
             'release' => [
                 'channel' => $release['channel'] ?? 'unknown',
@@ -85,7 +86,7 @@ final readonly class StableReleaseService
     public function smokeTest(): array
     {
         $checks = [];
-        $checks[] = $this->check('version', $this->version() === '1.2.5', 'VERSION содержит 1.2.5.');
+        $checks[] = $this->check('version', $this->version() === '1.3.0', 'VERSION содержит 1.3.0.');
         $checks[] = $this->check('composer_autoload', $this->composerAutoloadReady(), 'Composer PSR-4 указывает на core/.');
         $checks[] = $this->check('openapi', is_file($this->rootPath . '/api/openapi.yaml') && str_contains((string) file_get_contents($this->rootPath . '/api/openapi.yaml'), '/stable'), 'OpenAPI содержит stable endpoints.');
         $checks[] = $this->check('admin_assets', (bool) ((new AdminAssetPublisher($this->rootPath))->manifest(false)['ready'] ?? false), 'Prebuilt Admin assets присутствуют.');
@@ -208,7 +209,12 @@ final readonly class StableReleaseService
     private function lockValid(array $lock, string $version): bool
     {
         if ($lock === []) { return false; }
-        return ($lock['version'] ?? null) === $version && ($lock['engine_api_version'] ?? null) === '1.0' && ($lock['channel'] ?? null) === 'stable';
+        if (($lock['version'] ?? null) !== $version || ($lock['engine_api_version'] ?? null) !== '1.1' || ($lock['channel'] ?? null) !== 'stable') return false;
+        foreach (['README.md', 'CHANGELOG.md', 'LICENSE', 'NOTICE', 'SECURITY.md', 'api/openapi.yaml', 'composer.json', 'release.json', 'VERSION', 'resources/updates/releases.json'] as $file) {
+            $path = $this->rootPath . '/' . $file;
+            if (!is_file($path) || ($lock['documents'][$file] ?? null) !== hash_file('sha256', $path)) return false;
+        }
+        return true;
     }
 
     /** @return list<string> */
@@ -283,7 +289,7 @@ final readonly class StableReleaseService
 
     private function version(): string
     {
-        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.2.5';
+        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.3.0';
     }
 
     private function now(): string

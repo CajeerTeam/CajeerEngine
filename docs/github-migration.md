@@ -1,6 +1,6 @@
 # Перенос CajeerEngine на GitHub
 
-Канонический репозиторий: `https://github.com/cajeerteam/CajeerEngine`. Версия ядра остаётся 1.2.5. Если выбран другой владелец или репозиторий, перед публикацией измените `GitHubEndpoints::REPOSITORY`, проверку репозитория в workflow и скрипте публикации, а также ссылки в документации, `composer.json`, `release.json` и bundled metadata.
+Канонический репозиторий: `https://github.com/cajeerteam/CajeerEngine`. Миграция выполнена в 1.2.5; текущая версия ядра указана в `VERSION`. Если выбран другой владелец или репозиторий, перед публикацией измените `GitHubEndpoints::REPOSITORY`, проверку репозитория в workflow и скрипте публикации, а также ссылки в документации, `composer.json`, `release.json` и bundled metadata.
 
 ## Перенос истории
 
@@ -21,11 +21,11 @@ git push origin --tags
 1. Создайте environment `release`, ограничьте его доверенными release-тегами и назначьте обязательных reviewers. Защитите основную ветку и теги от несанкционированного изменения.
 2. В environment добавьте secret `RELEASE_SIGNING_KEY`: полное base64-содержимое действующего файла Ed25519 secret key, полученного `php bin/cajeer release:keygen`. Публичный ключ уже установленных CMS не меняется. Не генерируйте другой ключ без отдельной доверенной процедуры ротации. Не добавляйте secret в Git.
 3. Закоммитьте проверенный `composer.lock`. Он отсутствует в исходном архиве; без него release pipeline преднамеренно завершается ошибкой. Разрешите GitHub Actions доступ к environment и создание release через `GITHUB_TOKEN` с `contents: write` только у publish job.
-4. После проверки кода создайте и отправьте новый тег, строго совпадающий с `v` + `VERSION`. Например, если `v1.2.5` ещё не существует:
+4. После проверки кода создайте и отправьте новый тег, строго совпадающий с `v` + `VERSION`. Например, для проверенного релиза 1.3.0:
 
 ```bash
-git tag -a v1.2.5 -m 'CajeerEngine 1.2.5'
-git push origin v1.2.5
+git tag -a v1.3.0 -m 'CajeerEngine 1.3.0'
+git push origin v1.3.0
 ```
 
 `.github/workflows/release.yml` запускает прежние regression и smoke tests (включая PostgreSQL, SQLite и deployment). После успеха отдельный job проверяет tag/version/repository, ZIP и sidecar, подписывает ZIP закрытым ключом и создаёт **draft release**. Перед публикацией проверяет наличие, размер и (если предоставлен API) digest всех загруженных assets. При сбое draft остаётся скрытым. Workflow не перезаписывает существующий release; оператор должен проверить неудачный draft и удалить его вручную перед повтором. `workflow_dispatch` на ветке выполняет проверки, но не публикует релиз.

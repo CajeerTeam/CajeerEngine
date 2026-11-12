@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the real publish script against a deterministic fake GitHub CLI."""
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parent.parent
 VERSION = (ROOT / 'VERSION').read_text().strip()
 SCRIPT = ROOT / 'tools/github-publish-release.sh'
+spec=importlib.util.spec_from_file_location('cert_reg',ROOT/'tools/certification-regression.py')
+cert_reg=importlib.util.module_from_spec(spec);spec.loader.exec_module(cert_reg)
 MOCK = '''#!/usr/bin/env python3
 import hashlib, json, os, pathlib, sys
 args = sys.argv[1:]
@@ -41,10 +44,12 @@ with tempfile.TemporaryDirectory(prefix='ce-gh-publish-') as temp:
     gh.chmod(0o700)
     release = base / 'release'
     release.mkdir()
+    # The publication mock uses synthetic reports; actual evidence is produced by the host smoke in CI.
+    commit=subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip()
+    cert_reg.fixture(release,VERSION,commit)
     for mode in ('source', 'dist'):
         name = f'cajeerengine-{VERSION}-{mode}.zip'
         package = release / name
-        package.write_bytes(b'fixture zip contents')
         (release / (name + '.sha256')).write_text(f'{hashlib.sha256(package.read_bytes()).hexdigest()}  {name}\n')
         (release / (name + '.sig')).write_text('fixture signature')
         (release / f'cajeerengine-{VERSION}-{mode}.manifest.json').write_text('{}')
@@ -63,5 +68,9 @@ with tempfile.TemporaryDirectory(prefix='ce-gh-publish-') as temp:
     run('bad-digest')
     run('wrong-tag',tag='v0.0.0')
     run('wrong-repo',repo='other/repository')
+    evidence=release/'certification.json'; original=evidence.read_bytes(); evidence.unlink()
+    run('missing-certification'); evidence.write_bytes(original)
+    report=release/'production-acceptance.json'; original=report.read_bytes(); report.write_text('{}')
+    run('invalid-certification'); report.write_bytes(original)
     (release / f'cajeerengine-{VERSION}-dist.zip.sig').unlink()
     run('missing-signature')
