@@ -27,7 +27,7 @@ final readonly class SchedulerRunner
         return array_merge([
             ['name' => 'tmp.cleanup', 'description' => 'Удаление старых временных файлов.', 'interval' => 'hourly'],
             ['name' => 'queue.cleanup_processed', 'description' => 'Удаление старых обработанных file-queue задач.', 'interval' => 'daily'],
-            ['name' => 'search.index_published', 'description' => 'Переиндексация опубликованного контента.', 'interval' => 'every_run'],
+            ['name' => 'search.index_published', 'description' => 'Проверка и восстановление актуальности поискового каталога.', 'interval' => 'every_run'],
             ['name' => 'webhooks.dispatch_pending', 'description' => 'Отправка pending-событий Event API.', 'interval' => 'every_run'],
         ], array_map(static fn($n)=>['name'=>$n,'description'=>'Extension task','interval'=>'every_minute'],$this->platform?->tasks()??[]));
     }
@@ -38,7 +38,7 @@ final readonly class SchedulerRunner
         $results = [];
         $results['tmp.cleanup'] = ['removed' => $this->cleanupTmp()];
         $results['queue.cleanup_processed'] = ['removed' => $this->queue->cleanupProcessed()];
-        $results['search.index_published'] = $this->searchIndexer->indexAll();
+        $results['search.index_published'] = $this->searchIndexer->reconcile();
         $dispatch = ['events' => 0, 'deliveries' => 0];
         foreach ($this->webhooks->outbox(50) as $event) {
             $result = $this->dispatcher->dispatchEvent((string) $event['event'], is_array($event['payload'] ?? null) ? $event['payload'] : []);

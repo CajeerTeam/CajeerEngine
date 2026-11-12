@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.1.9'
+const ADMIN_VERSION = '1.2.0'
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
 localStorage.removeItem(TOKEN_KEY) // remove legacy bearer credentials
@@ -266,7 +266,7 @@ function dashboardView() {
   const dashboard = dataOf(state.cache.dashboard, {})
   const cards = dashboard.cards || []
   const bootstrap = dataOf(state.cache.bootstrap, {})
-  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.1.9 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
+  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.2.0 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
 }
 
 function contentTypesView() {
@@ -535,13 +535,17 @@ function bindUpdates() {
 }
 
 function searchView() {
-  const result = state.cache.searchResult
-  return `<div class="grid two"><div class="card"><h2>Search</h2><form class="form" data-form="search"><input class="input" name="q" value="${escapeHtml(state.forms.searchQuery)}" placeholder="query"><div class="toolbar"><button class="btn" type="submit">Искать</button><button class="btn secondary" type="button" data-action="search-reindex">Reindex</button></div></form>${result ? `<pre class="json">${escapeHtml(JSON.stringify(result, null, 2))}</pre>` : ''}</div><div class="card"><h2>Diagnostics</h2><pre class="json">${escapeHtml(JSON.stringify(dataOf(state.cache.searchDiagnostics, state.cache.searchDiagnostics), null, 2))}</pre></div></div>`
+  const result=state.cache.searchResult, m=result?.meta||{}, f=state.forms;
+  const rows=(result?.data||[]).map(r=>`<tr><td><a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a><small>${escapeHtml(r.excerpt)}</small></td><td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.locale)}</td><td>${escapeHtml(Number(r.score).toFixed(2))}</td></tr>`).join('');
+  const facets=Object.entries(m.facets||{}).map(([key,values])=>`<div><strong>${escapeHtml(key)}</strong> ${Object.entries(values).map(([v,n])=>`${escapeHtml(v)} (${escapeHtml(n)})`).join(' · ')}</div>`).join('');
+  return `<div class="grid two"><div class="card"><h2>Поиск по опубликованному сайту</h2><form class="form" data-form="search"><label>Запрос<input class="input" name="q" maxlength="256" value="${escapeHtml(f.searchQuery)}"></label><div class="split"><label>Тип<input class="input" name="type" value="${escapeHtml(f.searchType||'')}" placeholder="pages"></label><label>Язык<input class="input" name="locale" value="${escapeHtml(f.searchLocale||'')}" placeholder="ru / en"></label></div><div class="toolbar"><button class="btn" type="submit">Искать</button><a class="btn secondary" href="/search" target="_blank" rel="noopener">Публичный поиск</a><button class="btn secondary" type="button" data-action="search-reindex">Перестроить индекс</button></div></form>${result?`<p>Найдено: ${escapeHtml(m.total)}</p>${facets}${rows?`<table class="table"><thead><tr><th>Страница</th><th>Тип</th><th>Язык</th><th>Рейтинг</th></tr></thead><tbody>${rows}</tbody></table>`:'<p>Нет результатов на этой странице.</p>'}<div class="toolbar"><button class="btn secondary" data-search-offset="${Math.max(0,m.offset-m.limit)}" ${m.offset<=0?'disabled':''}>Назад</button><button class="btn secondary" data-search-offset="${m.offset+m.limit}" ${m.offset+m.limit>=m.total?'disabled':''}>Далее</button></div>`:''}</div><div class="card"><h2>Состояние индекса</h2><pre class="json">${escapeHtml(JSON.stringify(dataOf(state.cache.searchDiagnostics,state.cache.searchDiagnostics),null,2))}</pre></div></div>`;
 }
 
 function bindSearch() {
-  document.querySelector('[data-form="search"]')?.addEventListener('submit', async (event) => { event.preventDefault(); const q = new FormData(event.currentTarget).get('q'); try { state.cache.searchResult = await api(`/search?q=${encodeURIComponent(q)}`); setNotice('ok', 'Поиск выполнен.'); render() } catch (error) { setNotice('error', error.message, error.payload) } })
-  document.querySelector('[data-action="search-reindex"]')?.addEventListener('click', async () => { try { const payload = await api('/search/reindex', { method: 'POST', body: '{}' }); setNotice('ok', 'Reindex запущен.', payload); await routeLoad('search') } catch (error) { setNotice('error', error.message, error.payload) } })
+  const query=async offset=>{try{const f=state.forms;state.cache.searchResult=await api('/search?'+new URLSearchParams({q:f.searchQuery||'',type:f.searchType||'',locale:f.searchLocale||'',limit:'20',offset:String(offset)}));render()}catch(e){setNotice('error',e.message,e.payload);render()}};
+  document.querySelector('[data-form="search"]')?.addEventListener('submit',async event=>{event.preventDefault();const data=new FormData(event.currentTarget);state.forms.searchQuery=String(data.get('q')||'');state.forms.searchType=String(data.get('type')||'');state.forms.searchLocale=String(data.get('locale')||'');await query(0)});
+  document.querySelectorAll('[data-search-offset]').forEach(b=>b.addEventListener('click',()=>query(Number(b.dataset.searchOffset))));
+  document.querySelector('[data-action="search-reindex"]')?.addEventListener('click',async()=>{try{const payload=await api('/search/reindex',{method:'POST',body:'{}'});setNotice('ok','Индекс перестроен.',payload);await routeLoad('search');await query(0)}catch(e){setNotice('error',e.message,e.payload);render()}});
 }
 
 function importExportView() {

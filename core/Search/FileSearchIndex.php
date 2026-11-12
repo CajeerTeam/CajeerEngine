@@ -126,7 +126,7 @@ final readonly class FileSearchIndex implements SearchEngineInterface
 
     private function path(): string
     {
-        return $this->rootPath . '/storage/app/search-index.json';
+        return $this->rootPath . '/storage/app/search-legacy-index.json';
     }
 
     /** @return list<string> */

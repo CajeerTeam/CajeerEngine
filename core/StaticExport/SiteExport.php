@@ -34,7 +34,7 @@ final readonly class SiteExport
                 if($r['kind']!=='page')continue;
                 $path=PublicPath::normalize($r['path']);$page=$renderer->renderByPath($path);if($page===null)continue;
                 $relative=($path==='/'?'':rawurldecode(ltrim($path,'/')).'/').'index.html';
-                F::write(F::path($stage,$relative),$page['html'],0644);$manifest[]=['path'=>$path,'file'=>$relative,'id'=>$r['id']];
+                F::write(F::path($stage,$relative),str_replace('<a href="/search" data-ce-dynamic-search>Поиск</a>','',$page['html']),0644);$manifest[]=['path'=>$path,'file'=>$relative,'id'=>$r['id']];
             }
             if(!is_file($stage.'/index.html'))throw new \RuntimeException('Publish a homepage before exporting');
             foreach($media->publicItems() as $row){

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 — Search & CMS Integration
+
+- Search projection is synchronized with content and route changes, with PostgreSQL FTS and SQLite/MySQL or file catalog.
+- Public search page and API, filtered pagination, relevance, facets, safe result rendering, real admin search.
+- Rebuild replaces stale documents; import, backup, updater and scheduler use the same catalog.
+
 ## 1.1.9 — Admin & Public Rendering Completion
 
 - Schema-driven entry and field editor, reorderable blocks, media picker, revision restore and localization workflows.

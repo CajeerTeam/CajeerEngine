@@ -58,6 +58,7 @@
           @endforeach
         </nav>
       @endif
+      <a href="/search" data-ce-dynamic-search>Поиск</a>
     </header>
     @if (!empty($preview))
       {!! $preview_toolbar ?? '' !!}

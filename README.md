@@ -1,4 +1,4 @@
-# CajeerEngine 1.1.9
+# CajeerEngine 1.2.0
 
 API-first CMS на PHP с собственным ядром (`core/`), шаблонами `.cjr`, REST API (`api/openapi.yaml`) и статической админкой (`admin/static`, опубликованные файлы `public/admin`). CLI: `bin/cajeer`.
 
@@ -27,7 +27,7 @@ node admin/scripts/publish-admin-assets.mjs --check
 php tools/release-regression.php
 # После коммита всех изменений и composer.lock:
 bash tools/release-pipeline.sh /tmp/cajeer-release
-bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.1.6-dist.zip sqlite
+bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.2.0-dist.zip sqlite
 ```
 
 Сборка использует чистый Git snapshot и проверяет каждую запись ZIP, checksum и sidecar manifest. Dist включает `vendor/`, production Admin assets, миграции и пустые runtime-маркеры. Никакие данные рабочей установки, загруженные медиа, секреты и установленные пользователем плагины не включаются. Публиковать dist только после успешных smoke tests; SHA256 проверяет целостность, но не заменяет подпись доверенного издателя.
@@ -57,3 +57,7 @@ SQL catalog, folders, tags, collections, image variants, private downloads and v
 ## Admin & Rendering 1.1.9
 
 See [editor and rendering guide](docs/admin-rendering.md). Run `php bin/cajeer cms:bootstrap` to add standard page blocks without replacing existing definitions.
+
+## Search & CMS Integration 1.2.0
+
+Публичный поиск `/search`, API `/api/v1/public/search`, синхронизация с публикацией и деревом страниц, PostgreSQL FTS и SQL/file catalog. См. [Search Runtime](docs/search-runtime.md).

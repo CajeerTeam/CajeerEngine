@@ -11,18 +11,10 @@ final readonly class SearchService
     }
 
     /** @return array<string, mixed> */
-    public function search(string $query, ?string $index = null, int $limit = 20): array
+    public function search(string $query, ?string $index = null, int $limit = 20,int $offset=0,?string $type=null,?string $locale=null): array
     {
-        $items = $this->index->search($query, $index, $limit);
-        return [
-            'data' => $items,
-            'meta' => [
-                'query' => $query,
-                'index' => $index ?: 'all',
-                'total' => count($items),
-                'driver' => $this->index->diagnostics()['driver'] ?? 'unknown',
-            ],
-        ];
+        if(!$this->index instanceof CmsSearchEngine)throw new \LogicException('CMS search requires authoritative catalog');
+        return $this->index->page($query,$index,$limit,$offset,$type,$locale);
     }
 
     /** @return array<string, mixed> */

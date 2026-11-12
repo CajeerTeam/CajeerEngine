@@ -11,6 +11,8 @@ use CajeerEngine\Runtime\ConfigRepository;
 use CajeerEngine\Support\JsonFile;
 use CajeerEngine\Update\OperationFiles;
 use PDO;
+use CajeerEngine\Search\SearchDocument;
+use CajeerEngine\Search\SearchProjection;
 
 /** DB lookups use a unique hash index; file storage is a small-site/demo implementation. */
 final class RouteIndex
@@ -85,6 +87,20 @@ final class RouteIndex
         }else{$routes=$this->fileRoutes();ksort($routes,SORT_STRING);$total=count($routes);$items=array_slice(array_values($routes),$offset,$limit);}
         return ['data'=>$items,'meta'=>['total'=>$total,'limit'=>$limit,'offset'=>$offset]];
     }
+    public function searchSnapshot(): array
+    {
+        if($this->database())throw new \LogicException('File search snapshot requires file content storage');
+        for($attempt=0;$attempt<3;$attempt++){
+            $h=$this->lock(LOCK_SH);
+            try{$state=(new SearchProjection($this->root))->read();
+                if(($state['version']??null)===SearchProjection::VERSION&&($state['fingerprint']??null)===$this->fingerprint())return $state['documents'];
+            }finally{flock($h,LOCK_UN);fclose($h);}
+            $this->rebuild();
+        }
+        throw new \RuntimeException('Search snapshot changed repeatedly; retry');
+    }
+    public function ensureSearch(): void {if($this->database())$this->ensureDatabase();else $this->searchSnapshot();}
+
     public function check(): array
     {
         $stored=$this->database()?$this->readDatabase():($this->readFile()['routes']??[]);
@@ -101,18 +117,21 @@ final class RouteIndex
         if(isset(self::$writing[$this->key]))return $callback();
         $lock=$this->lock(LOCK_EX);self::$writing[$this->key]=true;$snap=[];
         try {
-            foreach($files as $relative){$p=OperationFiles::path($this->root,$relative);$snap[$p]=is_file($p)?['bytes'=>file_get_contents($p),'mode'=>fileperms($p)&0777]:null;}
+            if(!$this->database())$files[]='storage/app/search-index.json';
+            foreach(array_unique($files) as $relative){$p=OperationFiles::path($this->root,$relative);$snap[$p]=is_file($p)?['bytes'=>file_get_contents($p),'mode'=>fileperms($p)&0777]:null;}
             $work=function()use($callback,$report){
                 if($this->database()){
                     $pdo=$this->db->connection();$pdo->exec('UPDATE ce_public_route_state SET generation = generation + 1 WHERE id = 1');
                     $stored=$previous=$this->readDatabase();
                     // Preserve old routes even when the index is being initialized by the first edit.
                     if($previous===[]) { try { $previous=$this->graph([]); } catch (\DomainException|\InvalidArgumentException) { /* Allow an editor to repair legacy collisions. */ } }
-                    $result=$callback();$routes=$this->graph($previous);$this->writeDatabase($routes,$stored);
+                    $result=$callback();$routes=$this->graph($previous,null,$docs);$this->writeDatabase($routes,$stored);
+                    (new SearchProjection($this->root))->synchronize($pdo,$docs,$report);
                 }else{
                     $previous=$this->readFile()['routes']??[];
                     if($previous===[]) { try { $previous=$this->graph([]); } catch (\DomainException|\InvalidArgumentException) { /* Allow an editor to repair legacy collisions. */ } }
-                    $result=$callback();$routes=$this->graph($previous);$this->writeFile($routes);
+                    $result=$callback();$routes=$this->graph($previous,null,$docs);
+                    (new SearchProjection($this->root))->write($docs,$this->fingerprint(),$report);$this->writeFile($routes);
                 }
                 return $report?['ok'=>true,'pages'=>count(array_filter($routes,fn($r)=>$r['kind']==='page')),'aliases'=>count(array_filter($routes,fn($r)=>$r['kind']==='alias')),'storage'=>$this->database()?'database':'file']:$result;
             };
@@ -126,17 +145,19 @@ final class RouteIndex
     {
         return $this->graph([], $id)['path']??null;
     }
-    private function graph(array $previous,?string $previewId=null): array
+    private function graph(array $previous,?string $previewId=null,?array &$docs=null): array
     {
-        $rows=[];foreach($this->types->all() as $type)foreach($this->entries->list($type['handle']) as $row){unset($row['revisions']);$rows[]=$row;}
-        return RouteGraph::build($rows,$this->theme->get(),$previous,$previewId);
+        $rows=[];$types=$this->types->all();foreach($types as $type)foreach($this->entries->list($type['handle']) as $row){unset($row['revisions']);$rows[]=$row;}
+        $theme=$this->theme->get();$routes=RouteGraph::build($rows,$theme,$previous,$previewId);
+        if($previewId===null)$docs=SearchDocument::project($routes,$rows,$types,$theme);
+        return $routes;
     }
     private function database(): bool {return $this->entries->storage()==='database';}
     private function ensureDatabase(): void
     {
-        $v=$this->db->connection()->query('SELECT generation FROM ce_public_route_state WHERE id = 1')->fetchColumn();
+        $v=$this->db->connection()->query('SELECT generation, search_version FROM ce_public_route_state WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
         if($v===false)throw new \RuntimeException('Public route index is not initialized; run migrate and routing:rebuild');
-        if((int)$v===0)$this->rebuild();
+        if((int)$v['generation']===0||(int)$v['search_version']!==SearchProjection::VERSION)$this->rebuild();
     }
     private function readDatabase(): array
     {

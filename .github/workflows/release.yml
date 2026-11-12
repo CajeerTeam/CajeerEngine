@@ -43,6 +43,8 @@ jobs:
       - run: php tools/rendering-regression.php
       - run: php tools/rendering-regression.php --database
       - run: php tools/import-regression.php --database
+      - run: php tools/search-regression.php
+      - run: php tools/search-regression.php --database
       - name: Install matching PostgreSQL 17 client
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -64,6 +66,19 @@ jobs:
         run: |
           createdb -h 127.0.0.1 -U cajeer cajeer_backup_test
           php tools/backup-db-regression.php
+      - name: PostgreSQL CMS search integration
+        env:
+          PGPASSWORD: release-smoke
+          CE_SEARCH_PG_TEST: '1'
+          DB_DRIVER: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '5432'
+          DB_DATABASE: cajeer_search_test
+          DB_USERNAME: cajeer
+          DB_PASSWORD: release-smoke
+        run: |
+          createdb -h 127.0.0.1 -U cajeer cajeer_search_test
+          php tools/search-regression.php --pgsql
       - run: bash tools/release-pipeline.sh "$RUNNER_TEMP/release"
       - run: bash tools/release-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip" sqlite
       - run: bash tools/release-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip" pgsql

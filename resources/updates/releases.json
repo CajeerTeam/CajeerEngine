@@ -4,6 +4,26 @@
   "generated_at": "2026-06-19T00:00:00+00:00",
   "releases": [
     {
+      "version": "1.2.0",
+      "channel": "stable",
+      "stability": "stable",
+      "released_at": "2026-11-12T00:00:00+00:00",
+      "notes": "Search & CMS Integration: publication-consistent search, public search UI, filters/facets and PostgreSQL FTS.",
+      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.2.0",
+      "artifacts": {
+        "source": {
+          "name": "cajeerengine-1.2.0-source.zip",
+          "checksum_name": "cajeerengine-1.2.0-source.zip.sha256",
+          "signature_name": "cajeerengine-1.2.0-source.zip.sig"
+        },
+        "dist": {
+          "name": "cajeerengine-1.2.0-dist.zip",
+          "checksum_name": "cajeerengine-1.2.0-dist.zip.sha256",
+          "signature_name": "cajeerengine-1.2.0-dist.zip.sig"
+        }
+      }
+    },
+    {
       "version": "1.1.9",
       "channel": "stable",
       "stability": "stable",

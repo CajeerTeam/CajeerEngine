@@ -35,6 +35,7 @@ final class RouteRegistry
             ['POST', '/api/v1/content/{type}/{id}/revisions/{revision}', 'api.v1.content.revisions.restore.short', 'entries', 'restoreRevision', ['content:write']],
             ['POST', '/api/v1/content/{type}/{id}/revisions/{revision}/restore', 'api.v1.content.revisions.restore', 'entries', 'restoreRevision', ['content:write']],
             ['GET', '/api/v1/runtime', 'api.v1.runtime', 'runtime', 'show', ['system:read']],
+            ['GET', '/api/v1/public/search', 'api.v1.public.search', 'search', 'publicIndex', null],
             ['GET', '/api/v1/search', 'api.v1.search.index', 'search', 'index', ['content:read']],
             ['POST', '/api/v1/search/reindex', 'api.v1.search.reindex', 'search', 'reindex', ['system:write']],
             ['GET', '/api/v1/search/diagnostics', 'api.v1.search.diagnostics', 'search', 'diagnostics', ['system:read']],
@@ -146,6 +147,8 @@ final class RouteRegistry
             ['GET', '/sitemap.xml', 'public.sitemap_xml', 'public', 'sitemapXml', null],
             ['GET', '/robots.txt', 'public.robots_txt', 'public', 'robotsTxt', null],
             ['GET', '/preview/{token}', 'public.preview_token', 'public', 'previewToken', null],
+            ['GET', '/search', 'public.search', 'search', 'publicPage', null],
+            ['GET', '/search/', 'public.search.trailing', 'search', 'publicPage', null],
             ['GET', '/', 'public.home', 'public', 'renderHome', null],
             ['GET', '/{path}', 'public.page.path', 'public', 'renderByPath', null],
         ];

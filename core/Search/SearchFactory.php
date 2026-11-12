@@ -13,15 +13,10 @@ final readonly class SearchFactory
     {
     }
 
-    public function make(): SearchEngineInterface
+    public function make(): CmsSearchEngine
     {
         $driver = strtolower($this->config->string('search.default', 'file'));
-        return match ($driver) {
-            'pgsql', 'postgres', 'postgresql' => new PostgresFullTextSearchEngine($this->database()->connection(), $this->config->string('search.engines.pgsql.language', 'russian')),
-            'meili', 'meilisearch' => new MeilisearchEngine($this->config->string('search.engines.meilisearch.host', ''), $this->config->string('search.engines.meilisearch.key', ''), $this->config->int('updates.core.timeout', 5)),
-            'opensearch' => new OpenSearchEngine($this->config->string('search.engines.opensearch.host', ''), $this->config->int('updates.core.timeout', 5)),
-            default => new FileSearchIndex($this->rootPath),
-        };
+        return new CmsSearchEngine($this->rootPath,$this->database(),$driver);
     }
 
     private function database(): DatabaseManager

@@ -56,11 +56,21 @@ curl -fsS "${auth[@]}" -X PATCH -d '{"data":{"path":"/release-moved"}}' "$base/a
 curl -fsS "$base/release-moved/child" | grep -q 'Nested release child'
 [[ $(curl -s -o /dev/null -w '%{http_code}' "$base/release-moved/child/") == 308 ]]
 curl -fsS "${auth[@]}" "$base/api/v1/cms/routes" | grep -q '/release-moved/child'
+# Public search uses the same publication generation and canonical URL as routing.
+curl -fsS "$base/search?q=Nested" | grep -q '/release-moved/child'
+curl -fsS "$base/api/v1/public/search?q=Nested&locale=ru&type=pages" | php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR); if($j["meta"]["total"]!==1||$j["data"][0]["url"]!=="/release-moved/child")exit(1);'
+[[ $(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/search?q=Nested") == 401 ]]
+[[ $(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/public/search?q=Nested&limit=101") == 422 ]]
+
 curl -fsS "${auth[@]}" -X POST "$base/api/v1/content/pages/$id/unpublish" >/dev/null
 [[ $(curl -s -o /dev/null -w '%{http_code}' "$base/release-moved/child") == 404 ]]
+curl -fsS "$base/api/v1/public/search?q=Nested" | php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR);if($j["meta"]["total"]!==0)exit(1);'
+
 curl -fsS "${auth[@]}" -X POST "$base/api/v1/content/pages/$id/publish" >/dev/null
 curl -fsS "${auth[@]}" -X PATCH -d '{"data":{"path":"/release-smoke"}}' "$base/api/v1/content/pages/$id" >/dev/null
 curl -fsS "$base/release-smoke/child" | grep -q 'Nested release child'
+curl -fsS "$base/api/v1/public/search?q=Nested" | php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR);if($j["data"][0]["url"]!=="/release-smoke/child")exit(1);'
+php bin/cajeer search:check --json >/dev/null
 php bin/cajeer routing:check --json >/dev/null
 # Auth, RBAC and CSRF regression against actual HTTP/DB runtime.
 status() { curl -s -o "$root/response.json" -w '%{http_code}' "$@"; }

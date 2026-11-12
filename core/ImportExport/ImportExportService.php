@@ -85,7 +85,7 @@ final class ImportExportService
                 $filename=$filename?:'cajeerengine-export-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(4)).'.zip';
                 $this->filename($filename); $path=$this->directory('exports').'/'.$filename;
                 if(file_exists($path)||is_link($path))throw new \InvalidArgumentException('Export already exists');
-                $manifest=$package->write($path,$data,$this->config->string('app.version','1.1.9'),str_ends_with($filename,'.json'));
+                $manifest=$package->write($path,$data,$this->config->string('app.version','1.2.0'),str_ends_with($filename,'.json'));
                 return ['ok'=>true,'path'=>$path,'file'=>$filename,'sha256'=>F::hash($path),'manifest'=>$manifest];
             } finally { $package->close(); }
         });
@@ -344,14 +344,7 @@ final class ImportExportService
         if(isset($a['settings'])){
             $repo=new SettingsRepository($this->db);foreach($a['settings'] as $key=>$value)$repo->set($key,$value,'string');
         }
-        // Rebuild affected search documents when the local/index DB engine is used.
-        if(($a['entries']??[])!==[]){
-            $driver=$this->config->string('search.default','file');
-            if(!in_array($driver,['file','pgsql','postgresql','postgres'],true))throw new \RuntimeException('Import requires local or PostgreSQL search; rebuild external indexes separately');
-            $index=(new \CajeerEngine\Search\SearchFactory($this->rootPath,$this->config,$this->db))->make();
-            $indexer=new \CajeerEngine\Search\SearchIndexer($this->types,$this->entries,$index);
-            foreach($a['entries'] as $row)if(in_array($row['action'],['create','update'],true)){$entry=$this->entries->find($row['type'],$row['id']);if($entry===null)throw new \RuntimeException('Imported entry not found');$indexer->indexEntry($row['type'],$entry);}
-        }
+        // RouteIndex::mutate commits the search projection once for the complete import.
     }
 
     private function rewriteFields(array $type,array $data,array $map,array $ids,array $media): array

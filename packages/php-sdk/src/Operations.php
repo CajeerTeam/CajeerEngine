@@ -774,6 +774,51 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'get_PublicSearch' => 
+  array (
+    'method' => 'GET',
+    'path' => '/public/search',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'q',
+        'in' => 'query',
+        'required' => false,
+      ),
+      1 => 
+      array (
+        'name' => 'index',
+        'in' => 'query',
+        'required' => false,
+      ),
+      2 => 
+      array (
+        'name' => 'limit',
+        'in' => 'query',
+        'required' => false,
+      ),
+      3 => 
+      array (
+        'name' => 'offset',
+        'in' => 'query',
+        'required' => false,
+      ),
+      4 => 
+      array (
+        'name' => 'type',
+        'in' => 'query',
+        'required' => false,
+      ),
+      5 => 
+      array (
+        'name' => 'locale',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'get_PublicSitemap' => 
   array (
     'method' => 'GET',
@@ -897,6 +942,24 @@ final class Operations {
       2 => 
       array (
         'name' => 'limit',
+        'in' => 'query',
+        'required' => false,
+      ),
+      3 => 
+      array (
+        'name' => 'offset',
+        'in' => 'query',
+        'required' => false,
+      ),
+      4 => 
+      array (
+        'name' => 'type',
+        'in' => 'query',
+        'required' => false,
+      ),
+      5 => 
+      array (
+        'name' => 'locale',
         'in' => 'query',
         'required' => false,
       ),

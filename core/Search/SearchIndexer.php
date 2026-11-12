@@ -19,66 +19,22 @@ final readonly class SearchIndexer
     /** @return array<string, mixed> */
     public function indexAll(): array
     {
-        $indexed = 0;
-        $types = $this->types->all();
-        foreach ($types as $type) {
-            $handle = (string) ($type['handle'] ?? '');
-            if ($handle === '') {
-                continue;
-            }
-            foreach ($this->entries->list($handle, ['status' => 'published']) as $entry) {
-                $this->indexEntry($handle, $entry);
-                $indexed++;
-            }
-        }
-        return ['indexed' => $indexed, 'types' => count($types), 'diagnostics' => $this->index->diagnostics()];
+        return $this->engine()->rebuild();
     }
 
     /** @param array<string, mixed> $entry */
     public function indexEntry(string $typeHandle, array $entry): void
     {
-        if (($entry['status'] ?? '') !== 'published') {
-            $this->index->delete('content', $typeHandle . ':' . (string) ($entry['id'] ?? ''));
-            return;
-        }
-        $id = $typeHandle . ':' . (string) ($entry['id'] ?? '');
-        $title = (string) ($entry['title'] ?? $entry['slug'] ?? $id);
-        $data = is_array($entry['data'] ?? null) ? $entry['data'] : [];
-        $body = $this->flatten($data);
-        $slug = (string) ($entry['slug'] ?? '');
-        $this->index->index('content', $id, [
-            'type' => $typeHandle,
-            'title' => $title,
-            'body' => $body,
-            'url' => $slug !== '' ? '/' . ltrim($slug, '/') : '',
-            'locale' => (string) ($entry['locale'] ?? 'ru'),
-            'status' => (string) ($entry['status'] ?? 'published'),
-            'raw' => [
-                'id' => (string) ($entry['id'] ?? ''),
-                'type' => $typeHandle,
-                'slug' => $slug,
-                'revision' => (int) ($entry['revision'] ?? 1),
-                'updated_at' => (string) ($entry['updated_at'] ?? ''),
-            ],
-        ]);
+        // Compatibility entry point: derive from committed CMS state, never caller-supplied data.
+        $this->engine()->rebuild();
     }
 
-    /** @param array<string, mixed> $data */
-    private function flatten(array $data): string
+    public function reconcile(): array {return $this->engine()->ensure();}
+
+    private function engine(): CmsSearchEngine
     {
-        $parts = [];
-        $walk = static function (mixed $value) use (&$walk, &$parts): void {
-            if (is_scalar($value)) {
-                $parts[] = (string) $value;
-                return;
-            }
-            if (is_array($value)) {
-                foreach ($value as $child) {
-                    $walk($child);
-                }
-            }
-        };
-        $walk($data);
-        return implode(' ', $parts);
+        if($this->index instanceof CmsSearchEngine)return $this->index;
+        $root=$this->entries->rootPath();$config=new \CajeerEngine\Runtime\ConfigRepository($root);
+        return new CmsSearchEngine($root,new \CajeerEngine\Database\DatabaseManager($config),$config->string('search.default','file'));
     }
 }

@@ -131,7 +131,7 @@ if (in_array($argv[1]??'', ['extension:install','extension:uninstall','extension
     CajeerEngine\Console\OperationsCli::loadEnv($root);
     if (!in_array(getenv('APP_ENV'),['local','dev','testing'],true)) { fwrite(STDERR,"Use signed package operations in production.\n"); exit(1); }
 }
-if (!is_file($autoload)) {
+if (in_array($argv[1]??'', ['search:index','search:query','search:check'],true)||!is_file($autoload)) {
     require_once $root . '/core/Console/NativeCli.php';
     exit(CajeerEngine\Console\NativeCli::run($root, $argv));
 }
@@ -142,7 +142,7 @@ if (is_file($root . '/.env')) {
     (new Dotenv())->usePutenv()->loadEnv($root . '/.env');
 }
 
-$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.1.9');
+$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.2.0');
 
 /** @var list<Symfony\Component\Console\Command\Command> $commands */
 $commands = [

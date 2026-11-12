@@ -22,7 +22,7 @@ final class UpdateCheckCommand extends BaseCommand
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $config = new ConfigRepository($this->rootPath);
-        $result = (new UpdateResolver($config->get('updates', []), $this->rootPath))->check($config->string('app.version', '1.1.9'));
+        $result = (new UpdateResolver($config->get('updates', []), $this->rootPath))->check($config->string('app.version', '1.2.0'));
         if ($input->getOption('json')) {
             $output->writeln(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             return self::SUCCESS;

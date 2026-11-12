@@ -22,6 +22,9 @@ final readonly class ErrorHandlerMiddleware implements MiddlewareInterface
     {
         try {
             return $next($request);
+        } catch (\CajeerEngine\Search\SearchUnavailable $e) {
+            $this->logger->error('Search catalog unavailable',['exception'=>$e->getPrevious()?->getMessage()]);
+            return $this->jsonError($request, 'search_unavailable', 'Поиск временно недоступен.', 503);
         } catch (\CajeerEngine\Content\RevisionConflict $e) {
             return $this->jsonError($request, 'revision_conflict', $e->getMessage(), Response::HTTP_CONFLICT);
         } catch (\InvalidArgumentException|\DomainException $e) {

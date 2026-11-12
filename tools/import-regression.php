@@ -71,12 +71,16 @@ try {
     $again=$target->diff($file,['strategy'=>'update']);check($again['summary']['create']===0&&$again['summary']['update']===0,'second import is idempotent');
     check($target->import($file,['strategy'=>'update','plan'=>$again['plan']])['unchanged']===true,'unchanged import does not create backup or revisions');
     $fresh=new ImportExportService($bad);$freshPlan=$fresh->diff($file,['strategy'=>'update']);
-    F::write($bad.'/storage/app/search-index.json','{invalid json'); // deliberate failure after content and media writes
+    // Force an error in the actual search projection, after content/media writes.
+    if($dbMode){$mgr=new DatabaseManager(new ConfigRepository($bad));$mgr->connection()->exec("CREATE TRIGGER ce_search_fail BEFORE INSERT ON ce_cms_search BEGIN SELECT RAISE(ABORT, 'projection failure'); END");$mgr->disconnect();unset($mgr);}
+    else F::write($bad.'/storage/app/search-index.json','{invalid json');
     $freshPlan=$fresh->diff($file,['strategy'=>'update']);$failed=$fresh->import($file,['strategy'=>'update','plan'=>$freshPlan['plan']]);
     check(!$failed['ok']&&$failed['rolled_back']===true&&!is_file($bad.'/storage/app/content-types.json')&&!is_file($bad.'/public/uploads/import/'.$am['id'].'.png'),'post-write error restores original files and removes new uploads');
     if($dbMode){$mgr=new DatabaseManager(new ConfigRepository($bad));check((int)$mgr->connection()->query('SELECT COUNT(*) FROM ce_content_entries')->fetchColumn()===0,'database rollback leaves no imported entries');$mgr->disconnect();}
     check(!is_file($bad.'/storage/app/backup-restore.json'),'successful recovery clears maintenance gate');
-    F::remove($bad.'/storage/app/search-index.json');$freshPlan=$fresh->diff($file,['strategy'=>'update']);$result=$fresh->import($file,['strategy'=>'update','plan'=>$freshPlan['plan']]);check($result['ok'],'retry succeeds after fixing failure');
+    if($dbMode){$mgr=new DatabaseManager(new ConfigRepository($bad));$mgr->connection()->exec('DROP TRIGGER IF EXISTS ce_search_fail');$mgr->disconnect();unset($mgr);}
+    else F::remove($bad.'/storage/app/search-index.json');
+    $freshPlan=$fresh->diff($file,['strategy'=>'update']);$result=$fresh->import($file,['strategy'=>'update','plan'=>$freshPlan['plan']]);check($result['ok'],'retry succeeds after fixing failure');
     $fe=new ContentEntryRepository($bad);check(count($fe->revisions('pages',$parent['id']))>=2,'historical revisions restored for new entries');
     $legacy=$source->createExport(['media'],'legacy.json');check($target->diff($legacy['path'])['ok'],'checksummed JSON v2 remains importable');
     $tamper=$work.'/tampered.zip';copy($file,$tamper);$zip=new PharData($tamper);$zip['media/'.$am['checksum']]='wrong';unset($zip);reject(fn()=>$target->diff($tamper),'tampered media rejected');

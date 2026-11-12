@@ -600,6 +600,43 @@ export const operations = {
         ],
         "bodyRequired": false
     },
+    "get_PublicSearch": {
+        "method": "GET",
+        "path": "/public/search",
+        "parameters": [
+            {
+                "name": "q",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "index",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "limit",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "offset",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "type",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "locale",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
     "get_PublicSitemap": {
         "method": "GET",
         "path": "/public/sitemap",
@@ -688,6 +725,21 @@ export const operations = {
             },
             {
                 "name": "limit",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "offset",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "type",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "locale",
                 "in": "query",
                 "required": false
             }

@@ -26,6 +26,8 @@ final class ContentEntryRepository
         $this->audit = new AuditLogger($this->rootPath);
     }
 
+    public function rootPath(): string {return $this->rootPath;}
+
     public function storage(): string
     {
         return $this->useDatabase() ? 'database' : 'file';

@@ -23,7 +23,7 @@ final class PublicPath
     public static function reserved(string $path): bool
     {
         $first=strtolower(rawurldecode(explode('/',ltrim($path,'/'))[0]));
-        return str_starts_with($first,'.') || in_array($first,['api','admin','uploads','install','upgrade','preview','extensions','assets','health','metrics','robots.txt','sitemap.xml','index.php','install.php','upgrade.php'],true) || str_ends_with($first,'.php');
+        return str_starts_with($first,'.') || in_array($first,['api','admin','search','uploads','install','upgrade','preview','extensions','assets','health','metrics','robots.txt','sitemap.xml','index.php','install.php','upgrade.php'],true) || str_ends_with($first,'.php');
     }
     public static function content(string $path): string
     {
