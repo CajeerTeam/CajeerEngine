@@ -11,7 +11,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'update:check', description: 'Проверить обновления ядра через GitFlic Releases / Registry metadata.')]
+#[AsCommand(name: 'update:check', description: 'Проверить обновления ядра через GitHub Releases metadata.')]
 final class UpdateCheckCommand extends BaseCommand
 {
     protected function configure(): void

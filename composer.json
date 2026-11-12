@@ -74,5 +74,10 @@
     "ext-redis": "Нужен для Redis cache/queue driver.",
     "ext-amqp": "Нужен для RabbitMQ queue driver.",
     "ext-curl": "Required for secure outbound webhooks and remote update metadata."
+  },
+  "homepage": "https://github.com/cajeerteam/CajeerEngine",
+  "support": {
+    "issues": "https://github.com/cajeerteam/CajeerEngine/issues",
+    "source": "https://github.com/cajeerteam/CajeerEngine"
   }
 }

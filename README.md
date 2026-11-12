@@ -2,6 +2,8 @@
 
 API-first CMS на PHP с собственным ядром (`core/`), шаблонами `.cjr`, REST API (`api/openapi.yaml`) и статической админкой (`admin/static`, опубликованные файлы `public/admin`). CLI: `bin/cajeer`.
 
+Репозиторий: [GitHub — cajeerteam/CajeerEngine](https://github.com/cajeerteam/CajeerEngine). [Релизы](https://github.com/cajeerteam/CajeerEngine/releases) · [Issues](https://github.com/cajeerteam/CajeerEngine/issues) · [Перенос и публикация на GitHub](docs/github-migration.md).
+
 ## Установка
 
 - PHP 8.4.1+, mbstring, sodium, Phar, PDO и драйвер выбранной БД, openssl, fileinfo.

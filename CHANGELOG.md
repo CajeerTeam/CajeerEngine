@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.5 — GitHub distribution migration
+
+- GitHub Releases REST discovery, canonical release assets and signed draft-first publication after release verification.
+- Distribution URLs and contributor instructions moved to GitHub; existing updater signature trust is unchanged.
+
 ## 1.2.5 — Production Deployment
 
 - Signed, SHA-256 pinned production deployment from a clean Composer-locked dist, without dependency resolution on the target.

@@ -256,7 +256,7 @@ final readonly class ServerDoctorService
             $version = $config->string('app.version', trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.2.5');
             $updates = (new UpdateResolver($config->get('updates', []), $this->rootPath))->diagnostics($version);
             return [
-                $this->check('updates', 'metadata_ready', (bool) ($updates['metadata_ready'] ?? false), 'Update metadata ready', 'WARN', 'Проверьте resources/updates/releases.json или GitFlic releases endpoint.', ['diagnostics' => $updates, 'fix_command' => 'php bin/cajeer update:check']),
+                $this->check('updates', 'metadata_ready', (bool) ($updates['metadata_ready'] ?? false), 'Update metadata ready', 'WARN', 'Проверьте resources/updates/releases.json или GitHub Releases API.', ['diagnostics' => $updates, 'fix_command' => 'php bin/cajeer update:check']),
             ];
         } catch (\Throwable $e) {
             return [$this->check('updates', 'exception', false, 'Update diagnostics', 'WARN', $e->getMessage(), ['fix_command' => 'php bin/cajeer update:check'])];

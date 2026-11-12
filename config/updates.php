@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-use CajeerEngine\Update\GitFlicEndpoints;
+use CajeerEngine\Update\GitHubEndpoints;
 
 return [
     'core' => [
         'channel' => getenv('UPDATE_CHANNEL') ?: 'stable',
-        'releases_url' => GitFlicEndpoints::RELEASES_URL,
+        'releases_url' => GitHubEndpoints::RELEASES_URL,
         'timeout' => (int) (getenv('UPDATE_HTTP_TIMEOUT') ?: 5),
     ],
     'registry' => [
-        'url' => GitFlicEndpoints::REGISTRY_URL,
+        'url' => GitHubEndpoints::REGISTRY_URL,
         'signature_required' => true,
     ],
     'web_upgrade' => [

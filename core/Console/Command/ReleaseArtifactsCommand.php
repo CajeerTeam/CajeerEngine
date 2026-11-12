@@ -10,7 +10,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'release:artifacts', description: 'Собрать source+dist artifacts и GitFlic artifact index.')]
+#[AsCommand(name: 'release:artifacts', description: 'Собрать source+dist artifacts и GitHub artifact index.')]
 final class ReleaseArtifactsCommand extends BaseCommand
 {
     protected function configure(): void

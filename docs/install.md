@@ -204,7 +204,7 @@ php bin/cajeer release:build --source
 php bin/cajeer release:build --dist
 ```
 
-Сборка полного набора для GitFlic Release:
+Сборка полного набора для GitHub Release:
 
 ```bash
 php bin/cajeer release:artifacts

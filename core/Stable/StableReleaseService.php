@@ -95,7 +95,7 @@ final readonly class StableReleaseService
         $db = $this->databaseStatus();
         $checks[] = $this->check('database_schema', (bool) ($db['ready_or_unconfigured'] ?? false), 'База данных готова или явно не настроена в source-окружении.');
         $updates = (new UpdateResolver($this->config->get('updates', []), $this->rootPath))->check($this->version());
-        $checks[] = $this->check('updates_metadata', (($updates['metadata_source'] ?? 'empty') !== 'empty'), 'Update metadata доступна из GitFlic JSON или bundled metadata.');
+        $checks[] = $this->check('updates_metadata', (($updates['metadata_source'] ?? 'empty') !== 'empty'), 'Update metadata доступна из GitHub Releases API или bundled metadata.');
         $checks[] = $this->check('storage_write', $this->writeProbe($this->rootPath . '/storage/app/stable'), 'storage/app/stable доступен на запись.');
         $checks[] = $this->check('support_write', $this->writeProbe($this->rootPath . '/storage/app/support'), 'support directory доступен на запись.');
         $checks[] = $this->check('backup_write', $this->writeProbe($this->rootPath . '/storage/app/backups'), 'backup directory доступен на запись.');

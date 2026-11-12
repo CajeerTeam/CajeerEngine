@@ -18,14 +18,14 @@ final readonly class UpdateResolver
 
     public function releasesUrl(): ?string
     {
-        $value = $this->config['core']['releases_url'] ?? GitFlicEndpoints::RELEASES_URL;
-        return is_string($value) && $value !== '' ? $value : GitFlicEndpoints::RELEASES_URL;
+        $value = $this->config['core']['releases_url'] ?? GitHubEndpoints::RELEASES_URL;
+        return is_string($value) && $value !== '' ? $value : GitHubEndpoints::RELEASES_URL;
     }
 
     public function registryUrl(): ?string
     {
-        $value = $this->config['registry']['url'] ?? GitFlicEndpoints::REGISTRY_URL;
-        return is_string($value) && $value !== '' ? $value : GitFlicEndpoints::REGISTRY_URL;
+        $value = $this->config['registry']['url'] ?? GitHubEndpoints::REGISTRY_URL;
+        return is_string($value) && $value !== '' ? $value : GitHubEndpoints::REGISTRY_URL;
     }
 
     /** @return array<string, mixed> */
@@ -87,7 +87,7 @@ final readonly class UpdateResolver
     {
         $url = $this->releasesUrl();
         if ($url !== null) {
-            $data = $this->readJson($url);
+            $data = $this->readJson($url, $url === GitHubEndpoints::RELEASES_URL);
             if ($data !== null) { $data['_source'] = $url; return $data; }
         }
 
@@ -102,12 +102,15 @@ final readonly class UpdateResolver
     }
 
     /** @return array<string, mixed>|null */
-    private function readJson(string $source): ?array
+    private function readJson(string $source, bool $github = false): ?array
     {
         $contents = null;
         if (str_starts_with($source, 'http://') || str_starts_with($source, 'https://')) {
             try {
-                [$status, $body] = (new \CajeerEngine\Security\PublicHttpClient())->request($source, 'GET', ['Accept' => 'application/json']);
+                $headers = $github
+                    ? ['Accept' => 'application/vnd.github+json', 'User-Agent' => 'CajeerEngine-Updater', 'X-GitHub-Api-Version' => '2022-11-28']
+                    : ['Accept' => 'application/json'];
+                [$status, $body] = (new \CajeerEngine\Security\PublicHttpClient())->request($source, 'GET', $headers, '', 4 * 1024 * 1024);
                 if ($status >= 200 && $status < 300) { $contents = $body; }
             } catch (\Throwable) { /* Fall back to bundled metadata; never follow redirects. */ }
         } elseif (is_file($source)) {
@@ -115,7 +118,9 @@ final readonly class UpdateResolver
         }
         if (!is_string($contents) || trim($contents) === '') { return null; }
         $decoded = json_decode($contents, true);
-        if (!is_array($decoded) || !is_array($decoded['releases'] ?? null)) { return null; }
+        if (!is_array($decoded)) return null;
+        if ($github) return str_starts_with(ltrim($contents), '[') ? GitHubReleaseCatalog::normalize($decoded) : null;
+        if (!is_array($decoded['releases'] ?? null)) return null;
         return $decoded;
     }
 

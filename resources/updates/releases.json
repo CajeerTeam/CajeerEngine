@@ -9,7 +9,7 @@
       "stability": "stable",
       "released_at": "2026-11-12T00:00:00+00:00",
       "notes": "Production Deployment: signed dist, dedicated PHP-FPM, Nginx TLS, systemd, gated upgrade and rollback.",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.2.5",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.2.5",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.2.5-source.zip",
@@ -29,7 +29,7 @@
       "stability": "stable",
       "released_at": "2026-11-12T00:00:00+00:00",
       "notes": "Disaster Recovery: encrypted off-host backup, cold import and isolated recovery drills.",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.2.4",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.2.4",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.2.4-source.zip",
@@ -49,7 +49,7 @@
       "stability": "stable",
       "released_at": "2026-11-12T00:00:00+00:00",
       "notes": "Observability & Operations: readiness, metrics, structured logs and operational diagnostics.",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.2.3",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.2.3",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.2.3-source.zip",
@@ -69,7 +69,7 @@
       "stability": "stable",
       "released_at": "2026-11-12T00:00:00+00:00",
       "notes": "Queue & Scheduler Reliability: fenced reservations, retry, scheduler locks and webhook outbox.",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.2.2",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.2.2",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.2.2-source.zip",
@@ -89,7 +89,7 @@
       "stability": "stable",
       "released_at": "2026-11-12T00:00:00+00:00",
       "notes": "Performance & Database: bounded editorial pages, incremental SQL projection, database locking and fail-closed storage.",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.2.1",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.2.1",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.2.1-source.zip",
@@ -109,7 +109,7 @@
       "stability": "stable",
       "released_at": "2026-11-12T00:00:00+00:00",
       "notes": "Search & CMS Integration: publication-consistent search, public search UI, filters/facets and PostgreSQL FTS.",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.2.0",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.2.0",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.2.0-source.zip",
@@ -129,7 +129,7 @@
       "stability": "stable",
       "released_at": "2026-11-12T00:00:00+00:00",
       "notes": "Admin & Public Rendering Completion: schema editor, blocks, themes, revision safety, static export.",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.1.9",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.1.9",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.1.9-source.zip",
@@ -149,7 +149,7 @@
       "stability": "stable",
       "released_at": "2026-11-12T00:00:00+00:00",
       "notes": "Media Library: searchable catalog, image variants, protected downloads and recovery.",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.1.8",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.1.8",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.1.8-source.zip",
@@ -169,7 +169,7 @@
       "stability": "stable",
       "released_at": "2026-11-12T00:00:00+00:00",
       "notes": "Public Routing Runtime: indexed routes, page trees, locales, canonical URLs and redirects.",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.1.7",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.1.7",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.1.7-source.zip",
@@ -189,7 +189,7 @@
       "stability": "stable",
       "released_at": "2026-11-12T00:00:00+00:00",
       "notes": "Extension Platform: signed packages, dependency graph, runtime actions, jobs and themes.",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.1.6",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.1.6",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.1.6-source.zip",
@@ -209,7 +209,7 @@
       "stability": "stable",
       "released_at": "2026-11-12T00:00:00+00:00",
       "notes": "Import/Export Engine: portable site packages, conflict plans and recoverable import.",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.1.5",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.1.5",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.1.5-source.zip",
@@ -229,7 +229,7 @@
       "stability": "stable",
       "released_at": "2026-11-12T00:00:00+00:00",
       "notes": "Production Updater & Backup. Signed dist artifacts and authenticated recovery sets.",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.1.4",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.1.4",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.1.4-source.zip",
@@ -248,17 +248,15 @@
       "channel": "stable",
       "stability": "stable",
       "released_at": "2026-06-19T00:00:00+00:00",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.1.1",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.1.1",
       "notes": "Admin UI hardening: production static SPA assets, Bearer login/logout, CRUD screens for CMS/product modules and strict admin asset verification.",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.1.1-source.zip",
-          "download_url": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.1.1/download/cajeerengine-1.1.1-source.zip",
           "checksum_name": "cajeerengine-1.1.1-source.zip.sha256"
         },
         "dist": {
           "name": "cajeerengine-1.1.1-dist.zip",
-          "download_url": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.1.1/download/cajeerengine-1.1.1-dist.zip",
           "checksum_name": "cajeerengine-1.1.1-dist.zip.sha256"
         }
       }
@@ -268,17 +266,15 @@
       "channel": "stable",
       "stability": "stable",
       "released_at": "2026-06-19T00:00:00+00:00",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.0.9",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.0.9",
       "notes": "Import/export and updater hardening: full content/media import, dry-run diff, maintenance mode, rollback snapshots and post-update checks.",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.0.9-source.zip",
-          "download_url": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.0.9/download/cajeerengine-1.0.9-source.zip",
           "checksum_name": "cajeerengine-1.0.9-source.zip.sha256"
         },
         "dist": {
           "name": "cajeerengine-1.0.9-dist.zip",
-          "download_url": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.0.9/download/cajeerengine-1.0.9-dist.zip",
           "checksum_name": "cajeerengine-1.0.9-dist.zip.sha256"
         }
       }
@@ -288,17 +284,15 @@
       "channel": "stable",
       "stability": "stable",
       "released_at": "2026-06-19T00:00:00+00:00",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.0.7",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.0.7",
       "notes": "Admin UI hardening: static admin SPA, CMS CRUD workflows, protected web upgrade and release hygiene.",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.0.7-source.zip",
-          "download_url": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.0.7/download/cajeerengine-1.0.7-source.zip",
           "checksum_name": "cajeerengine-1.0.7-source.zip.sha256"
         },
         "dist": {
           "name": "cajeerengine-1.0.7-dist.zip",
-          "download_url": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.0.7/download/cajeerengine-1.0.7-dist.zip",
           "checksum_name": "cajeerengine-1.0.7-dist.zip.sha256"
         }
       }
@@ -308,17 +302,15 @@
       "channel": "stable",
       "stability": "stable",
       "released_at": "2026-06-18T00:00:00+00:00",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.0.6",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.0.6",
       "notes": "Release UX: source/dist artifacts, checksums, GitFlic artifact index, upgrade wizard, one-command updater and backup-before-update.",
       "artifacts": {
         "source": {
           "name": "cajeerengine-1.0.6-source.zip",
-          "download_url": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.0.6/download/cajeerengine-1.0.6-source.zip",
           "checksum_name": "cajeerengine-1.0.6-source.zip.sha256"
         },
         "dist": {
           "name": "cajeerengine-1.0.6-dist.zip",
-          "download_url": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.0.6/download/cajeerengine-1.0.6-dist.zip",
           "checksum_name": "cajeerengine-1.0.6-dist.zip.sha256"
         }
       }
@@ -328,7 +320,7 @@
       "channel": "stable",
       "stability": "stable",
       "released_at": "2026-06-18T00:00:00+00:00",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.0.5",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.0.5",
       "notes": "Server automation: doctor/fix, Nginx generator, aaPanel preset, systemd units, post-install report.",
       "artifacts": {
         "source": "cajeerengine-1.0.5-source.zip",
@@ -341,7 +333,7 @@
       "stability": "stable",
       "engine_api_version": "1.1",
       "php": ">=8.4.1 <9.0",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.0.4",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.0.4",
       "notes": "Install UX release: Web Installer, CLI installer, SQLite quick start, install lock and first admin creation."
     },
     {
@@ -350,7 +342,7 @@
       "stability": "stable",
       "engine_api_version": "1.1",
       "php": ">=8.4.1 <9.0",
-      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.0.3",
+      "source": "https://github.com/cajeerteam/CajeerEngine/releases/tag/v1.0.3",
       "notes": "Strict dependency metadata and production verification maintenance release."
     }
   ]

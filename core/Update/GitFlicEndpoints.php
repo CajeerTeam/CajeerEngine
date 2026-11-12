@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace CajeerEngine\Update;
 
+/** @deprecated Use GitHubEndpoints. Retained for installed extensions during migration. */
 final class GitFlicEndpoints
 {
-    public const PROJECT_URL = 'https://gitflic.ru/project/cajeerteam/cajeerengine';
-    public const RELEASES_URL = self::PROJECT_URL . '/releases';
-    public const REGISTRY_URL = self::PROJECT_URL . '/packages';
-    public const BUNDLED_RELEASES_FILE = 'resources/updates/releases.json';
+    public const PROJECT_URL = GitHubEndpoints::PROJECT_URL;
+    public const RELEASES_URL = GitHubEndpoints::RELEASES_URL;
+    public const REGISTRY_URL = GitHubEndpoints::REGISTRY_URL;
+    public const BUNDLED_RELEASES_FILE = GitHubEndpoints::BUNDLED_RELEASES_FILE;
 
-    private function __construct()
-    {
-    }
+    private function __construct() {}
 }

@@ -80,7 +80,7 @@
 - Meilisearch;
 - OpenSearch;
 - S3-compatible storage providers;
-- GitFlic Releases / Registry.
+- GitHub Releases.
 
 ## Контакты
 

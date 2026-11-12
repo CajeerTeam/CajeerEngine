@@ -14,8 +14,8 @@
     ]
   },
   "distribution": {
-    "docs": "GitFlic Wiki",
-    "updates": "GitFlic Releases / Registry",
+    "docs": "GitHub repository docs/",
+    "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
     "source_artifact": "storage/releases/cajeerengine-1.2.5-source.zip",
     "dist_artifact": "storage/releases/cajeerengine-1.2.5-dist.zip",
@@ -24,7 +24,9 @@
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
-    "update_reports": "storage/app/updates/last-update.json"
+    "update_reports": "storage/app/updates/last-update.json",
+    "repository": "https://github.com/cajeerteam/CajeerEngine",
+    "releases_api": "https://api.github.com/repos/cajeerteam/CajeerEngine/releases?per_page=100"
   },
   "release_policy": {
     "semver": true,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CajeerEngine\Release;
 
 use CajeerEngine\Admin\AdminAssetPublisher;
+use CajeerEngine\Update\GitHubEndpoints;
 
 final readonly class ReleaseBuilder
 {
@@ -34,7 +35,7 @@ final readonly class ReleaseBuilder
             'dist_ready' => $mode !== 'dist' || $this->distReady(),
             'dist_requirements' => $this->distRequirements(),
             'release_requirements' => $this->releaseRequirements($mode),
-            'gitflic' => $this->gitFlicArtifactMetadata($version, $mode, $artifact),
+            'github' => $this->gitHubArtifactMetadata($version, $mode, $artifact),
         ];
     }
 
@@ -274,7 +275,7 @@ final readonly class ReleaseBuilder
             'checksums' => $this->checksums($plan['files']),
             'removed_files' => [],
             'dist_requirements' => $plan['mode'] === 'dist' ? $plan['dist_requirements'] : [],
-            'gitflic' => $plan['gitflic'],
+            'github' => $plan['github'],
         ];
     }
 
@@ -303,7 +304,7 @@ final readonly class ReleaseBuilder
                 'sha256' => $artifact['sha256'] ?? null,
                 'size' => $artifact['size'] ?? null,
                 'checksum_file' => $artifact['checksum_file'] ?? $artifact['checksum_target'] ?? null,
-                'gitflic' => $artifact['gitflic'] ?? null,
+                'github' => $artifact['github'] ?? null,
             ], $artifacts),
         ];
         $path = $dir . '/cajeerengine-' . $this->version() . '-artifacts.json';
@@ -317,13 +318,18 @@ final readonly class ReleaseBuilder
     }
 
     /** @return array<string, string> */
-    private function gitFlicArtifactMetadata(string $version, string $mode, string $artifact): array
+    private function gitHubArtifactMetadata(string $version, string $mode, string $artifact): array
     {
-        $base = 'https://gitflic.ru/project/cajeerteam/cajeerengine/release/' . $version;
+        $tag = 'v' . $version;
+        $base = GitHubEndpoints::releaseUrl($tag);
         return [
             'release_url' => $base,
             'artifact_name' => $artifact,
-            'download_url' => $base . '/download/' . $artifact,
+            'download_url' => GitHubEndpoints::assetUrl($tag, $artifact),
+            'tag' => $tag,
+            'checksum_url' => GitHubEndpoints::assetUrl($tag, $artifact . '.sha256'),
+            'signature_name' => $artifact . '.sig',
+            'signature_url' => GitHubEndpoints::assetUrl($tag, $artifact . '.sig'),
             'checksum_name' => $artifact . '.sha256',
         ];
     }
