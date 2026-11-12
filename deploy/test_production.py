@@ -22,6 +22,35 @@ import production as p
 SITE={'domain':'deploy.example.invalid','db_host':'127.0.0.1','db_port':5432,'db_name':'cms','db_user':'cms','db_sslmode':'disable','admin_email':'admin@example.invalid'}
 
 class Safety(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('php'),'PHP CLI unavailable')
+    def test_install_client_selection_and_safe_diagnostics(self):
+        installer=str(Path(p.__file__).with_name('install.php'))
+        with tempfile.TemporaryDirectory() as d:
+            d=Path(d)
+            # Simulate pg_wrapper choosing an older local cluster unless the
+            # actual PostgreSQL connection target is present in its environment.
+            for binary in ('pg_dump','pg_restore'):
+                f=d/binary
+                f.write_text('#!/bin/sh\nif [ "$PGHOST" = db.example.invalid ] && [ "$PGPORT" = 5433 ] && [ "$LC_ALL" = C ]; then\n  echo "'+binary+' (PostgreSQL) 17.12"\nelse\n  echo "'+binary+' (PostgreSQL) 16.9"\nfi\n')
+                f.chmod(0o755)
+            env={**os.environ,'PATH':str(d)+':'+os.environ['PATH']}
+            code='require $argv[1]; deploymentCheckClients("db.example.invalid",5433,17); echo "ok";'
+            result=subprocess.run(['php','-r',code,installer],env=env,text=True,capture_output=True)
+            self.assertEqual((result.returncode,result.stdout,result.stderr),(0,'ok',''))
+            code='require $argv[1]; try { deploymentCheckClients("db.example.invalid",5433,18); } catch (Throwable $e) { fwrite(STDERR,deploymentInstallDiagnostic("database-client-version",$e)); exit(1); }'
+            result=subprocess.run(['php','-r',code,installer],env=env,text=True,capture_output=True)
+            self.assertEqual(result.returncode,1)
+            self.assertIn('pg_dump major 17 is older than server major 18',result.stderr)
+            code='require $argv[1]; echo deploymentInstallDiagnostic("database-connect",new PDOException("password=TOP-SECRET",28000));'
+            result=subprocess.check_output(['php','-r',code,installer],text=True)
+            self.assertIn('phase=database-connect',result)
+            self.assertIn('sqlstate=28000',result)
+            self.assertNotIn('TOP-SECRET',result)
+            result=subprocess.run(['php',installer],input='{"db_password":"TOP-SECRET"}',cwd=d,text=True,capture_output=True)
+            self.assertEqual(result.returncode,1)
+            self.assertIn('phase=options',result.stderr)
+            self.assertNotIn('TOP-SECRET',result.stderr)
+
     @unittest.skipUnless(os.geteuid()==0,'requires root for directory ownership test')
     def test_root_controlled_artifact_parents(self):
         import pwd
