@@ -24,7 +24,7 @@ try{
     $boot=new CmsBootstrapService($site);$boot->run();check(count($types->find('pages')['blocks'])===6,'default page block definitions');
     $old=$types->find('pages')['blocks'];$types->update('pages',['blocks'=>array_slice($old,0,1)]);$boot->run();check(count($types->find('pages')['blocks'])===6,'existing pages schema extended without replacement');
     $media=new MediaRepository($site,new StorageManager($site,$cfg),$db);
-    $png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWZsAAAAASUVORK5CYII=';
+    $png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==';
     $image=$media->createFromBase64(['filename'=>'public.png','content_base64'=>$png,'alt'=>'Example image']);
     $private=$media->createFromBase64(['filename'=>'private.png','content_base64'=>$png,'visibility'=>'private']);
     $data=['path'=>'/','body'=>'<p>Introduction</p>','blocks'=>[

@@ -46,7 +46,7 @@ try {
  ok(PublicHttpClient::isPublicIp('8.8.8.8'),'public address allowed');
  reject(fn()=>PublicHttpClient::target('http://127.0.0.1/'),'loopback URL rejected');reject(fn()=>PublicHttpClient::target('file:///etc/passwd'),'non-HTTP scheme rejected');reject(fn()=>PublicHttpClient::target('http://8.8.8.8:8080/'),'nonstandard port rejected');
  $config=new ConfigRepository($work);$media=new MediaRepository($work,new StorageManager($work,$config));
- $png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aSioAAAAASUVORK5CYII=';
+ $png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==';
  $item=$media->createFromBase64(['filename'=>'pixel.png','mime_type'=>'text/html','content_base64'=>$png]);ok($item['mime_type']==='image/png'&&$item['width']===1,'server MIME and image dimensions');
  reject(fn()=> $media->createFromBase64(['filename'=>'fake.png','mime_type'=>'image/png','content_base64'=>base64_encode('<html><script>bad</script></html>')]),'spoofed image rejected');
  reject(fn()=> $media->createFromBase64(['filename'=>'x.svg','content_base64'=>base64_encode('<svg xmlns="http://www.w3.org/2000/svg"/>')]),'SVG upload rejected');
