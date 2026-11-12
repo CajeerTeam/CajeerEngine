@@ -33,7 +33,18 @@ try{
     foreach(['parent_id','path','_path'] as $k){$after=$before;$after['data'][$k]='changed';check(!RouteIndex::sameTopology($before,$after),'structural '.$k.' triggers graph rebuild');}
     if($sql){
         $pdo=$db->connection();if($pg&&(int)$pdo->query("SELECT CASE WHEN to_regclass('ce_content_entries') IS NULL THEN 0 ELSE 1 END")->fetchColumn()===1)throw new RuntimeException('Use an empty PostgreSQL database');
-        $runner=new MigrationRunner($pdo,$root.'/migrations');check($runner->run($driver)['applied']===13,'all 13 real migrations applied');check($runner->run($driver)['applied']===0,'migration rerun idempotent');
+        $migrationFiles=glob($root.'/migrations/'.$driver.'/*.sql') ?: [];
+        sort($migrationFiles,SORT_STRING);
+        $expected=[];
+        foreach($migrationFiles as $file){$digest=hash_file('sha256',$file);if($digest===false)throw new RuntimeException('Cannot hash migration fixture');$expected[basename($file)]=$digest;}
+        check(count($expected)>=($pg?14:13)&&isset($expected['0013_database_performance.sql']),'required migration inventory present');
+        if($pg)check(isset($expected['0014_queue_leases.sql']),'PostgreSQL queue lease migration present');
+        $runner=new MigrationRunner($pdo,$root.'/migrations');
+        $result=$runner->run($driver);
+        check($result['applied']===count($expected)&&array_column($result['migrations'],'checksum','migration')===$expected,'all '.count($expected).' real '.$driver.' migrations applied with correct checksums');
+        $status=$runner->status($driver);
+        check($status['pending']===[]&&$status['failed']===[]&&array_column($status['applied'],'checksum','migration')===$expected,'migration ledger matches all SQL files');
+        check($runner->run($driver)['applied']===0,'migration rerun idempotent');
         if(!$pg){check((int)$pdo->query('PRAGMA foreign_keys')->fetchColumn()===1,'SQLite foreign keys enabled');check($pdo->query('PRAGMA journal_mode')->fetchColumn()==='wal','SQLite WAL opt-in applied');check((int)$pdo->query('PRAGMA busy_timeout')->fetchColumn()===5000,'SQLite busy timeout applied');}
         $pdo->exec('CREATE TABLE ce_perf_probe (id INTEGER PRIMARY KEY)');
         $db->transaction(function($pdo)use($db){$pdo->exec('INSERT INTO ce_perf_probe VALUES (1)');try{$db->transaction(function($p){$p->exec('INSERT INTO ce_perf_probe VALUES (2)');throw new RuntimeException('rollback nested');});}catch(RuntimeException){}$pdo->exec('INSERT INTO ce_perf_probe VALUES (3)');});
@@ -43,8 +54,13 @@ try{
         foreach(glob($root.'/migrations/'.$driver.'/*.sql') as $file)F::copy($file,$migrationCopy.'/'.basename($file));
         $copyRunner=new MigrationRunner($pdo,$site.'/migration-test');
         file_put_contents($migrationCopy.'/0013_database_performance.sql',"\n-- tampered\n",FILE_APPEND);
-        file_put_contents($migrationCopy.'/0014_should_not_run.sql','CREATE TABLE ce_perf_should_not_run (id INTEGER PRIMARY KEY);');
-        reject(fn()=>$copyRunner->run($driver),'changed applied checksum blocks all pending migrations');check(!$db->tableExists('ce_perf_should_not_run'),'preflight did not apply pending SQL');
+        $probeMigration=$migrationCopy.'/9999_should_not_run.sql';
+        check(!is_file($probeMigration),'pending migration probe has unique name');
+        file_put_contents($probeMigration,'CREATE TABLE ce_perf_should_not_run (id INTEGER PRIMARY KEY);');
+        $checksumRejected=false;
+        try{$copyRunner->run($driver);}catch(RuntimeException $e){if(!str_contains($e->getMessage(),'Applied migration checksum mismatch: 0013_database_performance.sql'))throw $e;$checksumRejected=true;}
+        check($checksumRejected,'changed applied checksum blocks all pending migrations');
+        check(!$db->tableExists('ce_perf_should_not_run'),'preflight did not apply pending SQL');
         $reader=new DatabaseManager($cfg);$writer=new DatabaseManager($cfg);
         $reader->readSnapshot(function($p)use($writer){check((int)$p->query('SELECT COUNT(*) FROM ce_perf_probe')->fetchColumn()===2,'snapshot begins at expected count');$writer->connection()->exec('INSERT INTO ce_perf_probe VALUES (5)');check((int)$p->query('SELECT COUNT(*) FROM ce_perf_probe')->fetchColumn()===2,'read snapshot remains consistent during concurrent write');});
         check((int)$pdo->query('SELECT COUNT(*) FROM ce_perf_probe')->fetchColumn()===3,'new snapshot observes committed write');
