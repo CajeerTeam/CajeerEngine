@@ -59,6 +59,8 @@ final readonly class ExtensionManifest
             'assets' => is_array($this->raw['assets'] ?? null) ? $this->raw['assets'] : [],
             'migrations' => is_array($this->raw['migrations'] ?? null) ? $this->raw['migrations'] : [],
             'lifecycle' => is_array($this->raw['lifecycle'] ?? null) ? $this->raw['lifecycle'] : [],
+            'requires' => $this->raw['requires'] ?? [],
+            'conflicts' => $this->raw['conflicts'] ?? [],
             'path' => $this->path,
         ];
     }

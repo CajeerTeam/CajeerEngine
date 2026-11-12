@@ -21,8 +21,15 @@ final readonly class ExtensionContext
         public ConfigRepository $config,
         public EventDispatcher $events,
         public RuntimeLogger $logger,
+        public ?PlatformServices $platform = null,
     ) {
     }
+
+    public function requirePermission(string $permission): void
+    {
+        if (!in_array($permission,$this->manifest->permissions,true)) throw new \RuntimeException('Extension permission denied: '.$permission);
+    }
+    public function registrations(): PlatformServices { return $this->platform ?? throw new \RuntimeException('Platform registration unavailable'); }
 
     public function name(): string
     {
@@ -49,7 +56,7 @@ final readonly class ExtensionContext
     /** @return array<string,mixed> */
     public function extensionConfig(): array
     {
-        return array_replace_recursive($this->manifest->config, (array) ($this->state['config'] ?? []));
+        return array_replace_recursive($this->manifest->config, (array) ($this->state['configured'] ?? $this->state['config'] ?? []));
     }
 
     /** @return array{root:string,extension:string,assets:string,public_assets:string,storage:string,cache:string,logs:string,migrations:string,src:string} */

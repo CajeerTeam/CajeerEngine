@@ -19,6 +19,7 @@ final class OperationsCli
     {
         try {
             $c=$argv[1]??''; $o=self::options($argv);
+            if (is_file($root.'/storage/app/extensions/deployment.json') && in_array($c,['backup:create','stable:backup','backup:restore','update:apply','update','update:rollback','update:run','import:execute','maintenance:off'],true)) throw new \RuntimeException('Recover extension deployment first');
             $required=static fn($name)=>isset($o[$name])&&is_string($o[$name])&&$o[$name]!==''?$o[$name]:throw new \RuntimeException('Provide --'.$name.'=...');
             if ($c==='release:keygen') $result=ReleaseSignature::generate(self::externalKey($root,$required('secret-key')),self::externalKey($root,$required('public-key')));
             elseif ($c==='release:sign') {
@@ -68,7 +69,7 @@ final class OperationsCli
     private static function maintenance(string $root,UpdateManager $m,string $c,array $o): array
     {
         $lock=OperationLock::acquire($root,true);
-        try { return $c==='maintenance:on'?$m->enableMaintenance($o['message']??'Maintenance'):$m->disableMaintenance(); }
+        try { if ($c==='maintenance:off' && is_file($root.'/storage/app/extensions/deployment.json')) throw new \RuntimeException('Recover extension deployment first'); return $c==='maintenance:on'?$m->enableMaintenance($o['message']??'Maintenance'):$m->disableMaintenance(); }
         finally { OperationLock::release($lock); }
     }
     private static function options(array $argv): array

@@ -11,13 +11,12 @@ final class ExtensionRegistry
 {
     private ManifestLoader $loader;
     private CompatibilityChecker $compatibility;
-    private ExtensionSignatureVerifier $signatures;
+    private bool $mutating=false;
 
     public function __construct(private readonly string $rootPath, private readonly ConfigRepository $config)
     {
         $this->loader = new ManifestLoader();
         $this->compatibility = new CompatibilityChecker($this->config->string('app.engine_api_version', '1.0'));
-        $this->signatures = new ExtensionSignatureVerifier($this->config->bool('extensions.allow_unsigned_in_dev', true));
         $this->ensureDirectories();
     }
 
@@ -43,6 +42,7 @@ final class ExtensionRegistry
         $state = $this->state();
         $available = [];
         foreach ($this->discover() as $item) {
+            if (isset($available[(string)$item['name']])) { $item['valid']=false; $item['errors'][]='Duplicate extension name'; }
             $available[(string) $item['name']] = $item;
         }
 
@@ -54,6 +54,7 @@ final class ExtensionRegistry
                 'enabled' => is_array($record) && !empty($record['enabled']),
                 'installed_at' => is_array($record) ? ($record['installed_at'] ?? null) : null,
                 'enabled_at' => is_array($record) ? ($record['enabled_at'] ?? null) : null,
+                'valid' => $item['valid'] && (!is_array($record) || (($record['version']??null)===$item['version'] && ($record['signature']['actual']??null)===($item['signature']['actual']??null))),
                 'configured' => is_array($record) ? (array) ($record['config'] ?? []) : [],
                 'missing' => false,
             ]);
@@ -92,8 +93,11 @@ final class ExtensionRegistry
     /** @return array<string, mixed> */
     public function install(string $target, bool $enable = false): array
     {
+        if (!$this->mutating) return $this->mutation(fn()=> $this->install($target,$enable));
         $manifest = $this->manifestByTarget($target);
+        $directory=$this->paths()[$manifest->type]; if (dirname((string)$manifest->path)!==realpath($directory)) throw new \RuntimeException('Extension type/path mismatch');
         $this->compatibility->assertCompatible($manifest);
+        if ($manifest->type==='theme' && !is_file($manifest->path.'/templates/page.cjr')) throw new \RuntimeException('Theme requires templates/page.cjr');
         $signature = $this->signatureFor($manifest);
         if (!$signature['ok']) {
             throw new \RuntimeException('Подпись расширения не прошла проверку: ' . $signature['status']);
@@ -120,6 +124,7 @@ final class ExtensionRegistry
             'enabled_at' => $enable ? $now : ($existing['enabled_at'] ?? null),
             'signature' => $signature,
         ]);
+        $this->assertGraph($state);
         $this->writeState($state);
         $this->logLifecycle($enable ? 'extension.installed_enabled' : 'extension.installed', $manifest->name, ['version' => $manifest->version]);
         return $this->findInstalled($manifest->name) ?? [];
@@ -128,17 +133,19 @@ final class ExtensionRegistry
     /** @return array<string, mixed> */
     public function enable(string $name): array
     {
+        if (!$this->mutating) return $this->mutation(fn()=> $this->enable($name));
         $name = $this->resolveName($name);
         $state = $this->state();
         if (!is_array($state['extensions'][$name] ?? null)) {
-            $this->install($name, false);
-            $state = $this->state();
+            throw new \RuntimeException('Install extension through operator first');
         }
         $manifest = $this->manifestByTarget($name);
         $this->compatibility->assertCompatible($manifest);
+        if (empty($this->findInstalled($name)['valid'])) throw new \RuntimeException('Extension code changed or invalid');
         $state['extensions'][$name]['enabled'] = true;
         $state['extensions'][$name]['enabled_at'] = $this->now();
         $state['extensions'][$name]['updated_at'] = $this->now();
+        $this->assertGraph($state);
         $this->writeState($state);
         $this->logLifecycle('extension.enabled', $name);
         return $this->findInstalled($name) ?? [];
@@ -147,6 +154,7 @@ final class ExtensionRegistry
     /** @return array<string, mixed> */
     public function disable(string $name): array
     {
+        if (!$this->mutating) return $this->mutation(fn()=> $this->disable($name));
         $name = $this->resolveName($name);
         $state = $this->state();
         if (!is_array($state['extensions'][$name] ?? null)) {
@@ -155,6 +163,7 @@ final class ExtensionRegistry
         $state['extensions'][$name]['enabled'] = false;
         $state['extensions'][$name]['disabled_at'] = $this->now();
         $state['extensions'][$name]['updated_at'] = $this->now();
+        $this->assertGraph($state);
         $this->writeState($state);
         $this->logLifecycle('extension.disabled', $name);
         return $this->findInstalled($name) ?? [];
@@ -162,12 +171,14 @@ final class ExtensionRegistry
 
     public function uninstall(string $name): bool
     {
+        if (!$this->mutating) return $this->mutation(fn()=> $this->uninstall($name));
         $name = $this->resolveName($name);
         $state = $this->state();
         if (!isset($state['extensions'][$name])) {
             return false;
         }
         unset($state['extensions'][$name]);
+        $this->assertGraph($state);
         $this->writeState($state);
         $this->logLifecycle('extension.uninstalled', $name);
         return true;
@@ -176,6 +187,7 @@ final class ExtensionRegistry
     /** @param array<string, mixed> $config @return array<string, mixed> */
     public function updateConfig(string $name, array $config): array
     {
+        if (!$this->mutating) return $this->mutation(fn()=> $this->updateConfig($name,$config));
         $name = $this->resolveName($name);
         $state = $this->state();
         if (!is_array($state['extensions'][$name] ?? null)) {
@@ -191,7 +203,7 @@ final class ExtensionRegistry
     /** @return array<string, mixed>|null */
     public function findInstalled(string $name): ?array
     {
-        $name = $this->resolveName($name);
+        $name = $this->resolveName($name, false);
         foreach ($this->all() as $item) {
             if (($item['name'] ?? null) === $name) {
                 return $item;
@@ -290,8 +302,8 @@ final class ExtensionRegistry
     /** @return array<string, mixed> */
     public function validateManifest(string $target): array
     {
-        $path = $this->manifestPathForTarget($target);
         try {
+            $path = $this->manifestPathForTarget($target);
             $manifest = $this->loader->load($path);
             $compatible = $this->compatibility->isCompatible($manifest);
             $signature = $this->signatureFor($manifest);
@@ -323,6 +335,7 @@ final class ExtensionRegistry
     private function inspectManifest(string $manifestPath, string $expectedType): array
     {
         $validation = $this->validateManifest($manifestPath);
+        if (is_array($validation['manifest']??null) && $validation['manifest']['type']!==$expectedType) { $validation['ok']=false; $validation['errors'][]='Extension type/path mismatch'; }
         if (!is_array($validation['manifest'] ?? null)) {
             return [
                 'name' => basename(dirname($manifestPath)),
@@ -360,17 +373,14 @@ final class ExtensionRegistry
         if ($target === '') {
             throw new \RuntimeException('Не указано расширение.');
         }
-        $direct = $this->rootPath . '/' . ltrim($target, '/');
-        if (is_file($direct)) {
-            return $direct;
+        $candidatePath=str_starts_with($target,'/') ? $target : $this->rootPath.'/'.$target;
+        if (is_link($candidatePath)||is_link(dirname($candidatePath))) throw new \RuntimeException('Symlink extension path');
+        $direct = realpath($candidatePath);
+        if ($direct!==false) {
+            $candidate=is_dir($direct)?$direct.'/'.ManifestLoader::FILENAME:$direct;
+            foreach ($this->paths() as $base) if (dirname(dirname($candidate))===realpath($base) && basename($candidate)===ManifestLoader::FILENAME && !is_link(dirname($candidate)) && !is_link($candidate)) return $candidate;
         }
-        if (is_dir($direct)) {
-            return rtrim($direct, '/') . '/' . ManifestLoader::FILENAME;
-        }
-        if (is_file($target) || is_dir($target)) {
-            return is_dir($target) ? rtrim($target, '/') . '/' . ManifestLoader::FILENAME : $target;
-        }
-
+        if (str_starts_with($target,'/') || str_ends_with($target,'.json')) throw new \RuntimeException('Extension path outside managed roots');
         $name = $this->resolveName($target, false);
         foreach ($this->discover() as $item) {
             if (($item['name'] ?? null) === $name || ($item['slug'] ?? null) === $target) {
@@ -424,7 +434,19 @@ final class ExtensionRegistry
 
     private function signatureFor(ExtensionManifest $manifest): array
     {
-        return $this->signatures->verify(((string) $manifest->path) . '/' . ManifestLoader::FILENAME, $manifest);
+        return PackageTrust::verify((string)$manifest->path,$manifest,$this->config->string('extensions.trust_dir'),in_array($this->config->string('app.env'),['dev','local','testing'],true)&&$this->config->bool('extensions.allow_unsigned_in_dev')); 
+    }
+
+    private function mutation(callable $callback): mixed
+    {
+        $h=fopen($this->rootPath.'/storage/app/extensions/registry.lock','c+'); if (!$h) throw new \RuntimeException('Registry lock unavailable');
+        try { if (!flock($h,LOCK_EX)) throw new \RuntimeException('Registry lock failed'); $this->mutating=true; return $callback(); } finally { $this->mutating=false; fclose($h); }
+    }
+    public function assertGraph(array $state): void
+    {
+        $items=[]; foreach ($this->discover() as $item) { $r=$state['extensions'][$item['name']]??null; if (is_array($r)) { $item['installed']=true; $item['enabled']=!empty($r['enabled']); if (isset($items[$item['name']])) throw new \RuntimeException('Duplicate extension name'); $item['valid']=$item['valid'] && ($r['signature']['actual']??null)===($item['signature']['actual']??null); $items[$item['name']]=$item; } }
+        foreach ($state['extensions'] as $name=>$r) if (!empty($r['enabled'])&&!isset($items[$name])) throw new \RuntimeException('Missing enabled extension: '.$name);
+        DependencyGraph::order(array_values($items));
     }
 
     private function ensureDirectories(): void

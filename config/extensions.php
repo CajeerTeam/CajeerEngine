@@ -14,6 +14,7 @@ return [
     'state_file' => 'storage/app/extensions/registry.json',
     'events_log' => 'storage/app/extensions/events.jsonl',
     'lifecycle_log' => 'storage/app/extensions/lifecycle.jsonl',
-    'allow_unsigned_in_dev' => filter_var(getenv('EXTENSIONS_ALLOW_UNSIGNED_IN_DEV') ?: true, FILTER_VALIDATE_BOOLEAN),
+    'allow_unsigned_in_dev' => filter_var(getenv('EXTENSIONS_ALLOW_UNSIGNED_IN_DEV') ?: 'false', FILTER_VALIDATE_BOOLEAN),
+    'trust_dir' => getenv('EXTENSIONS_TRUST_DIR') ?: '',
     'require_signature' => filter_var(getenv('EXTENSIONS_REQUIRE_SIGNATURE') ?: false, FILTER_VALIDATE_BOOLEAN),
 ];

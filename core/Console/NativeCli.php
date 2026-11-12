@@ -140,7 +140,7 @@ final class NativeCli
         return [
             'ok' => true,
             'mode' => 'native-no-vendor',
-            'commands' => ['doctor','fix','fix:permissions','fix:env','fix:security','fix:admin-assets','fix:storage','nginx:config','scheduler:install','worker:install','post-install:report','backup:create','backup:list','backup:verify','backup:restore','backup:keygen','release:keygen','release:sign','update:verify-signature','update:stage','update:requests','update:run','update:status','install','install:check','rc:doctor','api:lint','install:web-token','system:report','stable:status','stable:smoke-test','stable:lock','security:doctor','security:harden','migrate','migrate:status','migrate:repair','release:build','release:artifacts','release:checksums','release:verify','update','update:prepare','update:apply','update:check','update:rollback','maintenance:on','maintenance:off','maintenance:status','export:create','export:list','import:diff','import:run','import:execute','import:requests','admin:assets','cms:bootstrap','cms:sitemap','make:extension','extension:list','extension:doctor','extension:runtime','extension:runtime:boot','extension:install','extension:enable','extension:disable','extension:uninstall','extension:assets','extension:migrate','extension:event:dispatch'],
+            'commands' => ['doctor','fix','fix:permissions','fix:env','fix:security','fix:admin-assets','fix:storage','nginx:config','scheduler:install','worker:install','post-install:report','backup:create','backup:list','backup:verify','backup:restore','backup:keygen','release:keygen','release:sign','update:verify-signature','update:stage','update:requests','update:run','update:status','install','install:check','rc:doctor','api:lint','install:web-token','system:report','stable:status','stable:smoke-test','stable:lock','security:doctor','security:harden','migrate','migrate:status','migrate:repair','release:build','release:artifacts','release:checksums','release:verify','update','update:prepare','update:apply','update:check','update:rollback','maintenance:on','maintenance:off','maintenance:status','export:create','export:list','import:diff','import:run','import:execute','import:requests','admin:assets','cms:bootstrap','cms:sitemap','make:extension','extension:list','extension:doctor','extension:runtime','extension:runtime:boot','extension:install','extension:enable','extension:disable','extension:uninstall','extension:assets','extension:migrate','extension:event:dispatch','extension:sign','extension:package:install','extension:package:upgrade','extension:package:enable','extension:package:uninstall','extension:package:recover'],
             'message' => 'Symfony Console не найден, включён native fallback для эксплуатационных команд.',
         ];
     }
@@ -464,6 +464,11 @@ PHP_STUB;
         $container->instance(ConfigRepository::class, $config);
         $container->instance(RuntimeLogger::class, $logger);
         $container->instance(EventDispatcher::class, $events);
+        $db=new DatabaseManager($config);
+        $container->instance(DatabaseManager::class,$db);
+        $container->instance(ContentTypeRepository::class,new ContentTypeRepository($rootPath,$db));
+        $container->instance(ContentEntryRepository::class,new ContentEntryRepository($rootPath,$db));
+        $container->instance(\CajeerEngine\Queue\ManagedQueueDriverInterface::class,(new \CajeerEngine\Queue\QueueFactory($rootPath,$config,$db))->make());
         return new ExtensionRuntime($rootPath, new ExtensionRegistry($rootPath, $config), $container, $config, $events, $logger, new DatabaseManager($config));
     }
 
@@ -636,6 +641,6 @@ PHP_STUB;
 
     private static function version(string $rootPath): string
     {
-        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.1.5';
+        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.1.6';
     }
 }

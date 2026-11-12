@@ -46,9 +46,6 @@ final class ExtensionUninstallCommand extends BaseCommand
 
     private function runtime(): ExtensionRuntime
     {
-        $config = new ConfigRepository($this->rootPath);
-        $container = new ServiceContainer();
-        $events = new EventDispatcher(new RuntimeLogger($this->rootPath));
-        return new ExtensionRuntime($this->rootPath, new ExtensionRegistry($this->rootPath, $config), $container, $config, $events, new RuntimeLogger($this->rootPath), new DatabaseManager($config));
+        return \CajeerEngine\Kernel\Application::extensionRuntimeForOperations($this->rootPath);
     }
 }

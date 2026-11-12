@@ -1,0 +1,1 @@
+<!doctype html><html lang="{{ $locale }}"><head><meta charset="utf-8"><title>{{ $title }}</title></head><body><main><h1>{{ $heading }}</h1><p>{{ $summary }}</p><div>{{ $content }}</div></main><footer>Clean Theme</footer></body></html>

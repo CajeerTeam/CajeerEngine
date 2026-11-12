@@ -33,5 +33,5 @@ final class OperationLock
         $path = OperationFiles::path($root, 'storage/app/updates/active.json');
         return is_file($path);
     }
-    public static function maintenance(string $root): bool { return self::active($root) || is_file(OperationFiles::path($root, 'storage/app/backup-restore.json')) || is_file(OperationFiles::path($root, 'storage/app/maintenance.json')); }
+    public static function maintenance(string $root): bool { return is_file(OperationFiles::path($root,'storage/app/extensions/deployment.json')) || self::active($root) || is_file(OperationFiles::path($root, 'storage/app/backup-restore.json')) || is_file(OperationFiles::path($root, 'storage/app/maintenance.json')); }
 }

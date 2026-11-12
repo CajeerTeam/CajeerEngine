@@ -62,7 +62,7 @@ final class UpdateManager
         $package=$this->resolvePackage($package); $signature=$this->option($options,'signature')??$package.'.sig';
         $lock=OperationLock::acquire($this->rootPath,true);
         try {
-            if (OperationLock::active($this->rootPath)||is_file($this->rootPath.'/storage/app/backup-restore.json')) throw new \RuntimeException('Interrupted operation: recover first');
+            if (OperationLock::active($this->rootPath)||is_file($this->rootPath.'/storage/app/backup-restore.json')||is_file($this->rootPath.'/storage/app/extensions/deployment.json')) throw new \RuntimeException('Interrupted operation: recover first');
             $id=gmdate('Ymd-His').'-'.bin2hex(random_bytes(8)); $dir=$this->transactionDir($id); OperationFiles::dir($dir); chmod($dir,0700);
             // Copy first, then authenticate the exact bytes that will be staged.
             OperationFiles::copy($package,$dir.'/package.zip'); OperationFiles::copy($signature,$dir.'/package.zip.sig');
@@ -162,6 +162,7 @@ final class UpdateManager
     public function enableMaintenance(string $message='Maintenance'): array { $this->setMaintenance($message); return ['ok'=>true]+$this->maintenanceState(); }
     public function disableMaintenance(): array
     {
+        if (is_file($this->rootPath.'/storage/app/extensions/deployment.json')) throw new \RuntimeException('Recover extension deployment first');
         // HTTP holds a shared lease. The active marker blocks reopening after a crash.
         if (OperationLock::active($this->rootPath)||is_file($this->rootPath.'/storage/app/backup-restore.json')) throw new \RuntimeException('Cannot leave maintenance while recovery is pending');
         OperationFiles::remove($this->rootPath.'/storage/app/maintenance.json'); return ['ok'=>true,'enabled'=>false];

@@ -1,0 +1,1 @@
+{"name":"cajeer/newsletter","type":"module","version":"1.0.0","engine":"^1.1","title":"Newsletter","permissions":["services.register","routes.register","admin.register","queue.register","scheduler.register","content.write"],"providers":["CajeerExample\\NewsletterProvider"],"events":["content.saved"]}

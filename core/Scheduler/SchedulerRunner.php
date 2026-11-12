@@ -17,18 +17,19 @@ final readonly class SchedulerRunner
         private WebhookRepository $webhooks,
         private WebhookDispatcher $dispatcher,
         private ManagedQueueDriverInterface $queue,
+        private ?\CajeerEngine\Extension\Runtime\PlatformServices $platform = null,
     ) {
     }
 
     /** @return list<array<string, mixed>> */
     public function tasks(): array
     {
-        return [
+        return array_merge([
             ['name' => 'tmp.cleanup', 'description' => 'Удаление старых временных файлов.', 'interval' => 'hourly'],
             ['name' => 'queue.cleanup_processed', 'description' => 'Удаление старых обработанных file-queue задач.', 'interval' => 'daily'],
             ['name' => 'search.index_published', 'description' => 'Переиндексация опубликованного контента.', 'interval' => 'every_run'],
             ['name' => 'webhooks.dispatch_pending', 'description' => 'Отправка pending-событий Event API.', 'interval' => 'every_run'],
-        ];
+        ], array_map(static fn($n)=>['name'=>$n,'description'=>'Extension task','interval'=>'every_minute'],$this->platform?->tasks()??[]));
     }
 
     /** @return array<string, mixed> */
@@ -46,6 +47,7 @@ final readonly class SchedulerRunner
             $this->webhooks->markOutboxProcessed((string) $event['id']);
         }
         $results['webhooks.dispatch_pending'] = $dispatch;
+        $results['extensions']=$this->platform?->runTasks($this->rootPath)??[];
         $this->writeLog($results);
         return ['ran_at' => (new \DateTimeImmutable())->format(DATE_ATOM), 'tasks' => $results];
     }

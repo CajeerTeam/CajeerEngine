@@ -15,7 +15,7 @@ final readonly class TemplateSandbox
         $root = realpath($this->templatesRoot);
         $template = realpath($templatePath);
 
-        if ($root === false || $template === false || !str_starts_with($template, $root)) {
+        if ($root === false || $template === false || !str_starts_with($template, $root . DIRECTORY_SEPARATOR)) {
             throw new \RuntimeException('Шаблон находится вне разрешённой директории.');
         }
 
@@ -40,11 +40,13 @@ final readonly class TemplateSandbox
         $__engine = $engine;
 
         ob_start();
+        try {
         (static function () use ($compiledPhp, $context, $__engine, &$__sections): void {
             extract($context, EXTR_SKIP);
             eval('?>' . $compiledPhp);
         })();
 
-        return (string) ob_get_clean();
+        return (string) ob_get_contents();
+        } finally { ob_end_clean(); }
     }
 }

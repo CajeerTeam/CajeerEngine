@@ -13,26 +13,8 @@ final readonly class ExtensionSignatureVerifier
     /** @return array{ok:bool,status:string,expected:?string,actual:string,warnings:list<string>} */
     public function verify(string $manifestPath, ExtensionManifest $manifest): array
     {
-        $actual = $this->canonicalHash($manifest->raw);
-        $expected = $this->expectedHash($manifest->raw);
-
-        if ($expected === null || $expected === '') {
-            return [
-                'ok' => $this->allowUnsignedInDev,
-                'status' => $this->allowUnsignedInDev ? 'unsigned_allowed' : 'unsigned_blocked',
-                'expected' => null,
-                'actual' => $actual,
-                'warnings' => ['Manifest не содержит signature.sha256. В dev-режиме unsigned-расширения разрешены.'],
-            ];
-        }
-
-        return [
-            'ok' => hash_equals(strtolower($expected), strtolower($actual)),
-            'status' => hash_equals(strtolower($expected), strtolower($actual)) ? 'verified' : 'invalid',
-            'expected' => strtolower($expected),
-            'actual' => $actual,
-            'warnings' => [],
-        ];
+        try { return PackageTrust::verify(dirname($manifestPath),$manifest,(string)(getenv('EXTENSIONS_TRUST_DIR')?:''),$this->allowUnsignedInDev && in_array(getenv('APP_ENV'),['dev','local','testing'],true)); }
+        catch (\Throwable $e) { return ['ok'=>false,'status'=>'invalid','expected'=>null,'actual'=>'','warnings'=>[$e->getMessage()]]; }
     }
 
     /** @param array<string, mixed> $raw */

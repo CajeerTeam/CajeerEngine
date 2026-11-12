@@ -15,6 +15,7 @@ final readonly class QueueWorker
         private SearchIndexer $searchIndexer,
         private WebhookRepository $webhooks,
         private WebhookDispatcher $dispatcher,
+        private ?\CajeerEngine\Extension\Runtime\PlatformServices $platform = null,
     ) {
     }
 
@@ -52,6 +53,7 @@ final readonly class QueueWorker
 
     private function handle(QueuedJob $job): void
     {
+        if (str_starts_with($job->name,'extension.')) { if ($this->platform===null) throw new \RuntimeException('Extension runtime unavailable'); $this->platform->handleJob($job->name,$job->payload); return; }
         match ($job->name) {
             'log.message' => $this->logMessage($job->payload),
             'search.index_all' => $this->searchIndexer->indexAll(),

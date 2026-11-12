@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitFlic Wiki",
     "updates": "GitFlic Releases / Registry",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.1.5-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.1.5-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.1.6-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.1.6-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.1.5-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.1.6-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -34,7 +34,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
-    "Portable ZIP site packages with file checksums, validated plan, ID mapping, conflict policies and authenticated backup recovery."
+    "Signed extension packages with dependency resolution, runtime registrations and recoverable deployment."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -47,7 +47,8 @@
     "1.1.2": "Clean Dist & Release Recovery",
     "1.1.3": "OpenAPI & Security",
     "1.1.4": "Production Updater & Backup",
-    "1.1.5": "Import/Export Engine"
+    "1.1.5": "Import/Export Engine",
+    "1.1.6": "Extension Platform"
   },
   "stability": "stable"
 }

@@ -53,9 +53,10 @@ final readonly class ManifestLoader
             }
         }
 
-        if (isset($payload['name']) && is_string($payload['name']) && !preg_match('/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/', strtolower($payload['name']))) {
+        if (isset($payload['name']) && is_string($payload['name']) && !preg_match('/^[a-z0-9][a-z0-9_.-]*\/[a-z0-9][a-z0-9_.-]*$/', strtolower($payload['name']))) {
             $errors[] = 'name должен быть в формате vendor/name и содержать только a-z, 0-9, _, ., -';
         }
+        if (is_string($payload['name']??null) && (strlen($payload['name'])>190 || str_contains($payload['name'],'--'))) $errors[]='Name too long or reserved double hyphen';
         if (isset($payload['type']) && is_string($payload['type']) && !in_array(strtolower($payload['type']), ['module', 'plugin', 'theme'], true)) {
             $errors[] = 'type должен быть module, plugin или theme';
         }
@@ -95,6 +96,14 @@ final readonly class ManifestLoader
             $errors[] = 'migrations должен быть объектом';
         }
 
+        foreach (['requires','conflicts'] as $field) {
+            if (!isset($payload[$field])) continue;
+            if (!is_array($payload[$field])) { $errors[] = 'Invalid '.$field; continue; }
+            foreach ($payload[$field] as $name => $constraint) {
+                if (!is_string($name) || !preg_match('~^[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*$~D',$name) || !is_string($constraint)) { $errors[]='Invalid dependency'; continue; }
+                try { DependencyGraph::matches('1.0.0',$constraint); } catch (\Throwable $e) { $errors[]=$e->getMessage(); }
+            }
+        }
         return $errors;
     }
 

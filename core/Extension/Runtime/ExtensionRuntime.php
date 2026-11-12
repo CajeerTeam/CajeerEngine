@@ -27,6 +27,8 @@ final class ExtensionRuntime
     private bool $booted = false;
     private bool $registered = false;
     private ManifestLoader $loader;
+    private PlatformServices $platform;
+    public function platform(): PlatformServices { return $this->platform; }
 
     public function __construct(
         private readonly string $rootPath,
@@ -38,22 +40,20 @@ final class ExtensionRuntime
         private readonly ?DatabaseManager $database = null,
     ) {
         $this->loader = new ManifestLoader();
+        $this->platform = new PlatformServices();
     }
 
     /** @return array<string,mixed> */
     public function boot(bool $force = false): array
     {
-        if ($this->booted && !$force) {
+        if ($this->booted) {
             return $this->diagnostics();
         }
         $this->registered = false;
         $this->providers = [];
         $this->contexts = [];
 
-        $extensions = array_values(array_filter(
-            $this->registry->all(),
-            static fn (array $item): bool => !empty($item['installed']) && !empty($item['enabled']) && empty($item['missing']) && !empty($item['valid'])
-        ));
+        $extensions = \CajeerEngine\Extension\DependencyGraph::order($this->registry->all());
 
         foreach ($extensions as $extension) {
             $this->loadExtension($extension, 'register');
@@ -76,7 +76,7 @@ final class ExtensionRuntime
     /** @return array<string,mixed> */
     public function install(string $target, bool $enable = false, bool $runLifecycle = true, bool $publishAssets = true, bool $runMigrations = true): array
     {
-        $item = $this->registry->install($target, $enable);
+        $item = $this->registry->install($target, false);
         if ($runLifecycle) {
             $manifest = $this->manifestFromItem($item);
             $context = $this->context($manifest, $item);
@@ -92,16 +92,26 @@ final class ExtensionRuntime
             }
             $context->log('extension.install_lifecycle_completed');
         }
+        if ($enable) $this->registry->enable((string)$item['name']);
         return $this->registry->findInstalled((string) ($item['name'] ?? $target)) ?? $item;
+    }
+
+    public function upgradeLifecycle(string $name,string $previousVersion): void
+    {
+        $item=$this->registry->findInstalled($name)??throw new \RuntimeException('Extension missing');
+        $manifest=$this->manifestFromItem($item); $context=$this->context($manifest,$item);
+        foreach ($this->providerInstances($manifest,$context) as $provider) if (method_exists($provider,'upgrade')) $provider->upgrade($context,$previousVersion);
+        $context->log('extension.upgraded',['previous'=>$previousVersion,'version'=>$manifest->version]);
     }
 
     /** @return array<string,mixed> */
     public function uninstall(string $name, bool $runLifecycle = true, bool $removeAssets = false): array
     {
         $item = $this->registry->findInstalled($name);
-        if ($item === null) {
+        if ($item === null || empty($item['installed'])) {
             return ['ok' => true, 'deleted' => false, 'message' => 'Расширение не было установлено.'];
         }
+        if (!empty($item['enabled'])) $this->registry->disable((string)$item['name']);
         if ($runLifecycle && empty($item['missing']) && !empty($item['valid'])) {
             $manifest = $this->manifestFromItem($item);
             $context = $this->context($manifest, $item);
@@ -171,15 +181,15 @@ final class ExtensionRuntime
         $items = $name !== null ? array_filter($this->registry->all(), fn (array $item): bool => ($item['name'] ?? '') === $this->resolveInstalledName($name)) : $this->registry->all();
         $published = [];
         foreach ($items as $item) {
-            if (empty($item['installed']) || empty($item['valid']) || !empty($item['missing'])) {
-                continue;
-            }
+            if (empty($item['installed'])) continue;
+            if (empty($item['valid']) || !empty($item['missing'])) throw new \RuntimeException('Invalid installed extension: '.$item['name']);
             $manifest = $this->manifestFromItem($item);
             $context = $this->context($manifest, $item);
             $paths = $context->paths();
             $source = $paths['assets'];
             $target = $paths['public_assets'];
             $files = [];
+            if (!$dryRun) $this->removeAssets($manifest->slug());
             if (is_dir($source)) {
                 foreach ($this->files($source) as $file) {
                     $relative = substr(str_replace('\\', '/', $file), strlen(rtrim(str_replace('\\', '/', $source), '/')) + 1);
@@ -189,7 +199,7 @@ final class ExtensionRuntime
                         if (!is_dir(dirname($destination))) {
                             @mkdir(dirname($destination), 0775, true);
                         }
-                        copy($file, $destination);
+                        \CajeerEngine\Update\OperationFiles::copy($file, \CajeerEngine\Update\OperationFiles::path($this->rootPath, $this->relativePath($destination)),0644);
                     }
                 }
             }
@@ -210,20 +220,20 @@ final class ExtensionRuntime
     public function migrate(?string $name = null, bool $dryRun = false): array
     {
         $items = $name !== null ? array_filter($this->registry->all(), fn (array $item): bool => ($item['name'] ?? '') === $this->resolveInstalledName($name)) : $this->registry->all();
-        $state = $this->migrationState();
+        $ledger=new MigrationLedger($this->rootPath,$this->config,$this->database);
         $results = [];
         foreach ($items as $item) {
-            if (empty($item['installed']) || empty($item['valid']) || !empty($item['missing'])) {
-                continue;
-            }
+            if (empty($item['installed'])) continue;
+            if (empty($item['valid']) || !empty($item['missing'])) throw new \RuntimeException('Invalid installed extension: '.$item['name']);
             $manifest = $this->manifestFromItem($item);
             $context = $this->context($manifest, $item);
             $directory = $context->paths()['migrations'];
-            $applied = (array) ($state[$manifest->name] ?? []);
+            $applied = $ledger->applied($manifest->name);
             $pending = [];
+            foreach ($applied as $id => $sha) { if (is_int($id)) throw new \RuntimeException('Legacy migration history needs explicit review'); $old=$directory.'/'.$id; if (!is_file($old)||!hash_equals($sha,hash_file('sha256',$old))) throw new \RuntimeException('Extension migration drift: '.$id); }
             foreach (glob($directory . '/*.php') ?: [] as $file) {
                 $id = basename($file);
-                if (!in_array($id, $applied, true)) {
+                if (!array_key_exists($id, $applied)) {
                     $pending[$id] = $file;
                 }
             }
@@ -231,28 +241,18 @@ final class ExtensionRuntime
             foreach ($pending as $id => $file) {
                 if (!$dryRun) {
                     $migration = require $file;
-                    $pdo = null;
-                    try {
-                        $pdo = $this->database?->connection();
-                    } catch (\Throwable) {
-                        $pdo = null;
-                    }
-                    if (is_callable($migration)) {
-                        $migration($context, $pdo);
-                    } elseif (is_array($migration) && isset($migration['up']) && is_callable($migration['up'])) {
-                        $migration['up']($context, $pdo);
-                    } else {
-                        throw new \RuntimeException('Migration должна вернуть callable или array{up: callable}: ' . $file);
-                    }
-                    $state[$manifest->name][] = $id;
-                    $this->writeMigrationState($state);
+                    if (is_array($migration)) $migration=$migration['up']??null;
+                    if (!is_callable($migration)) throw new \RuntimeException('Migration must return callable: '.$file);
+                    $sha=hash_file('sha256',$file);
+                    $ledger->run($manifest->name,$id,$sha,$migration,$context);
+                    $applied[$id]=$sha;
                 }
                 $run[] = $id;
             }
             $results[] = [
                 'extension' => $manifest->name,
                 'directory' => $directory,
-                'applied' => count((array) ($state[$manifest->name] ?? $applied)),
+                'applied' => count($applied),
                 'pending_before' => count($pending),
                 'run' => $run,
                 'dry_run' => $dryRun,
@@ -283,10 +283,12 @@ final class ExtensionRuntime
             'loaded_extensions' => count($this->providers),
             'declared_providers' => $providers,
             'loaded_providers' => array_sum(array_map('count', $this->providers)),
+            'pages' => $this->platform->pages(),
+            'tasks' => $this->platform->tasks(),
             'listener_counts' => $this->events->listenerCounts(),
             'errors' => $bootErrors,
             'assets_root' => 'public/extensions',
-            'migrations_state' => $this->relativePath($this->migrationStatePath()),
+            'migrations_state' => 'ce_extension_migrations (development fallback: storage/app/extensions/migrations.json)',
         ];
     }
 
@@ -333,6 +335,7 @@ final class ExtensionRuntime
             if (!class_exists($class)) {
                 throw new \RuntimeException(sprintf('Provider %s не найден для расширения %s.', $class, $manifest->name));
             }
+             $reflection=new \ReflectionClass($class); $file=$reflection->getFileName(); if (!is_string($file)||!str_starts_with(realpath($file)?:'',realpath((string)$manifest->path).DIRECTORY_SEPARATOR)) throw new \RuntimeException('Provider class outside package: '.$class);
             $instance = new $class();
             if (!is_object($instance)) {
                 throw new \RuntimeException('Provider должен быть объектом: ' . $class);
@@ -389,23 +392,19 @@ final class ExtensionRuntime
 
     private function autoloadExtension(ExtensionManifest $manifest): void
     {
-        $src = $manifest->path . '/src';
-        if (is_dir($src)) {
-            foreach ($this->files($src) as $file) {
-                if (str_ends_with($file, '.php')) {
-                    require_once $file;
-                }
-            }
-        }
         $autoload = $manifest->path . '/autoload.php';
-        if (is_file($autoload)) {
-            require_once $autoload;
+        if (is_file($autoload)) { require_once $autoload; return; }
+        $src = $manifest->path . '/src';
+        foreach ($manifest->providers as $class) {
+            $parts=explode('\\',$class); $file=$src.'/'.end($parts).'.php';
+            if (is_file($file)) require_once $file;
         }
     }
 
     /** @param array<string,mixed> $item */
     private function manifestFromItem(array $item): ExtensionManifest
     {
+        if (empty($item['valid']) || empty($item['installed'])) throw new \RuntimeException('Invalid extension code or state');
         $path = $this->rootPath . '/' . ltrim((string) ($item['path'] ?? ''), '/');
         return $this->loader->load($path . '/' . ManifestLoader::FILENAME);
     }
@@ -413,7 +412,7 @@ final class ExtensionRuntime
     /** @param array<string,mixed> $state */
     private function context(ExtensionManifest $manifest, array $state): ExtensionContext
     {
-        $context = new ExtensionContext($this->rootPath, $manifest, $state, $this->container, $this->config, $this->events, $this->logger);
+        $context = new ExtensionContext($this->rootPath, $manifest, $state, $this->container, $this->config, $this->events, $this->logger, $this->platform);
         $context->ensureRuntimeDirectories();
         return $context;
     }
@@ -464,16 +463,18 @@ final class ExtensionRuntime
     private function removeAssets(string $slug): void
     {
         $path = $this->rootPath . '/public/extensions/' . $slug;
+        if (is_link($path)) throw new \RuntimeException('Symlink assets root');
         if (!is_dir($path)) {
             return;
         }
         $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::CHILD_FIRST);
         foreach ($iterator as $file) {
             if ($file instanceof \SplFileInfo) {
-                $file->isDir() ? @rmdir($file->getPathname()) : @unlink($file->getPathname());
+                if ($file->isLink()) throw new \RuntimeException('Symlink assets entry');
+                if ($file->isDir() ? !rmdir($file->getPathname()) : !unlink($file->getPathname())) throw new \RuntimeException('Cannot remove asset');
             }
         }
-        @rmdir($path);
+        if (!rmdir($path)) throw new \RuntimeException('Cannot remove assets directory');
     }
 
     /** @param array<string,mixed> $payload */

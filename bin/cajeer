@@ -100,12 +100,16 @@ require_once $root . '/core/Update/OperationFiles.php';
 require_once $root . '/core/Update/OperationLock.php';
 require_once $root . '/core/Console/OperationsCli.php';
 if (CajeerEngine\Console\OperationsCli::handles($argv)) {
-    if (is_file($autoload)) require $autoload;
+    if (is_file($autoload)) require_once $autoload;
     else require_once $root . '/core/Console/NativeCli.php';
     exit(CajeerEngine\Console\OperationsCli::run($root, $argv));
 }
+if (in_array($argv[1]??'', ['extension:sign','extension:package:install','extension:package:upgrade','extension:package:recover','extension:package:uninstall','extension:package:enable','extension:enable'],true)) {
+    if (is_file($autoload)) require_once $autoload; else require_once $root.'/core/Console/NativeCli.php';
+    exit(\CajeerEngine\Extension\ExtensionOperations::run($root,$argv));
+}
 try {
-    $activityLease = CajeerEngine\Update\OperationLock::acquire($root, in_array($argv[1]??'', ['import:run','import:diff','export:create'],true));
+    $activityLease = CajeerEngine\Update\OperationLock::acquire($root, in_array($argv[1]??'', ['import:run','import:diff','export:create','extension:install','extension:uninstall','extension:enable','extension:disable','extension:migrate','extension:assets','extension:config'],true));
     if ((CajeerEngine\Update\OperationLock::active($root)||is_file($root.'/storage/app/backup-restore.json')) && !in_array($argv[1]??'', ['list','--version'],true)) throw new RuntimeException('Recovery required; use operational CLI.');
     if (CajeerEngine\Update\OperationLock::maintenance($root) && !in_array($argv[1] ?? '', ['list','--version','doctor','rc:doctor','system:report','stable:status','update:check','update:prepare','update','api:lint','release:verify','admin:assets','migrate:status','migrate:verify'], true)) {
         throw new RuntimeException('Maintenance active; CLI writes disabled.');
@@ -118,18 +122,23 @@ if (($argv[1] ?? '') === 'install:web-token') {
     catch (Throwable $e) { fwrite(STDERR, $e->getMessage() . PHP_EOL); exit(1); }
 }
 
+if (in_array($argv[1]??'', ['extension:install','extension:uninstall','extension:migrate','extension:assets'],true)) {
+    if (is_file($autoload)) require_once $autoload; else require_once $root.'/core/Console/NativeCli.php';
+    CajeerEngine\Console\OperationsCli::loadEnv($root);
+    if (!in_array(getenv('APP_ENV'),['local','dev','testing'],true)) { fwrite(STDERR,"Use signed package operations in production.\n"); exit(1); }
+}
 if (!is_file($autoload)) {
-    require $root . '/core/Console/NativeCli.php';
+    require_once $root . '/core/Console/NativeCli.php';
     exit(CajeerEngine\Console\NativeCli::run($root, $argv));
 }
 
-require $autoload;
+require_once $autoload;
 
 if (is_file($root . '/.env')) {
     (new Dotenv())->usePutenv()->loadEnv($root . '/.env');
 }
 
-$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.1.5');
+$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.1.6');
 
 /** @var list<Symfony\Component\Console\Command\Command> $commands */
 $commands = [

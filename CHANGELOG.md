@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.6 — Extension Platform (2026-11-12)
+
+- Signed extension inventory, dependency ordering, guarded package deployment and backup recovery.
+- Runtime actions, admin pages, jobs, scheduler tasks, and active theme rendering.
+
 ## 1.1.5 — Import/Export Engine (2026-11-12)
 
 - Portable ZIP v3 exports with checksummed media files and bounded extraction; checksummed JSON v2 remains supported.

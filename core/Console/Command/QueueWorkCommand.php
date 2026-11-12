@@ -45,12 +45,6 @@ final class QueueWorkCommand extends BaseCommand
 
     private function worker(): QueueWorker
     {
-        $config = new ConfigRepository($this->rootPath);
-        $db = new DatabaseManager($config);
-        $queue = (new QueueFactory($this->rootPath, $config, $db))->make();
-        $search = (new SearchFactory($this->rootPath, $config, $db))->make();
-        $indexer = new SearchIndexer(new ContentTypeRepository($this->rootPath, $db), new ContentEntryRepository($this->rootPath, $db), $search);
-        $webhooks = new WebhookRepository($this->rootPath);
-        return new QueueWorker($queue, $indexer, $webhooks, new WebhookDispatcher(new SignedPayload(), $webhooks));
+        return \CajeerEngine\Kernel\Application::boot($this->rootPath)->container()->get(QueueWorker::class);
     }
 }

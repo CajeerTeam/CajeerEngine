@@ -21,9 +21,9 @@ final readonly class VersionVerifier
         $admin = $this->json('admin/package.json');
         $checks = [];
 
-        $checks[] = $version === '1.1.5'
-            ? CheckResult::pass('version', 'VERSION', 'VERSION содержит 1.1.5.')
-            : CheckResult::fail('version', 'VERSION', 'VERSION должен быть 1.1.5.', ['actual' => $version]);
+        $checks[] = $version === '1.1.6'
+            ? CheckResult::pass('version', 'VERSION', 'VERSION содержит 1.1.6.')
+            : CheckResult::fail('version', 'VERSION', 'VERSION должен быть 1.1.6.', ['actual' => $version]);
 
         $expected = [
             'release.json' => $release['version'] ?? null,

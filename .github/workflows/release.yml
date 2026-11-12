@@ -35,6 +35,7 @@ jobs:
       - run: php tools/release-regression.php
       - run: php tools/update-regression.php
       - run: php tools/import-regression.php
+      - run: php tools/extension-regression.php
       - run: php tools/import-regression.php --database
       - name: Install matching PostgreSQL 17 client
         run: |

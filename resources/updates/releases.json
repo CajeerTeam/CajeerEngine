@@ -4,6 +4,26 @@
   "generated_at": "2026-06-19T00:00:00+00:00",
   "releases": [
     {
+      "version": "1.1.6",
+      "channel": "stable",
+      "stability": "stable",
+      "released_at": "2026-11-12T00:00:00+00:00",
+      "notes": "Extension Platform: signed packages, dependency graph, runtime actions, jobs and themes.",
+      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.1.6",
+      "artifacts": {
+        "source": {
+          "name": "cajeerengine-1.1.6-source.zip",
+          "checksum_name": "cajeerengine-1.1.6-source.zip.sha256",
+          "signature_name": "cajeerengine-1.1.6-source.zip.sig"
+        },
+        "dist": {
+          "name": "cajeerengine-1.1.6-dist.zip",
+          "checksum_name": "cajeerengine-1.1.6-dist.zip.sha256",
+          "signature_name": "cajeerengine-1.1.6-dist.zip.sig"
+        }
+      }
+    },
+    {
       "version": "1.1.5",
       "channel": "stable",
       "stability": "stable",

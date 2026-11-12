@@ -85,6 +85,7 @@ final readonly class ExtensionController
     /** @param array<string, mixed> $parameters */
     public function install(Request $request, array $parameters): JsonResponse
     {
+        if (getenv('APP_ENV')!=='local' && getenv('APP_ENV')!=='testing' && getenv('APP_ENV')!=='dev') return $this->error('operator_required','Use signed extension package CLI for lifecycle operations.',403);
         try {
             $payload = $this->json($request);
             $target = (string) ($payload['target'] ?? $payload['name'] ?? '');
@@ -103,6 +104,7 @@ final readonly class ExtensionController
     /** @param array<string, mixed> $parameters */
     public function enable(Request $request, array $parameters): JsonResponse
     {
+        if (!in_array(getenv('APP_ENV'),['local','dev','testing'],true)) return $this->error('operator_required','Use extension:package:enable to activate with backup and boot check.',403);
         try {
             $name = $this->nameFromRequest($request);
             return new JsonResponse(['data' => $this->extensions->enable($name)]);
@@ -124,6 +126,7 @@ final readonly class ExtensionController
     /** @param array<string, mixed> $parameters */
     public function uninstall(Request $request, array $parameters): JsonResponse
     {
+        if (getenv('APP_ENV')!=='local' && getenv('APP_ENV')!=='testing' && getenv('APP_ENV')!=='dev') return $this->error('operator_required','Use signed extension package CLI for lifecycle operations.',403);
         try {
             $payload = $this->json($request);
             $name = $this->nameFromRequest($request);
@@ -167,6 +170,7 @@ final readonly class ExtensionController
     /** @param array<string, mixed> $parameters */
     public function publishAssets(Request $request, array $parameters): JsonResponse
     {
+        if (getenv('APP_ENV')!=='local' && getenv('APP_ENV')!=='testing' && getenv('APP_ENV')!=='dev') return $this->error('operator_required','Use signed extension package CLI for lifecycle operations.',403);
         if ($this->runtime === null) {
             return $this->error('extension_runtime_missing', 'ExtensionRuntime не зарегистрирован.', Response::HTTP_SERVICE_UNAVAILABLE);
         }
@@ -177,11 +181,19 @@ final readonly class ExtensionController
     /** @param array<string, mixed> $parameters */
     public function migrate(Request $request, array $parameters): JsonResponse
     {
+        if (getenv('APP_ENV')!=='local' && getenv('APP_ENV')!=='testing' && getenv('APP_ENV')!=='dev') return $this->error('operator_required','Use signed extension package CLI for lifecycle operations.',403);
         if ($this->runtime === null) {
             return $this->error('extension_runtime_missing', 'ExtensionRuntime не зарегистрирован.', Response::HTTP_SERVICE_UNAVAILABLE);
         }
         $payload = $this->json($request);
         return new JsonResponse(['data' => $this->runtime->migrate((string) ($payload['name'] ?? '') ?: null, !empty($payload['dry_run']))]);
+    }
+
+    public function action(Request $request,array $parameters): JsonResponse
+    {
+        try { $result=$this->runtime?->platform()->execute((string)$parameters['slug'],(string)$parameters['action'],$request->isMethod('POST')?$this->json($request):$request->query->all(),$request->isMethod('POST')); if ($result===null) throw new \OutOfBoundsException('Extension unavailable'); return new JsonResponse(['data'=>$result]); }
+        catch (\OutOfBoundsException) { return $this->error('extension_action_missing','Extension action unavailable',404); }
+        catch (\InvalidArgumentException $e) { return $this->error('extension_action_invalid',$e->getMessage(),422); }
     }
 
     private function nameFromRequest(Request $request): string

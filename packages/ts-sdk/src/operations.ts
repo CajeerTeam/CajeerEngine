@@ -48,6 +48,40 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "extensionActionRead": {
+        "method": "GET",
+        "path": "/extensions/actions/{slug}/{action}",
+        "parameters": [
+            {
+                "name": "slug",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "action",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "extensionActionWrite": {
+        "method": "POST",
+        "path": "/extensions/actions/{slug}/{action}",
+        "parameters": [
+            {
+                "name": "slug",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "action",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
     "get_AdminBootstrap": {
         "method": "GET",
         "path": "/admin/bootstrap",

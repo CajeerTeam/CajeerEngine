@@ -52,6 +52,8 @@ final class RouteRegistry
             ['POST', '/api/v1/webhooks/{id}/test', 'api.v1.webhooks.test', 'webhooks', 'test', ['*']],
             ['GET', '/api/v1/webhook-deliveries', 'api.v1.webhook_deliveries.index', 'webhooks', 'deliveries', ['system:read']],
             ['POST', '/api/v1/events/dispatch', 'api.v1.events.dispatch', 'webhooks', 'dispatch', ['*']],
+            ['GET', '/api/v1/extensions/actions/{slug}/{action}', 'api.v1.extensions.action.read', 'extensions', 'action', ['extensions:read']],
+            ['POST', '/api/v1/extensions/actions/{slug}/{action}', 'api.v1.extensions.action.write', 'extensions', 'action', ['*']],
             ['GET', '/api/v1/extensions', 'api.v1.extensions.index', 'extensions', 'index', ['extensions:read']],
             ['POST', '/api/v1/extensions/validate', 'api.v1.extensions.validate', 'extensions', 'validate', ['*']],
             ['POST', '/api/v1/extensions/install', 'api.v1.extensions.install', 'extensions', 'install', ['*']],

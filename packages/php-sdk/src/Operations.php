@@ -78,6 +78,48 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'extensionActionRead' => 
+  array (
+    'method' => 'GET',
+    'path' => '/extensions/actions/{slug}/{action}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'slug',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'action',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'extensionActionWrite' => 
+  array (
+    'method' => 'POST',
+    'path' => '/extensions/actions/{slug}/{action}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'slug',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'action',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'get_AdminBootstrap' => 
   array (
     'method' => 'GET',

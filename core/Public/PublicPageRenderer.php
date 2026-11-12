@@ -215,7 +215,7 @@ final readonly class PublicPageRenderer
             'path' => $path,
         ];
 
-        $html = $this->templates->render($template, $context);
+        $html = $this->renderActiveTheme($context) ?? $this->templates->render($template, $context);
         return [
             'type' => $type,
             'entry' => $entry,
@@ -298,6 +298,20 @@ final readonly class PublicPageRenderer
         }
 
         return $this->rootPath . '/templates/default/page.cjr';
+    }
+
+    private function renderActiveTheme(array $context): ?string
+    {
+        $registry=new \CajeerEngine\Extension\ExtensionRegistry($this->rootPath,new \CajeerEngine\Runtime\ConfigRepository($this->rootPath));
+        foreach (\CajeerEngine\Extension\DependencyGraph::order($registry->all()) as $item) {
+            if ($item['type']!=='theme') continue;
+            $root=$this->rootPath.'/'.$item['path'].'/templates';
+            if (!is_file($root.'/page.cjr')) throw new \RuntimeException('Active theme has no templates/page.cjr');
+            $engine=new CajeerTemplateEngine(new \CajeerEngine\Template\TemplateSandbox($root),$root);
+            $context['theme_assets']='/extensions/'.$item['slug'];
+            return $engine->render($root.'/page.cjr',$context);
+        }
+        return null;
     }
 
     private function normalizePath(string $path): string

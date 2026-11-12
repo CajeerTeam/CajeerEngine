@@ -43,12 +43,6 @@ final class SchedulerRunCommand extends BaseCommand
 
     private function runner(): SchedulerRunner
     {
-        $config = new ConfigRepository($this->rootPath);
-        $db = new DatabaseManager($config);
-        $search = (new SearchFactory($this->rootPath, $config, $db))->make();
-        $indexer = new SearchIndexer(new ContentTypeRepository($this->rootPath, $db), new ContentEntryRepository($this->rootPath, $db), $search);
-        $webhooks = new WebhookRepository($this->rootPath);
-        $queue = (new QueueFactory($this->rootPath, $config, $db))->make();
-        return new SchedulerRunner($this->rootPath, $indexer, $webhooks, new WebhookDispatcher(new SignedPayload(), $webhooks), $queue);
+        return \CajeerEngine\Kernel\Application::boot($this->rootPath)->container()->get(SchedulerRunner::class);
     }
 }

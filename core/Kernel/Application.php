@@ -143,7 +143,7 @@ final class Application
     public function handle(Request $request): Response
     {
         $response = $this->pipeline->handle($request, fn (Request $request): Response => $this->router->dispatch($request));
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.1.5'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.1.6'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -174,6 +174,15 @@ final class Application
     public function routeList(): array
     {
         return $this->router->routes();
+    }
+
+    /** Operational lifecycle gets the same services as HTTP, without booting old providers. */
+    public static function extensionRuntimeForOperations(string $rootPath): ExtensionRuntime
+    {
+        self::ensureRuntimeDirectories($rootPath);
+        $config=new ConfigRepository($rootPath); $logger=new RuntimeLogger($rootPath); $events=new EventDispatcher($logger); $container=new ServiceContainer(); $router=new Router();
+        self::registerServices($container,$rootPath,$config,$logger,$events,$router);
+        return $container->get(ExtensionRuntime::class);
     }
 
     private static function registerServices(ServiceContainer $container, string $rootPath, ConfigRepository $config, RuntimeLogger $logger, EventDispatcher $events, Router $router): void
@@ -263,6 +272,7 @@ final class Application
             $c->get(SearchIndexer::class),
             $c->get(WebhookRepository::class),
             $c->get(WebhookDispatcher::class),
+            $c->get(ExtensionRuntime::class)->platform(),
         ));
         $container->set(SchedulerRunner::class, fn (ServiceContainer $c): SchedulerRunner => new SchedulerRunner(
             $rootPath,
@@ -270,6 +280,7 @@ final class Application
             $c->get(WebhookRepository::class),
             $c->get(WebhookDispatcher::class),
             $c->get(ManagedQueueDriverInterface::class),
+            $c->get(ExtensionRuntime::class)->platform(),
         ));
 
         $container->set('controller.health', fn (): HealthController => new HealthController($rootPath));
