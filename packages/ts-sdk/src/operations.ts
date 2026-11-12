@@ -240,6 +240,16 @@ export const operations = {
                 "name": "published_only",
                 "in": "query",
                 "required": false
+            },
+            {
+                "name": "limit",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "offset",
+                "in": "query",
+                "required": false
             }
         ],
         "bodyRequired": false

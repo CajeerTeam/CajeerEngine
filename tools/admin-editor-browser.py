@@ -25,6 +25,15 @@ with sync_playwright() as p:
  entries=page.evaluate('records');requests=page.evaluate('requests')
  assert entries[0]['title']=='Edited page' and any(x[0]=='PUT' and x[2]['expected_revision']==1 for x in requests),requests
  page.locator('[data-action="preview-entry"]').click();page.get_by_role('link',name='Открыть предпросмотр').wait_for();assert page.get_by_role('link',name='Открыть предпросмотр').get_attribute('href')=='/preview/test-token'
+ # The production list requests 50 rows and retains the total from the API.
+ page.evaluate("""()=>{for(let i=0;i<59;i++)records.push({id:'seed-'+i,title:'Seed '+i,slug:'seed-'+i,locale:'ru',status:'draft',data:{}});const previous=window.fetch;window.pageRequests=[];window.fetch=async(url,opt={})=>{const parsed=new URL(url,'https://test.example');if(parsed.pathname==='/api/v1/content/pages'&&(opt.method||'GET')==='GET'){const q=parsed.searchParams.get('q')||'',limit=Number(parsed.searchParams.get('limit')||50),offset=Number(parsed.searchParams.get('offset')||0);pageRequests.push({q,limit,offset});const matching=records.filter(r=>r.title.toLowerCase().includes(q.toLowerCase()));return new Response(JSON.stringify({data:matching.slice(offset,offset+limit),meta:{total:matching.length,limit,offset}}),{status:200})}return previous(url,opt)}}""")
+ page.locator('[data-action="filter-entries"]').click();page.locator('[data-entry-page="next"]').wait_for();page.wait_for_function("document.querySelector('[data-entry-page=next]')&&!document.querySelector('[data-entry-page=next]').disabled")
+ page.locator('[data-entry-page="next"]').click();page.wait_for_function("pageRequests.some(r=>r.limit===50&&r.offset===50)")
+ page.wait_for_function("document.querySelector('[data-entry-page=next]').disabled")
+ page.locator('[data-entry-page="prev"]').click();page.wait_for_function("!document.querySelector('[data-entry-page=next]').disabled")
+ page.locator('[data-parent-q]').fill('Seed 58');page.locator('[data-parent-search]').click();page.wait_for_function("document.querySelector('[name=parent_id] option[value=seed-58]')!==null")
+ assert page.evaluate("pageRequests.some(r=>r.q==='Seed 58'&&r.limit===50)")
+ print('PASS Chromium bounded content pages, next/previous and parent search')
  page.locator('[data-route="cms"]').click();page.locator('select[name=active_theme]').wait_for();page.locator('select[name=active_theme]').select_option('editorial');page.locator('[data-form="theme"] button[type=submit]').click();page.wait_for_timeout(350)
  requests=page.evaluate('requests')
  assert any(x[0]=='PATCH' and x[1]=='/cms/theme' and x[2]['active_theme']=='editorial' for x in requests),requests

@@ -647,6 +647,6 @@ PHP_STUB;
 
     private static function version(string $rootPath): string
     {
-        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.2.0';
+        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.2.1';
     }
 }

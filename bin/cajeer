@@ -142,7 +142,7 @@ if (is_file($root . '/.env')) {
     (new Dotenv())->usePutenv()->loadEnv($root . '/.env');
 }
 
-$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.2.0');
+$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.2.1');
 
 /** @var list<Symfony\Component\Console\Command\Command> $commands */
 $commands = [

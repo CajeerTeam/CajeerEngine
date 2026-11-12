@@ -23,8 +23,9 @@ final readonly class RoleRepository
     /** @return array<string, mixed>|null */
     public function find(string $idOrHandle): ?array
     {
-        $stmt = $this->database->connection()->prepare('SELECT id, handle, name, permissions, created_at, updated_at FROM ce_roles WHERE id = :id_value OR handle = :handle_value LIMIT 1');
-        $stmt->execute(['id_value' => $idOrHandle, 'handle_value' => $idOrHandle]);
+        $isId=preg_match('/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iD',$idOrHandle)===1;
+        $stmt=$this->database->connection()->prepare('SELECT id,handle,name,permissions,created_at,updated_at FROM ce_roles WHERE '.($isId?'id':'handle').'=:value LIMIT 1');
+        $stmt->execute(['value'=>$idOrHandle]);
         $row = $stmt->fetch();
         return is_array($row) ? $this->normalize($row) : null;
     }

@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitFlic Wiki",
     "updates": "GitFlic Releases / Registry",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.2.0-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.2.0-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.2.1-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.2.1-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.2.0-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.2.1-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -34,7 +34,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
-    "Transactional CMS search projection, public search, filters/facets, PostgreSQL FTS, complete catalog reconciliation."
+    "Bounded editorial pagination, incremental SQL route/search updates, database migration locks, connection limits and fail-closed storage."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -52,7 +52,8 @@
     "1.1.7": "Public Routing Runtime",
     "1.1.9": "Admin & Public Rendering Completion",
     "1.1.8": "Media Library",
-    "1.2.0": "Search & CMS Integration"
+    "1.2.0": "Search & CMS Integration",
+    "1.2.1": "Performance & Database"
   },
   "stability": "stable"
 }

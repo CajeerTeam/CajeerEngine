@@ -40,6 +40,11 @@ final class NavigationRepository
     public function find(string $handle): ?array
     {
         $handle = $this->handle($handle, 'primary');
+        if($this->useDatabase()){
+            $s=$this->pdo()->prepare('SELECT * FROM ce_cms_navigation_menus WHERE handle=:handle');$s->execute(['handle'=>$handle]);$row=$s->fetch(PDO::FETCH_ASSOC);
+            if(!$row&&preg_match('/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/D',$handle)){$s=$this->pdo()->prepare('SELECT * FROM ce_cms_navigation_menus WHERE id=:id');$s->execute(['id'=>$handle]);$row=$s->fetch(PDO::FETCH_ASSOC);}
+            return $row?$this->mapMenuRow($row,$this->itemsDatabase((string)$row['id'])):null;
+        }
         foreach ($this->all() as $menu) {
             if (($menu['handle'] ?? null) === $handle || ($menu['id'] ?? null) === $handle) {
                 return $menu;
@@ -136,9 +141,10 @@ final class NavigationRepository
     {
         $stmt = $this->pdo()->query('SELECT * FROM ce_cms_navigation_menus ORDER BY handle ASC');
         $menus = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
-        $result = [];
+        $result = [];$byMenu=[];
+        if($menus){$rows=$this->pdo()->query('SELECT * FROM ce_cms_navigation_items ORDER BY menu_id,sort_order,label,id');while($row=$rows->fetch(PDO::FETCH_ASSOC))$byMenu[$row['menu_id']][]=$this->mapItem($row);}
         foreach ($menus as $menu) {
-            $result[] = $this->mapMenuRow($menu, $this->itemsDatabase((string) $menu['id']));
+            $result[] = $this->mapMenuRow($menu, $byMenu[$menu['id']]??[]);
         }
         return $result;
     }
@@ -148,10 +154,12 @@ final class NavigationRepository
     {
         $stmt = $this->pdo()->prepare('SELECT * FROM ce_cms_navigation_items WHERE menu_id = :menu_id ORDER BY sort_order ASC, label ASC');
         $stmt->execute(['menu_id' => $menuId]);
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $items = [];
-        foreach ($rows as $row) {
-            $items[] = [
+        $items=[];while($row=$stmt->fetch(PDO::FETCH_ASSOC))$items[]=$this->mapItem($row);return $items;
+    }
+
+    private function mapItem(array $row): array
+    {
+        return [
                 'id' => (string) $row['id'],
                 'label' => (string) $row['label'],
                 'url' => (string) $row['url'],
@@ -160,9 +168,7 @@ final class NavigationRepository
                 'entry_id' => $row['entry_id'] !== null ? (string) $row['entry_id'] : null,
                 'data' => $this->jsonDecode($row['data'] ?? '{}'),
                 'children' => [],
-            ];
-        }
-        return $items;
+        ];
     }
 
     /** @param list<array<string,mixed>> $items @return array<string,mixed> */
@@ -280,7 +286,7 @@ final class NavigationRepository
         if ($this->databaseReady !== null) {
             return $this->databaseReady;
         }
-        $mode = strtolower(trim((string) (getenv('CMS_STORAGE') ?: 'auto')));
+        $mode = \CajeerEngine\Database\StorageMode::resolve('CMS_STORAGE');
         if ($mode === 'file') {
             return $this->databaseReady = false;
         }
@@ -288,12 +294,13 @@ final class NavigationRepository
             $this->databaseReady = $this->database()->tableExists('ce_cms_navigation_menus') && $this->database()->tableExists('ce_cms_navigation_items');
         } catch (Throwable $e) {
             if ($mode === 'database') {
-                throw new \RuntimeException('CMS_STORAGE=database, но CMS navigation tables недоступны: ' . $e->getMessage(), 0, $e);
+                throw new \CajeerEngine\Database\DatabaseUnavailable('Database-backed storage unavailable',0,$e);
             }
             $this->databaseReady = false;
         }
         if ($mode === 'database' && $this->databaseReady !== true) {
-            throw new \RuntimeException('CMS_STORAGE=database, но таблицы navigation не найдены. Выполните миграции.');
+            $this->databaseReady = null; // Never cache a failed database probe as file mode.
+            throw new \CajeerEngine\Database\DatabaseUnavailable('Database schema not ready; run migrations');
         }
         return $this->databaseReady;
     }

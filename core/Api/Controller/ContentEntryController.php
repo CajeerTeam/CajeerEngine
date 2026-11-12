@@ -12,28 +12,38 @@ use Symfony\Component\HttpFoundation\Response;
 final readonly class ContentEntryController
 {
     private ContentEntryRepository $repository;
+    private \CajeerEngine\Public\RouteIndex $routes;
 
-    public function __construct(private string $rootPath)
+    public function __construct(private string $rootPath, ?\CajeerEngine\Database\DatabaseManager $database=null)
     {
-        $this->repository = new ContentEntryRepository($this->rootPath);
+        $database ??= new \CajeerEngine\Database\DatabaseManager(new \CajeerEngine\Runtime\ConfigRepository($rootPath));
+        $this->repository = new ContentEntryRepository($this->rootPath,$database);
+        $this->routes = new \CajeerEngine\Public\RouteIndex($rootPath,$database);
     }
 
     /** @param array<string, mixed> $parameters */
     public function index(Request $request, array $parameters): JsonResponse
     {
         $type = (string) ($parameters['type'] ?? '');
-        $items = $this->repository->list($type, [
+        $filters = [
             'status' => (string) $request->query->get('status', 'all'),
             'locale' => (string) $request->query->get('locale', ''),
             'q' => (string) $request->query->get('q', ''),
             'published_only' => filter_var($request->query->get('published_only', false), FILTER_VALIDATE_BOOLEAN),
-        ]);
+        ];
+        $meta=[];
+        if($request->query->has('limit')||$request->query->has('offset')){
+            $limit=filter_var($request->query->get('limit','50'),FILTER_VALIDATE_INT);
+            $offset=filter_var($request->query->get('offset','0'),FILTER_VALIDATE_INT);
+            if($limit===false||$offset===false)throw new \InvalidArgumentException('Invalid content pagination');
+            $page=$this->repository->page($type,$filters,$limit,$offset);$items=$page['data'];$meta=$page['meta'];
+        }else $items=$this->repository->list($type,$filters);
 
-        $paths=(new \CajeerEngine\Public\RouteIndex($this->rootPath))->pathsForEntries(array_column($items,'id'));
+        $paths=$this->routes->pathsForEntries(array_column($items,'id'));
         foreach($items as &$item)$item['public_path']=$paths[$item['id']]??null;unset($item);
         return new JsonResponse([
             'data' => $items,
-            'meta' => [
+            'meta' => $meta + [
                 'total' => count($items),
                 'storage' => $this->repository->storage(),
                 'type' => $type,

@@ -14,9 +14,9 @@ final readonly class ContentTypeController
 {
     private ContentTypeRepository $repository;
 
-    public function __construct(private string $rootPath)
+    public function __construct(private string $rootPath, ?\CajeerEngine\Database\DatabaseManager $database=null)
     {
-        $this->repository = new ContentTypeRepository($this->rootPath);
+        $this->repository = new ContentTypeRepository($this->rootPath,$database);
     }
 
     public function index(Request $request): JsonResponse

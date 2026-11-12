@@ -318,6 +318,18 @@ final class Operations {
         'in' => 'query',
         'required' => false,
       ),
+      5 => 
+      array (
+        'name' => 'limit',
+        'in' => 'query',
+        'required' => false,
+      ),
+      6 => 
+      array (
+        'name' => 'offset',
+        'in' => 'query',
+        'required' => false,
+      ),
     ),
     'bodyRequired' => false,
   ),

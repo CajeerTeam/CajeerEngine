@@ -73,7 +73,7 @@ final class CmsSearchEngine implements SearchEngineInterface
     public function diagnostics(): array
     {
         $configured=$this->configured;$result=['driver'=>'unavailable','configured_driver'=>$configured,'authoritative'=>true,'healthy'=>false,'documents'=>0,'indexes'=>[]];
-        if(in_array($configured,['meili','meilisearch','opensearch'],true))$result['warning']='External search adapter is not authoritative in 1.2.0; CMS uses its local transactional catalog.';
+        if(in_array($configured,['meili','meilisearch','opensearch'],true))$result['warning']='External search adapter is not authoritative in 1.2.1; CMS uses its local transactional catalog.';
         try{
             $result['driver']=$this->driver();
             if($this->database()){$pdo=$this->db->connection();$version=(int)$pdo->query('SELECT search_version FROM ce_public_route_state WHERE id=1')->fetchColumn();$count=(int)$pdo->query('SELECT COUNT(*) FROM ce_cms_search')->fetchColumn();$result['healthy']=$version===SearchProjection::VERSION;}

@@ -252,7 +252,7 @@ final class RedirectRepository
         if ($this->databaseReady !== null) {
             return $this->databaseReady;
         }
-        $mode = strtolower(trim((string) (getenv('CMS_STORAGE') ?: 'auto')));
+        $mode = \CajeerEngine\Database\StorageMode::resolve('CMS_STORAGE');
         if ($mode === 'file') {
             return $this->databaseReady = false;
         }
@@ -260,12 +260,13 @@ final class RedirectRepository
             $this->databaseReady = $this->database()->tableExists('ce_cms_redirects');
         } catch (Throwable $e) {
             if ($mode === 'database') {
-                throw new \RuntimeException('CMS_STORAGE=database, но CMS redirects table недоступна: ' . $e->getMessage(), 0, $e);
+                throw new \CajeerEngine\Database\DatabaseUnavailable('Database-backed storage unavailable',0,$e);
             }
             $this->databaseReady = false;
         }
         if ($mode === 'database' && $this->databaseReady !== true) {
-            throw new \RuntimeException('CMS_STORAGE=database, но таблица ce_cms_redirects не найдена. Выполните миграции.');
+            $this->databaseReady = null; // Never cache a failed database probe as file mode.
+            throw new \CajeerEngine\Database\DatabaseUnavailable('Database schema not ready; run migrations');
         }
         return $this->databaseReady;
     }

@@ -11,12 +11,14 @@ use Throwable;
 final class DatabaseManager
 {
     private ?PDO $pdo = null;
+    private array $schemaCache = [];
+    private int $savepointSequence = 0;
 
     public function __construct(private readonly ConfigRepository $config)
     {
     }
 
-    public function disconnect(): void { $this->pdo = null; }
+    public function disconnect(): void { $this->pdo = null; $this->schemaCache = []; }
 
     public function driver(): string
     {
@@ -36,7 +38,7 @@ final class DatabaseManager
         }
 
         $factory = new ConnectionFactory($this->config->get('database', []));
-        $pdo = $factory->create($driver);
+        try{$pdo=$factory->create($driver);}catch(\PDOException $e){throw new DatabaseUnavailable('Database connection unavailable',0,$e);}
 
         if ($driver === null) {
             $this->pdo = $pdo;
@@ -51,22 +53,38 @@ final class DatabaseManager
         $pdo = $this->connection();
         $started = !$pdo->inTransaction();
 
-        if ($started) {
-            $pdo->beginTransaction();
+        $savepoint = null;
+        if ($started) $pdo->beginTransaction();
+        else {
+            $savepoint='ce_sp_'.(++$this->savepointSequence);
+            $pdo->exec('SAVEPOINT '.$savepoint);
         }
 
         try {
             $result = $callback($pdo);
-            if ($started) {
-                $pdo->commit();
-            }
+            if ($started) $pdo->commit();
+            elseif($savepoint!==null) $pdo->exec('RELEASE SAVEPOINT '.$savepoint);
             return $result;
         } catch (Throwable $e) {
-            if ($started && $pdo->inTransaction()) {
-                $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                if($started)$pdo->rollBack();
+                elseif($savepoint!==null){$pdo->exec('ROLLBACK TO SAVEPOINT '.$savepoint);$pdo->exec('RELEASE SAVEPOINT '.$savepoint);}
             }
             throw $e;
         }
+    }
+
+    /** Consistent count + page without taking a publication writer lock. */
+    public function readSnapshot(callable $callback): mixed
+    {
+        $pdo=$this->connection();
+        if($pdo->inTransaction())return $callback($pdo);
+        $driver=$this->driver();
+        if($driver==='mysql')$pdo->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+        return $this->transaction(function(PDO $pdo)use($callback,$driver){
+            if($driver==='pgsql')$pdo->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+            return $callback($pdo);
+        });
     }
 
     /** @return array<string, mixed> */
@@ -124,12 +142,20 @@ final class DatabaseManager
 
     public function tableExists(string $table): bool
     {
-        return $this->tableExistsOn($this->connection(), $this->driver(), $table);
+        $key='table:'.$table;
+        if(isset($this->schemaCache[$key]))return true;
+        $exists=$this->tableExistsOn($this->connection(),$this->driver(),$table);
+        if($exists)$this->schemaCache[$key]=true;
+        return $exists;
     }
 
     public function columnExists(string $table, string $column): bool
     {
-        return $this->columnExistsOn($this->connection(), $this->driver(), $table, $column);
+        $key='column:'.$table.'.'.$column;
+        if(isset($this->schemaCache[$key]))return true;
+        $exists=$this->columnExistsOn($this->connection(),$this->driver(),$table,$column);
+        if($exists)$this->schemaCache[$key]=true;
+        return $exists;
     }
 
     public function contentCoreReady(): bool
@@ -221,6 +247,7 @@ final class DatabaseManager
             'ce_failed_jobs',
             'ce_public_route_state',
             'ce_public_routes',
+            'ce_cms_search',
         ];
 
         $result = [];
@@ -255,9 +282,9 @@ final class DatabaseManager
         }
 
         if ($driver === 'pgsql') {
-            $stmt = $pdo->prepare("SELECT to_regclass('public.' || :table) IS NOT NULL");
+            $stmt = $pdo->prepare("SELECT CASE WHEN to_regclass('public.' || :table) IS NOT NULL THEN 1 ELSE 0 END");
             $stmt->execute(['table' => $table]);
-            return (bool) $stmt->fetchColumn();
+            return (int) $stmt->fetchColumn() === 1;
         }
 
         if ($driver === 'sqlite') {

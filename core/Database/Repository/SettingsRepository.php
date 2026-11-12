@@ -16,7 +16,8 @@ final readonly class SettingsRepository
     /** @return array<string, mixed> */
     public function all(): array
     {
-        $stmt = $this->database->connection()->query('SELECT key, value, type, created_at, updated_at FROM ce_settings ORDER BY key ASC');
+        $keyColumn=$this->database->driver()==='mysql'?'`key`':'key';
+        $stmt = $this->database->connection()->query('SELECT '.$keyColumn.', value, type, created_at, updated_at FROM ce_settings ORDER BY '.$keyColumn.' ASC');
         $result = [];
         foreach ($stmt->fetchAll() as $row) {
             $result[(string) $row['key']] = [
@@ -31,7 +32,8 @@ final readonly class SettingsRepository
 
     public function get(string $key, mixed $default = null): mixed
     {
-        $stmt = $this->database->connection()->prepare('SELECT value FROM ce_settings WHERE key = :key');
+        $keyColumn=$this->database->driver()==='mysql'?'`key`':'key';
+        $stmt = $this->database->connection()->prepare('SELECT value FROM ce_settings WHERE '.$keyColumn.' = :key');
         $stmt->execute(['key' => $key]);
         $value = $stmt->fetchColumn();
         return $value === false ? $default : $this->decode((string) $value);
@@ -67,7 +69,7 @@ final readonly class SettingsRepository
 
             $historySql = $driver === 'pgsql'
                 ? 'INSERT INTO ce_settings_history (id, key, value, actor_id, created_at) VALUES (:id, :key, CAST(:value AS jsonb), :actor_id, CURRENT_TIMESTAMP)'
-                : 'INSERT INTO ce_settings_history (id, key, value, actor_id, created_at) VALUES (:id, :key, :value, :actor_id, CURRENT_TIMESTAMP)';
+                : 'INSERT INTO ce_settings_history (id, '.($driver==='mysql'?'`key`':'key').', value, actor_id, created_at) VALUES (:id, :key, :value, :actor_id, CURRENT_TIMESTAMP)';
             $history = $pdo->prepare($historySql);
             $history->execute([
                 'id' => Uuid::v4(),

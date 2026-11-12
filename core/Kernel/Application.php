@@ -143,7 +143,7 @@ final class Application
     public function handle(Request $request): Response
     {
         $response = $this->pipeline->handle($request, fn (Request $request): Response => $this->router->dispatch($request));
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.2.0'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.2.1'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -286,8 +286,8 @@ final class Application
 
         $container->set('controller.health', fn (): HealthController => new HealthController($rootPath));
         $container->set('controller.system', fn (): SystemController => new SystemController($rootPath));
-        $container->set('controller.content_types', fn (): ContentTypeController => new ContentTypeController($rootPath));
-        $container->set('controller.content_entries', fn (): ContentEntryController => new ContentEntryController($rootPath));
+        $container->set('controller.content_types', fn (ServiceContainer $c): ContentTypeController => new ContentTypeController($rootPath,$c->get(DatabaseManager::class)));
+        $container->set('controller.content_entries', fn (ServiceContainer $c): ContentEntryController => new ContentEntryController($rootPath,$c->get(DatabaseManager::class)));
         $container->set('controller.runtime', fn (ServiceContainer $c): RuntimeController => new RuntimeController(
             $c->get(ConfigRepository::class),
             $c,

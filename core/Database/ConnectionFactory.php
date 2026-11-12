@@ -49,6 +49,7 @@ final readonly class ConnectionFactory
         ];
         if ($driver === 'mysql') {
             $options[PDO::ATTR_EMULATE_PREPARES] = false;
+            $options[PDO::ATTR_TIMEOUT] = self::bounded($connection,'connect_timeout',5,1,60);
             if (defined('PDO::MYSQL_ATTR_INIT_COMMAND')) {
                 $options[PDO::MYSQL_ATTR_INIT_COMMAND] = "SET NAMES " . (string) ($connection['charset'] ?? 'utf8mb4');
             }
@@ -56,7 +57,30 @@ final readonly class ConnectionFactory
 
         $user = (string) ($connection['username'] ?? '');
         $password = (string) ($connection['password'] ?? '');
-        return new PDO($dsn, $user, $password, $options);
+        $pdo=new PDO($dsn, $user, $password, $options);
+        if($driver==='sqlite'){
+            $pdo->exec('PRAGMA foreign_keys = ON');
+            $pdo->exec('PRAGMA busy_timeout = '.self::bounded($connection,'busy_timeout_ms',5000,0,60000));
+            // WAL is opt-in: do not change journal mode on every connection by default.
+            if(($connection['wal']??false)===true){
+                $mode=$pdo->query('PRAGMA journal_mode = WAL')->fetchColumn();
+                if($mode!=='wal'&&$mode!=='memory')throw new \RuntimeException('Cannot enable SQLite WAL');
+            }
+        }elseif($driver==='pgsql'){
+            $pdo->exec('SET statement_timeout = '.self::bounded($connection,'statement_timeout_ms',30000,0,3600000));
+            $pdo->exec('SET lock_timeout = '.self::bounded($connection,'lock_timeout_ms',5000,0,600000));
+            $pdo->exec('SET idle_in_transaction_session_timeout = '.self::bounded($connection,'idle_transaction_timeout_ms',60000,0,3600000));
+        }elseif($driver==='mysql'){
+            $pdo->exec('SET SESSION innodb_lock_wait_timeout = '.self::bounded($connection,'lock_timeout_seconds',5,1,600));
+        }
+        return $pdo;
+    }
+
+    private static function bounded(array $connection,string $key,int $default,int $min,int $max): int
+    {
+        $value=filter_var($connection[$key]??$default,FILTER_VALIDATE_INT);
+        if($value===false||$value<$min||$value>$max)throw new \InvalidArgumentException('Invalid database option: '.$key);
+        return $value;
     }
 
     /** @param array<string, mixed> $connection */
@@ -102,6 +126,7 @@ final readonly class ConnectionFactory
             $connection['port'] ?? 5432,
             $connection['database'] ?? 'cajeerengine'
         );
+        $dsn .= ';connect_timeout='.self::bounded($connection,'connect_timeout',5,1,60);
         $sslmode = (string) ($connection['sslmode'] ?? '');
         if ($sslmode !== '') {
             $dsn .= ';sslmode=' . $sslmode;

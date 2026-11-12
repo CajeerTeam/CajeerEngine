@@ -16,6 +16,11 @@ final readonly class MigrationRunner
     /** @return array{applied:int,batch:int,migrations:list<array<string,mixed>>} */
     public function run(string $driver): array
     {
+        return MigrationLock::run($this->pdo, fn()=>$this->runLocked($driver));
+    }
+
+    private function runLocked(string $driver): array
+    {
         $driver = $this->normalizeDriver($driver);
         $this->ensureTable($driver);
         $dir = $this->migrationsPath . '/' . $driver;
@@ -27,8 +32,15 @@ final readonly class MigrationRunner
         $applied = $this->applied();
         $count = 0;
         $executed = [];
+        $files=$this->files($dir);$knownFiles=[];
+        foreach($files as $file){$digest=hash_file('sha256',$file);if($digest===false)throw new \RuntimeException('Cannot hash migration');$knownFiles[basename($file)]=$digest;}
+        foreach($applied as $name=>$row){
+            if(($row['status']??'applied')!=='applied')continue;
+            if(!isset($knownFiles[$name]))throw new \RuntimeException('Applied migration file missing: '.$name);
+            if(($row['checksum']??'')!==''&&!hash_equals($row['checksum'],$knownFiles[$name]))throw new \RuntimeException('Applied migration checksum mismatch: '.$name);
+        }
 
-        foreach ($this->files($dir) as $file) {
+        foreach ($files as $file) {
             $name = basename($file);
             $checksum = hash_file('sha256', $file) ?: '';
 
@@ -46,12 +58,14 @@ final readonly class MigrationRunner
                     throw new \RuntimeException("Неизвестный статус миграции {$name}: {$status}");
                 }
 
+                if($driver==='mysql')throw new \RuntimeException('MySQL migration failed or was interrupted; inspect schema and restore backup before migrate:repair: '.$name);
                 $this->deleteFailedMigration($name);
             }
 
             $startedAt = microtime(true);
             $sql = trim((string) file_get_contents($file));
-            $this->pdo->beginTransaction();
+            if($driver==='mysql')$this->insertMigration($name,$checksum,$batch,0,'failed','MySQL DDL started; schema must be inspected if interrupted');
+            else $this->pdo->beginTransaction();
             try {
                 if ($sql !== '') {
                     $this->pdo->exec($sql);
@@ -74,6 +88,11 @@ final readonly class MigrationRunner
 
     /** @return array{driver:string,applied:list<array<string,mixed>>,pending:list<array<string,mixed>>,failed:list<array<string,mixed>>} */
     public function status(string $driver): array
+    {
+        return MigrationLock::run($this->pdo, fn()=>$this->statusLocked($driver));
+    }
+
+    private function statusLocked(string $driver): array
     {
         $driver = $this->normalizeDriver($driver);
         $this->ensureTable($driver);
@@ -117,9 +136,14 @@ final readonly class MigrationRunner
     /** @return array{driver:string,removed:int,removed_migrations:list<string>,rerun?:array<string,mixed>} */
     public function repairFailed(string $driver, bool $runAfterRepair = false): array
     {
+        return MigrationLock::run($this->pdo,fn()=>$this->repairLocked($driver,$runAfterRepair));
+    }
+
+    private function repairLocked(string $driver, bool $runAfterRepair): array
+    {
         $driver = $this->normalizeDriver($driver);
         $this->ensureTable($driver);
-        $status = $this->status($driver);
+        $status = $this->statusLocked($driver);
         $removed = [];
         foreach ($status['failed'] as $row) {
             $migration = (string) ($row['migration'] ?? '');
@@ -136,7 +160,7 @@ final readonly class MigrationRunner
             'removed_migrations' => $removed,
         ];
         if ($runAfterRepair) {
-            $result['rerun'] = $this->run($driver);
+            $result['rerun'] = $this->runLocked($driver);
         }
         return $result;
     }
@@ -222,7 +246,12 @@ final readonly class MigrationRunner
 
     private function insertMigration(string $migration, string $checksum, int $batch, int $executionMs, string $status, ?string $error): void
     {
-        $this->deleteFailedMigration($migration);
+        $stmt=$this->pdo->prepare('UPDATE ce_migrations SET batch=:batch,checksum=:checksum,execution_ms=:execution_ms,status=:status,error=:error,applied_at=CURRENT_TIMESTAMP WHERE migration=:migration AND status=\'failed\'');
+        $params=['migration'=>$migration,'batch'=>$batch,'checksum'=>$checksum,'execution_ms'=>$executionMs,'status'=>$status,'error'=>$error];
+        $stmt->execute($params);
+        if($stmt->rowCount()>0)return;
+        // MySQL reports 0 when a marker is unchanged; do not insert a duplicate.
+        $check=$this->pdo->prepare('SELECT COUNT(*) FROM ce_migrations WHERE migration=:migration AND status=\'failed\'');$check->execute(['migration'=>$migration]);if((int)$check->fetchColumn()>0)return;
         $stmt = $this->pdo->prepare('INSERT INTO ce_migrations (migration, batch, checksum, execution_ms, status, error, applied_at) VALUES (:migration, :batch, :checksum, :execution_ms, :status, :error, CURRENT_TIMESTAMP)');
         $stmt->execute([
             'migration' => $migration,

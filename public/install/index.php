@@ -137,7 +137,7 @@ header('Content-Type: text/html; charset=utf-8');
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CajeerEngine Install UX 1.2.0</title>
+    <title>CajeerEngine Install UX 1.2.1</title>
     <style>
         :root{color-scheme:light;--bg:#f6f7fb;--card:#fff;--border:#d8dee9;--text:#111827;--muted:#64748b;--ok:#147a35;--fail:#b42318;--warn:#a15c00;--primary:#1f5eff}
         body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
@@ -147,7 +147,7 @@ header('Content-Type: text/html; charset=utf-8');
 </head>
 <body>
 <main>
-    <h1>CajeerEngine Install UX <span class="pill">1.2.0</span></h1>
+    <h1>CajeerEngine Install UX <span class="pill">1.2.1</span></h1>
     <p>Web Installer создаёт `.env`, проверяет окружение, подключается к БД, запускает миграции, создаёт первого администратора, генерирует секреты и блокирует `/install` после установки.</p>
 
     <?php if ($error !== null): ?><section class="card error"><h2>Ошибка установки</h2><p><?= ce_h($error) ?></p></section><?php endif; ?>

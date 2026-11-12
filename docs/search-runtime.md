@@ -51,3 +51,7 @@ CE_SEARCH_PG_TEST=1 php tools/search-regression.php --pgsql
 ```
 
 The release workflow also exercises public search against actual SQLite and PostgreSQL dist installations, including nested path moves and unpublished descendants. The PostgreSQL and PDO modes require the corresponding PHP extensions and database. Do not infer production certification from the file-mode test or the presence of the CI workflow.
+
+## Performance changes in 1.2.1
+
+SQL edits with unchanged status, locale, slug, parent and explicit paths update only the affected route and search document. Structural edits and changes to schemas or theme settings still reconcile the entire graph. See [database performance](database-performance.md).

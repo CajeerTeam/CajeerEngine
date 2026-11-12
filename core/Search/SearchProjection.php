@@ -19,9 +19,14 @@ final class SearchProjection
         if(($old['version']??null)===self::VERSION&&($old['fingerprint']??null)===$fingerprint&&($old['documents']??null)===$docs)return;
         (new JsonFile($this->path()))->writeObject(['version'=>self::VERSION,'fingerprint'=>$fingerprint,'documents'=>$docs,'updated_at'=>gmdate(DATE_ATOM)]);
     }
-    public function synchronize(PDO $pdo,array $docs,bool $force=false): void
+    public function synchronize(PDO $pdo,array $docs,bool $force=false,?array $onlyIds=null): void
     {
-        $old=$pdo->query('SELECT document_id, digest FROM ce_cms_search')->fetchAll(PDO::FETCH_KEY_PAIR);
+        if($onlyIds===null)$old=$pdo->query('SELECT document_id, digest FROM ce_cms_search')->fetchAll(PDO::FETCH_KEY_PAIR);
+        else {
+            if(!$onlyIds)return;
+            if(array_diff(array_keys($docs),$onlyIds))throw new \LogicException('Projection scope mismatch');
+            $s=$pdo->prepare('SELECT document_id,digest FROM ce_cms_search WHERE document_id IN ('.implode(',',array_fill(0,count($onlyIds),'?')).')');$s->execute($onlyIds);$old=$s->fetchAll(PDO::FETCH_KEY_PAIR);
+        }
         $delete=$pdo->prepare('DELETE FROM ce_cms_search WHERE document_id = :id');
         $pg=$pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='pgsql';
         $sql='INSERT INTO ce_cms_search (document_id, entry_id, content_type, locale, title, body, title_norm, body_norm, payload, digest'.($pg?', search_vector':'').') VALUES (:id,:entry,:type,:locale,:title,:body,:tn,:bn,:payload,:digest'.($pg?", setweight(to_tsvector(CAST(:lang1 AS regconfig), :ts_title),'A') || setweight(to_tsvector(CAST(:lang2 AS regconfig), :ts_body),'B')":'').')';

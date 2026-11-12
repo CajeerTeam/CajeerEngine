@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1 — Performance & Database
+
+- Bounded editorial SQL pagination with deterministic sorting and indexed translation lookup.
+- Incremental route/search projection for topology-neutral edits; full graph validation for structural edits.
+- Database-side revision compare-and-swap, nested savepoints, session timeouts and SQLite foreign keys.
+- Serialized schema migrations; MySQL interrupted DDL is not retried automatically.
+- Production auto storage fails closed instead of switching to JSON. Admin uses paginated lists and parent search.
+
 ## 1.2.0 — Search & CMS Integration
 
 - Search projection is synchronized with content and route changes, with PostgreSQL FTS and SQLite/MySQL or file catalog.

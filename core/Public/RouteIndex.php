@@ -112,16 +112,28 @@ final class RouteIndex
         return $this->mutate(fn()=>null,[],false,true);
     }
     /** Every repository mutation uses this gate. Bulk import has its own authenticated rollback. */
-    public function mutate(callable $callback,array $files=[],bool $externalRollback=false,bool $report=false): mixed
+    public function mutate(callable $callback,array $files=[],bool $externalRollback=false,bool $report=false,?callable $entryLookup=null): mixed
     {
         if(isset(self::$writing[$this->key]))return $callback();
         $lock=$this->lock(LOCK_EX);self::$writing[$this->key]=true;$snap=[];
         try {
             if(!$this->database())$files[]='storage/app/search-index.json';
             foreach(array_unique($files) as $relative){$p=OperationFiles::path($this->root,$relative);$snap[$p]=is_file($p)?['bytes'=>file_get_contents($p),'mode'=>fileperms($p)&0777]:null;}
-            $work=function()use($callback,$report){
+            $work=function()use($callback,$report,$entryLookup){
                 if($this->database()){
                     $pdo=$this->db->connection();$pdo->exec('UPDATE ce_public_route_state SET generation = generation + 1 WHERE id = 1');
+                    // The generation row serializes all CMS writers across application nodes.
+                    if($entryLookup!==null&&!$report){
+                        $state=$pdo->query('SELECT generation,search_version FROM ce_public_route_state WHERE id=1')->fetch(PDO::FETCH_ASSOC);
+                        if($state&&(int)$state['generation']>1&&(int)$state['search_version']===SearchProjection::VERSION){
+                            $before=$entryLookup();$result=$callback();
+                            if(is_array($before)&&is_array($result)&&$this->updateEntryProjection($pdo,$before,$result))return $result;
+                            // Structural changes still validate the complete graph. The old index is untouched.
+                            $stored=$this->readDatabase();$routes=$this->graph($stored,null,$docs);$this->writeDatabase($routes,$stored);
+                            (new SearchProjection($this->root))->synchronize($pdo,$docs);return $result;
+                        }
+                    }
+
                     $stored=$previous=$this->readDatabase();
                     // Preserve old routes even when the index is being initialized by the first edit.
                     if($previous===[]) { try { $previous=$this->graph([]); } catch (\DomainException|\InvalidArgumentException) { /* Allow an editor to repair legacy collisions. */ } }
@@ -145,9 +157,34 @@ final class RouteIndex
     {
         return $this->graph([], $id)['path']??null;
     }
+    /** Only topology-neutral edits may avoid the full graph. All route-affecting fields are compared. */
+    public static function sameTopology(array $before,array $after): bool
+    {
+        foreach(['id','type','slug','locale','status'] as $key)if(($before[$key]??null)!==($after[$key]??null))return false;
+        foreach(['parent_id','path','_path'] as $key)if(($before['data'][$key]??null)!==($after['data'][$key]??null))return false;
+        return true;
+    }
+
+    private function updateEntryProjection(PDO $pdo,array $before,array $after): bool
+    {
+        if(!self::sameTopology($before,$after))return false;
+        $stmt=$pdo->prepare("SELECT payload FROM ce_public_routes WHERE entry_id=:id AND kind='page'");$stmt->execute(['id'=>$after['id']]);$raw=$stmt->fetchColumn();$docs=[];
+        if($raw!==false){
+            $route=json_decode($raw,true,flags:JSON_THROW_ON_ERROR);$data=$after['data']??[];
+            $route['title']=$after['title'];$route['updated_at']=$after['updated_at']??'';$route['noindex']=filter_var($data['seo_noindex']??false,FILTER_VALIDATE_BOOLEAN);
+            $route['canonical']=(string)($data['canonical_url']??'');$route['translation_group']=$after['translation_group']??$after['id'];
+            $stmt=$pdo->prepare('UPDATE ce_public_routes SET payload=:payload WHERE route_key=:key');
+            $stmt->execute(['payload'=>json_encode($route,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),'key'=>hash('sha256',$route['path'])]);
+            $type=$this->types->find($after['type'])??throw new \RuntimeException('Missing content schema');
+            $docs=SearchDocument::project([$route],[$after],[$type],$this->theme->get());
+        }
+        (new SearchProjection($this->root))->synchronize($pdo,$docs,false,[$after['type'].':'.$after['id']]);
+        return true;
+    }
+
     private function graph(array $previous,?string $previewId=null,?array &$docs=null): array
     {
-        $rows=[];$types=$this->types->all();foreach($types as $type)foreach($this->entries->list($type['handle']) as $row){unset($row['revisions']);$rows[]=$row;}
+        $types=$this->types->all();$rows=iterator_to_array($this->entries->projectionEntries(),false);
         $theme=$this->theme->get();$routes=RouteGraph::build($rows,$theme,$previous,$previewId);
         if($previewId===null)$docs=SearchDocument::project($routes,$rows,$types,$theme);
         return $routes;

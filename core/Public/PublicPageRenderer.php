@@ -230,7 +230,7 @@ final readonly class PublicPageRenderer
         $repo = $this->navigation ?? new NavigationRepository($this->rootPath);
         $theme = $this->themeConfig();
         $handle = (string) ($theme['primary_menu'] ?? 'primary');
-        $menus=$repo->all();$primary=$repo->find($handle)??$repo->primary();$ids=[];
+        $menus=$repo->all();$byHandle=array_column($menus,null,'handle');$primary=$byHandle[$handle]??$byHandle['primary']??['id'=>'primary','handle'=>'primary','name'=>'Основное меню','items'=>[['id'=>'home','label'=>'Главная','url'=>'/','target'=>'_self','children'=>[]]],'storage'=>'default','created_at'=>null,'updated_at'=>null];$ids=[];
         $collect=function(array $items)use(&$collect,&$ids){foreach($items as $item){if(!empty($item['entry_id']))$ids[]=$item['entry_id'];$collect($item['children']??[]);}};
         foreach(array_merge($menus,[$primary]) as $menu)$collect($menu['items']??[]);
         $paths=$this->routeIndex()->pathsForEntries($ids);

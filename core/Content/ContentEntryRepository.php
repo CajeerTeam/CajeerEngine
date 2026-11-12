@@ -70,8 +70,42 @@ final class ContentEntryRepository
             return true;
         }));
 
-        usort($items, static fn (array $a, array $b): int => strcmp((string) ($b['updated_at'] ?? ''), (string) ($a['updated_at'] ?? '')));
+        usort($items, static fn (array $a, array $b): int => strcmp((string) ($b['updated_at'] ?? ''), (string) ($a['updated_at'] ?? '')) ?: strcmp($b['id'], $a['id']));
         return $items;
+    }
+
+    /** Bounded editorial page. The legacy list method remains available for exports. */
+    public function page(string $typeHandle, array $filters, int $limit=50, int $offset=0): array
+    {
+        if ($limit < 1 || $limit > 200 || $offset < 0 || $offset > 1000000) throw new \InvalidArgumentException('Invalid content pagination');
+        if ($this->useDatabase()) {
+            $type=$this->contentType($typeHandle);
+            [$where,$params]=$this->listCriteria($type,$filters);
+            [$items,$total]=$this->database()->readSnapshot(function(PDO $pdo)use($where,$params,$type,$limit,$offset){
+                $count=$pdo->prepare('SELECT COUNT(*) FROM ce_content_entries e WHERE '.$where);
+                $count->execute($params);$total=(int)$count->fetchColumn();
+                $stmt=$pdo->prepare('SELECT e.* FROM ce_content_entries e WHERE '.$where.' ORDER BY e.updated_at DESC,e.id DESC LIMIT :limit OFFSET :offset');
+                foreach($params as $key=>$value)$stmt->bindValue($key,$value);
+                $stmt->bindValue('limit',$limit,PDO::PARAM_INT);$stmt->bindValue('offset',$offset,PDO::PARAM_INT);$stmt->execute();
+                $items=[];while($row=$stmt->fetch(PDO::FETCH_ASSOC))$items[]=$this->mapEntryRow($row,$type);
+                return [$items,$total];
+            });
+        } else {
+            $items=$this->list($typeHandle,$filters);$total=count($items);$items=array_slice($items,$offset,$limit);
+            foreach($items as &$item)unset($item['revisions']);unset($item);
+        }
+        return ['data'=>$items,'meta'=>['total'=>$total,'limit'=>$limit,'offset'=>$offset]];
+    }
+
+    /** One unsorted cursor for rebuilding derived projections, without per-type queries. */
+    public function projectionEntries(): iterable
+    {
+        if(!$this->useDatabase()) {
+            foreach($this->types->all() as $type)foreach($this->list($type['handle']) as $row){unset($row['revisions']);yield $row;}
+            return;
+        }
+        $stmt=$this->pdo()->query('SELECT e.*,ct.handle AS type_handle FROM ce_content_entries e JOIN ce_content_types ct ON ct.id=e.content_type_id WHERE e.deleted_at IS NULL');
+        while($row=$stmt->fetch(PDO::FETCH_ASSOC))yield $this->mapEntryRow($row,['handle'=>$row['type_handle']]);
     }
 
     /** @return array<string, mixed>|null */
@@ -166,7 +200,7 @@ final class ContentEntryRepository
     public function update(string $typeHandle, string $idOrSlug, array $payload): ?array
     {
         $index = new \CajeerEngine\Public\RouteIndex($this->rootPath, $this->database());
-        return $index->mutate(fn() => $this->updateRaw($typeHandle, $idOrSlug, $payload), ['storage/app/content/' . basename($this->path($typeHandle))]);
+        return $index->mutate(fn() => $this->updateRaw($typeHandle, $idOrSlug, $payload), ['storage/app/content/' . basename($this->path($typeHandle))], entryLookup: fn() => $this->find($typeHandle, $idOrSlug));
     }
 
     private function updateRaw(string $typeHandle, string $idOrSlug, array $payload): ?array
@@ -407,6 +441,7 @@ final class ContentEntryRepository
         }
 
         $group = (string) ($entry['translation_group'] ?? $entry['id']);
+        if($this->useDatabase())return $this->listFromDatabase($typeHandle,['translation_group'=>$group]);
         return array_values(array_filter($this->list($typeHandle, ['status' => 'all']), static fn (array $item): bool => (string) ($item['translation_group'] ?? $item['id'] ?? '') === $group));
     }
 
@@ -448,8 +483,8 @@ final class ContentEntryRepository
                     'archived' => (int) ($row['archived'] ?? 0),
                     'revisions' => $revisions,
                 ];
-            } catch (Throwable) {
-                return ['entries' => 0, 'published' => 0, 'drafts' => 0, 'archived' => 0, 'revisions' => 0];
+            } catch (Throwable $e) {
+                throw new \RuntimeException('Cannot read content counts',0,$e);
             }
         }
 
@@ -581,7 +616,7 @@ final class ContentEntryRepository
             return $this->databaseReady;
         }
 
-        $mode = strtolower(trim((string) (getenv('CONTENT_STORAGE') ?: 'auto')));
+        $mode = \CajeerEngine\Database\StorageMode::resolve('CONTENT_STORAGE');
         if ($mode === 'file') {
             return $this->databaseReady = false;
         }
@@ -590,13 +625,14 @@ final class ContentEntryRepository
             $this->databaseReady = $this->database()->contentCoreReady();
         } catch (Throwable $e) {
             if ($mode === 'database') {
-                throw new \RuntimeException('CONTENT_STORAGE=database, но БД content core недоступна: ' . $e->getMessage(), 0, $e);
+                throw new \CajeerEngine\Database\DatabaseUnavailable('Database-backed storage unavailable',0,$e);
             }
             $this->databaseReady = false;
         }
 
         if ($mode === 'database' && $this->databaseReady !== true) {
-            throw new \RuntimeException('CONTENT_STORAGE=database, но таблицы content core не готовы. Выполните миграции.');
+            $this->databaseReady = null; // Never cache a failed database probe as file mode.
+            throw new \CajeerEngine\Database\DatabaseUnavailable('Database schema not ready; run migrations');
         }
 
         return $this->databaseReady;
@@ -615,42 +651,31 @@ final class ContentEntryRepository
         return $this->database()->connection();
     }
 
-    /** @param array<string, mixed> $filters @return list<array<string, mixed>> */
-    private function listFromDatabase(string $typeHandle, array $filters): array
+    private function listCriteria(array $type,array $filters): array
     {
-        $type = $this->contentType($typeHandle);
-        $where = ['ct.handle = :handle', 'e.deleted_at IS NULL'];
-        $params = ['handle' => $type['handle']];
+        $where=['e.content_type_id = :type','e.deleted_at IS NULL'];$params=['type'=>$type['id']];
+        $status=(string)($filters['status']??'all');$locale=(string)($filters['locale']??'');$query=trim((string)($filters['q']??''));
+        if(filter_var($filters['published_only']??false,FILTER_VALIDATE_BOOLEAN))$status='published';
+        if($status!==''&&$status!=='all'){$where[]='e.status = :status';$params['status']=$status;}
+        if($locale!==''){$where[]='e.locale = :locale';$params['locale']=$locale;}
+        if(isset($filters['translation_group'])){$where[]='e.translation_group = :grp';$params['grp']=$filters['translation_group'];}
+        if($query!==''){
+            if(strlen($query)>512)throw new \InvalidArgumentException('Content search query is too long');
+            $data=$this->database()->driver()==='pgsql'?'CAST(e.data AS TEXT)':($this->database()->driver()==='sqlite'?'CAST(e.data AS TEXT)':'CAST(e.data AS CHAR)');
+            $where[]="(LOWER(e.title) LIKE :q1 ESCAPE '!' OR LOWER(e.slug) LIKE :q2 ESCAPE '!' OR LOWER($data) LIKE :q3 ESCAPE '!')";
+            $pattern='%'.strtr(self::lower($query),['!'=>'!!','%'=>'!%','_'=>'!_']).'%';
+            $params+=['q1'=>$pattern,'q2'=>$pattern,'q3'=>$pattern];
+        }
+        return [implode(' AND ',$where),$params];
+    }
 
-        $status = (string) ($filters['status'] ?? 'all');
-        $locale = (string) ($filters['locale'] ?? '');
-        $query = trim((string) ($filters['q'] ?? ''));
-        $publishedOnly = filter_var($filters['published_only'] ?? false, FILTER_VALIDATE_BOOLEAN);
-
-        if ($publishedOnly) {
-            $status = 'published';
-        }
-        if ($status !== 'all' && $status !== '') {
-            $where[] = 'e.status = :status';
-            $params['status'] = $status;
-        }
-        if ($locale !== '') {
-            $where[] = 'e.locale = :locale';
-            $params['locale'] = $locale;
-        }
-        if ($query !== '') {
-            $where[] = '(LOWER(e.title) LIKE :q OR LOWER(e.slug) LIKE :q OR LOWER(CAST(e.data AS CHAR)) LIKE :q)';
-            if ($this->database()->driver() === 'pgsql') {
-                $where[count($where) - 1] = '(LOWER(e.title) LIKE :q OR LOWER(e.slug) LIKE :q OR LOWER(e.data::text) LIKE :q)';
-            }
-            $params['q'] = '%' . self::lower($query) . '%';
-        }
-
-        $sql = 'SELECT e.*, ct.handle AS type_handle FROM ce_content_entries e JOIN ce_content_types ct ON ct.id = e.content_type_id WHERE ' . implode(' AND ', $where) . ' ORDER BY e.updated_at DESC';
-        $stmt = $this->pdo()->prepare($sql);
-        $stmt->execute($params);
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        return array_map(fn (array $row): array => $this->mapEntryRow($row, $type), $rows ?: []);
+    private function listFromDatabase(string $typeHandle,array $filters): array
+    {
+        $type=$this->contentType($typeHandle);[$where,$params]=$this->listCriteria($type,$filters);
+        $stmt=$this->pdo()->prepare('SELECT e.* FROM ce_content_entries e WHERE '.$where.' ORDER BY e.updated_at DESC,e.id DESC');
+        $stmt->execute($params);$items=[];
+        while($row=$stmt->fetch(PDO::FETCH_ASSOC))$items[]=$this->mapEntryRow($row,$type);
+        return $items;
     }
 
     /** @return array<string, mixed>|null */
@@ -735,8 +760,9 @@ final class ContentEntryRepository
         $translationGroup = (string) ($payload['translation_group'] ?? ($existing['translation_group'] ?? $existing['id']));
 
         $this->database()->transaction(function (PDO $pdo) use ($existing, $normalized, $slug, $translationGroup, $revision, $now, $publishedAt, $deletedAt, $reason): void {
-            $stmt = $pdo->prepare('UPDATE ce_content_entries SET title = :title, slug = :slug, locale = :locale, translation_group = :translation_group, status = :status, data = :data, revision_number = :revision_number, published_at = :published_at, deleted_at = :deleted_at, updated_at = :updated_at WHERE id = :id');
+            $stmt = $pdo->prepare('UPDATE ce_content_entries SET title = :title, slug = :slug, locale = :locale, translation_group = :translation_group, status = :status, data = :data, revision_number = :revision_number, published_at = :published_at, deleted_at = :deleted_at, updated_at = :updated_at WHERE id = :id AND revision_number = :previous_revision AND deleted_at IS NULL');
             $stmt->execute([
+                'previous_revision' => (int)$existing['revision'],
                 'id' => $existing['id'],
                 'title' => $normalized['title'],
                 'slug' => $slug,
@@ -749,6 +775,7 @@ final class ContentEntryRepository
                 'deleted_at' => $deletedAt,
                 'updated_at' => $now,
             ]);
+            if($stmt->rowCount()!==1)throw new RevisionConflict('Revision conflict: reload the current entry before saving.');
             $entry = array_merge($existing, [
                 'title' => $normalized['title'],
                 'slug' => $slug,
@@ -834,7 +861,7 @@ final class ContentEntryRepository
 
     private function slugExistsInDatabase(string $contentTypeId, string $slug, string $locale, ?string $ignoreId): bool
     {
-        $sql = 'SELECT COUNT(*) FROM ce_content_entries WHERE content_type_id = :content_type_id AND slug = :slug AND locale = :locale AND deleted_at IS NULL';
+        $sql = 'SELECT COUNT(*) FROM ce_content_entries WHERE content_type_id = :content_type_id AND slug = :slug AND locale = :locale';
         $params = ['content_type_id' => $contentTypeId, 'slug' => $slug, 'locale' => $locale];
         if ($ignoreId !== null) {
             $sql .= ' AND id <> :ignore_id';
