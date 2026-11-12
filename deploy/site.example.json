@@ -1,0 +1,9 @@
+{
+  "domain": "cms.example.com",
+  "db_host": "127.0.0.1",
+  "db_port": 5432,
+  "db_name": "cajeerengine",
+  "db_user": "cajeerengine",
+  "db_sslmode": "disable",
+  "admin_email": "admin@example.com"
+}

@@ -35,6 +35,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Deployment safety regression (real Nginx TLS)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nginx
+          sudo python3 deploy/test_production.py
       - run: php tools/security-regression.php
       - run: php tools/generate-api-sdk.php --check
       - run: php bin/cajeer api:lint --strict --json
@@ -124,6 +129,14 @@ jobs:
           CE_DB_PASSWORD: release-smoke
       - run: bash tools/disaster-recovery-dist-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip"
       - run: bash tools/update-dist-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip"
+      - name: Production deployment on real Linux services
+        env:
+          CE_DB_USER: cajeer
+          CE_DB_PASSWORD: release-smoke
+          CE_DEPLOY_DISPOSABLE: 'yes'
+        run: |
+          sudo apt-get install -y php8.4-fpm php8.4-pgsql php8.4-mbstring php8.4-gd php8.4-curl php8.4-xml php8.4-zip
+          sudo --preserve-env=CE_DB_USER,CE_DB_PASSWORD,CE_DEPLOY_DISPOSABLE bash deploy/host-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: cajeerengine-verified-release

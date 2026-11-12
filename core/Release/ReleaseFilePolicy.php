@@ -20,7 +20,7 @@ final class ReleaseFilePolicy
     public static function traverses(string $path, string $mode): bool
     {
         foreach (array_merge(self::KEEP, self::PUBLIC) as $file) if (str_starts_with($file, $path . '/')) return true;
-        return self::allows($path . '/release-probe.php', $mode) || in_array($path, ['tools', 'bin'], true);
+        return self::allows($path . '/release-probe.php', $mode) || in_array($path, ['tools', 'bin'], true) || ($mode === 'source' && $path === 'deploy');
     }
 
     public static function allows(string $path, string $mode): bool
@@ -33,6 +33,7 @@ final class ReleaseFilePolicy
         if (preg_match('~^(core|config|migrations|templates|installer|api|resources|docs)/~', $path)) return true;
         if ($path === 'bin/cajeer') return true;
         if ($mode === 'dist') return str_starts_with($path, 'vendor/');
+        if (str_starts_with($path, 'deploy/')) return in_array($path, ['deploy/production.py', 'deploy/install.php', 'deploy/verify.php', 'deploy/test_production.py', 'deploy/host-smoke.sh', 'deploy/site.example.json'], true);
         return in_array($path, ['.gitignore', 'phpunit.xml.dist', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md'], true)
             || preg_match('~^(admin|tests|packages|examples|\.github)/~', $path) === 1;
     }

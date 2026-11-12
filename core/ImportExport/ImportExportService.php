@@ -85,7 +85,7 @@ final class ImportExportService
                 $filename=$filename?:'cajeerengine-export-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(4)).'.zip';
                 $this->filename($filename); $path=$this->directory('exports').'/'.$filename;
                 if(file_exists($path)||is_link($path))throw new \InvalidArgumentException('Export already exists');
-                $manifest=$package->write($path,$data,$this->config->string('app.version','1.2.4'),str_ends_with($filename,'.json'));
+                $manifest=$package->write($path,$data,$this->config->string('app.version','1.2.5'),str_ends_with($filename,'.json'));
                 return ['ok'=>true,'path'=>$path,'file'=>$filename,'sha256'=>F::hash($path),'manifest'=>$manifest];
             } finally { $package->close(); }
         });

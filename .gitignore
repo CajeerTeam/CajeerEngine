@@ -36,3 +36,5 @@
 !/public/uploads/.gitkeep
 /public/extensions/*
 !/public/extensions/.gitkeep
+
+/deploy/__pycache__/

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.5 — Production Deployment
+
+- Signed, SHA-256 pinned production deployment from a clean Composer-locked dist, without dependency resolution on the target.
+- Dedicated Nginx TLS site, PHP-FPM socket, queue worker and persistent systemd scheduler timer. Runtime services mount application code read-only.
+- Root-owned deployment journal and external maintenance gate, explicit recovery resume, preflight, HTTP readiness and transactional update rollback.
+- Real Nginx/TLS safety regression and full PostgreSQL/systemd deployment smoke gate in release CI.
+
 ## 1.2.4 — Disaster Recovery
 
 - Streaming authenticated encryption for off-host database, files, and environment recovery sets.
