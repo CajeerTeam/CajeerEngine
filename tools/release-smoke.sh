@@ -62,7 +62,11 @@ php -r '$j=json_decode(file_get_contents($argv[1]),true,512,JSON_THROW_ON_ERROR)
 stage cms-bootstrap
 export CONTENT_STORAGE=database CMS_STORAGE=database
 php bin/cajeer cms:bootstrap --json >/dev/null
-export OBSERVABILITY_METRICS_TOKEN="$(php -r 'echo bin2hex(random_bytes(32));')"
+# Exercise the installed site's actual dotenv configuration, not an inherited
+# shell variable which Dotenv can overwrite when it is absent from PHP superglobals.
+unset OBSERVABILITY_METRICS_TOKEN
+php -r 'require "vendor/autoload.php"; (new \CajeerEngine\Support\EnvironmentFile(".env"))->setMany(["OBSERVABILITY_METRICS_TOKEN"=>""]);'
+metrics_token="$(php -r 'echo bin2hex(random_bytes(32));')"
 php -S "127.0.0.1:$port" -t public > "$root/http.log" 2>&1 &
 pid=$!
 base="http://127.0.0.1:$port"
@@ -83,8 +87,20 @@ expect_status() {
 }
 curl -fsS "$base/health/live" | grep -F alive >/dev/null
 curl -fsS "$base/health/ready" | grep -F ready >/dev/null
+# Metrics are deliberately disabled until an operator configures a dedicated token.
+expect_status 404 "$base/metrics"
+CE_SMOKE_METRICS_TOKEN="$metrics_token" php -r '
+require "vendor/autoload.php";
+$token=getenv("CE_SMOKE_METRICS_TOKEN");
+if(!is_string($token)||strlen($token)!==64)throw new RuntimeException("Invalid smoke metrics token");
+$env=new \CajeerEngine\Support\EnvironmentFile(".env");
+$env->setMany(["OBSERVABILITY_METRICS_TOKEN"=>$token]);
+if($env->get("OBSERVABILITY_METRICS_TOKEN")!==$token)throw new RuntimeException("Cannot configure smoke metrics token");
+'
 expect_status 401 "$base/metrics"
-curl -fsS -H "Authorization: Bearer $OBSERVABILITY_METRICS_TOKEN" "$base/metrics" | grep -F 'cajeer_ready 1' >/dev/null
+expect_status 401 -H "Authorization: Bearer wrong-token" "$base/metrics"
+curl -fsS -H "Authorization: Bearer $metrics_token" "$base/metrics" | grep -F 'cajeer_ready 1' >/dev/null
+unset metrics_token
 curl -fsS "$base/admin/" | grep -F 'admin-app.js' >/dev/null
 curl -fsS "$base/admin/assets/admin-app.js" >/dev/null
 expect_status 403 "$base/install/"
