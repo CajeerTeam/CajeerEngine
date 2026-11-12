@@ -1,4 +1,4 @@
-# CajeerEngine 1.2.5
+# CajeerEngine
 
 API-first CMS на PHP с собственным ядром (`core/`), шаблонами `.cjr`, REST API (`api/openapi.yaml`) и статической админкой (`admin/static`, опубликованные файлы `public/admin`). CLI: `bin/cajeer`.
 
@@ -36,7 +36,7 @@ bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.2.5-dist.zip sqli
 
 ## Обновления и восстановление
 
-В 1.1.6 подписанный dist применяется отдельным CLI-процессом, под maintenance и эксклюзивной блокировкой. Перед изменением файлов создаётся проверяемый набор восстановления БД и данных. Ключи доверия и шифрования задаются вне проекта. Поддерживаемый базовый профиль — single-node, local storage, файловая/PostgreSQL очередь. Не запускайте обновление, пока не проверено восстановление на копии вашей установки.
+Подписанный dist применяется отдельным CLI-процессом, под maintenance и эксклюзивной блокировкой. Перед изменением файлов создаётся проверяемый набор восстановления БД и данных. Ключи доверия и шифрования задаются вне проекта. Поддерживаемый базовый профиль — single-node, local storage, файловая/PostgreSQL очередь. Не запускайте обновление, пока не проверено восстановление на копии вашей установки.
 
 ## Перенос сайта
 
@@ -46,40 +46,4 @@ ZIP export v3 переносит контент, медиа, CMS-конфигу�
 
 ## Расширения
 
-Версия 1.1.6 поддерживает подписанные модули, плагины и темы, зависимости, расширяемые административные действия, очередь, scheduler и безопасный upgrade с резервным копированием. [Руководство Extension Platform](docs/extensions-platform.md); рабочие примеры находятся в `examples/extensions/`.
-
-## Public Routing Runtime 1.1.7
-
-После обновления запустите `php bin/cajeer migrate`, `php bin/cajeer routing:rebuild --json` и `php bin/cajeer routing:check --json`. См. [Public routing](docs/public-routing.md).
-
-## Media Library 1.1.8
-
-SQL catalog, folders, tags, collections, image variants, private downloads and verified S3 replicas. See [media library guide](docs/media-library.md).
-
-## Admin & Rendering 1.1.9
-
-See [editor and rendering guide](docs/admin-rendering.md). Run `php bin/cajeer cms:bootstrap` to add standard page blocks without replacing existing definitions.
-
-## Search & CMS Integration 1.2.0
-
-Публичный поиск `/search`, API `/api/v1/public/search`, синхронизация с публикацией и деревом страниц, PostgreSQL FTS и SQL/file catalog. См. [Search Runtime](docs/search-runtime.md).
-
-## Performance & Database 1.2.1
-
-See [database performance](docs/database-performance.md) for migration, database timeouts, storage safety, bounded editorial pagination and reproducible SQL benchmarks.
-
-## Queue & Scheduler Reliability 1.2.2
-
-Durable reservations, lease recovery, fenced acknowledgements, delayed retries, idempotent enqueue and persistent UTC scheduler slots. See [Queue and scheduler operations](docs/queue-scheduler.md) for backend migration, configuration, systemd workers, webhook delivery and test commands.
-
-## Observability & Operations 1.2.3
-
-See [operations runbook](docs/observability-operations.md). Use `php bin/cajeer ops:check`, `ops:report`, `ops:metrics`; HTTP `/health/live`, `/health/ready` and token-protected `/metrics`.
-
-## Disaster Recovery 1.2.4
-
-Encrypted off-host recovery bundles, atomic import, isolated restoration drills and measured recovery objectives. See [Disaster Recovery](docs/disaster-recovery.md).
-
-## Production Deployment 1.2.5
-
-Use the signed dist and the root-operated `deploy/production.py` from a trusted source checkout. The [production deployment runbook](docs/production-deployment.md) covers TLS, PostgreSQL, systemd, immutable runtime mounts, updates and recovery.
+Поддерживает подписанные модули, плагины и темы, зависимости, расширяемые административные действия, очередь, scheduler и безопасный upgrade с резервным копированием. [Руководство Extension Platform](docs/extensions-platform.md); рабочие примеры находятся в `examples/extensions/`.
