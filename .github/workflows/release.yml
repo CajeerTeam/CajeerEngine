@@ -156,6 +156,7 @@ jobs:
           sudo apt-get install -y php8.4-fpm php8.4-pgsql php8.4-mbstring php8.4-gd php8.4-curl php8.4-xml php8.4-zip
           /usr/bin/php8.4 --version
           /usr/sbin/php-fpm8.4 --version
+          sudo python3 deploy/test_production.py Safety.test_fpm_journal_socket_startup
           export CE_CERT_REPORT="$RUNNER_TEMP/release/production-acceptance.json"
           sudo --preserve-env=CE_DB_USER,CE_DB_PASSWORD,CE_DEPLOY_DISPOSABLE,CE_CERT_REPORT bash deploy/host-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip"
       - name: Seal production certification for exact release bytes
