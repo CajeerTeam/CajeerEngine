@@ -43,7 +43,7 @@ try {
         ['handle'=>'body','label'=>'Body','type'=>'richtext'],['handle'=>'parent_id','label'=>'Parent','type'=>'relation'],['handle'=>'photo','label'=>'Photo','type'=>'media'],['handle'=>'path','label'=>'Path','type'=>'text'],
     ]];
     $at=new ContentTypeRepository($a);$at->create($type);$ae=new ContentEntryRepository($a);
-    $png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aSioAAAAASUVORK5CYII=';
+    $png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==';
     $media=function($r)use($png){return (new MediaRepository($r,new StorageManager($r,new ConfigRepository($r))))->createFromBase64(['filename'=>'pixel.png','content_base64'=>$png,'title'=>'Photo']);};
     $am=$media($a);$bm=$media($b);
     $parent=$ae->create('pages',['title'=>'Parent','slug'=>'home','locale'=>'ru','status'=>'published','data'=>['body'=>'<p>first</p>','path'=>'/']]);
