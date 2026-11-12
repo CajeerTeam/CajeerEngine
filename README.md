@@ -1,4 +1,4 @@
-# CajeerEngine 1.2.1
+# CajeerEngine 1.2.2
 
 API-first CMS на PHP с собственным ядром (`core/`), шаблонами `.cjr`, REST API (`api/openapi.yaml`) и статической админкой (`admin/static`, опубликованные файлы `public/admin`). CLI: `bin/cajeer`.
 
@@ -27,7 +27,7 @@ node admin/scripts/publish-admin-assets.mjs --check
 php tools/release-regression.php
 # После коммита всех изменений и composer.lock:
 bash tools/release-pipeline.sh /tmp/cajeer-release
-bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.2.1-dist.zip sqlite
+bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.2.2-dist.zip sqlite
 ```
 
 Сборка использует чистый Git snapshot и проверяет каждую запись ZIP, checksum и sidecar manifest. Dist включает `vendor/`, production Admin assets, миграции и пустые runtime-маркеры. Никакие данные рабочей установки, загруженные медиа, секреты и установленные пользователем плагины не включаются. Публиковать dist только после успешных smoke tests; SHA256 проверяет целостность, но не заменяет подпись доверенного издателя.
@@ -65,3 +65,7 @@ See [editor and rendering guide](docs/admin-rendering.md). Run `php bin/cajeer c
 ## Performance & Database 1.2.1
 
 See [database performance](docs/database-performance.md) for migration, database timeouts, storage safety, bounded editorial pagination and reproducible SQL benchmarks.
+
+## Queue & Scheduler Reliability 1.2.2
+
+Durable reservations, lease recovery, fenced acknowledgements, delayed retries, idempotent enqueue and persistent UTC scheduler slots. See [Queue and scheduler operations](docs/queue-scheduler.md) for backend migration, configuration, systemd workers, webhook delivery and test commands.

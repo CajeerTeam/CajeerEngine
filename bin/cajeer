@@ -113,12 +113,19 @@ if (in_array($argv[1]??'', ['extension:sign','extension:package:install','extens
     exit(\CajeerEngine\Extension\ExtensionOperations::run($root,$argv));
 }
 try {
-    $activityLease = CajeerEngine\Update\OperationLock::acquire($root, in_array($argv[1]??'', ['routing:rebuild','static:export','import:run','import:diff','export:create','extension:install','extension:uninstall','extension:enable','extension:disable','extension:migrate','extension:assets','extension:config'],true));
+    $activityLease = CajeerEngine\Update\OperationLock::acquire($root, in_array($argv[1]??'', ['queue:redis-migrate','routing:rebuild','static:export','import:run','import:diff','export:create','extension:install','extension:uninstall','extension:enable','extension:disable','extension:migrate','extension:assets','extension:config'],true));
     if ((CajeerEngine\Update\OperationLock::active($root)||is_file($root.'/storage/app/backup-restore.json')) && !in_array($argv[1]??'', ['list','--version'],true)) throw new RuntimeException('Recovery required; use operational CLI.');
     if (CajeerEngine\Update\OperationLock::maintenance($root) && !in_array($argv[1] ?? '', ['list','--version','doctor','rc:doctor','system:report','stable:status','update:check','update:prepare','update','api:lint','release:verify','admin:assets','migrate:status','migrate:verify'], true)) {
         throw new RuntimeException('Maintenance active; CLI writes disabled.');
     }
 } catch (Throwable $e) { fwrite(STDERR, '[FAIL] '.$e->getMessage().PHP_EOL); exit(1); }
+
+// Queue operations use bounded batches and share the update/backup activity lock.
+require_once $root.'/core/Console/QueueCli.php';
+if (in_array($argv[1]??'', \CajeerEngine\Console\QueueCli::COMMANDS,true)) {
+    if (is_file($autoload)) require_once $autoload; else require_once $root.'/core/Console/NativeCli.php';
+    exit(\CajeerEngine\Console\QueueCli::run($root,$argv));
+}
 
 if (($argv[1] ?? '') === 'install:web-token') {
     require_once $root . '/core/Installer/SetupToken.php';
@@ -142,7 +149,7 @@ if (is_file($root . '/.env')) {
     (new Dotenv())->usePutenv()->loadEnv($root . '/.env');
 }
 
-$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.2.1');
+$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.2.2');
 
 /** @var list<Symfony\Component\Console\Command\Command> $commands */
 $commands = [

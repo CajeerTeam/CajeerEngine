@@ -26,7 +26,7 @@ final class SystemdInstallCommand extends BaseCommand
             ->addOption('php', null, InputOption::VALUE_REQUIRED, 'PHP binary path.')
             ->addOption('user', null, InputOption::VALUE_REQUIRED, 'System user for unit.')
             ->addOption('group', null, InputOption::VALUE_REQUIRED, 'System group for unit.')
-            ->addOption('workers', null, InputOption::VALUE_REQUIRED, 'Worker count metadata.', '1')
+            ->addOption('workers', null, InputOption::VALUE_REQUIRED, 'Number of worker services (1–32).', '1')
             ->addOption('target-dir', null, InputOption::VALUE_REQUIRED, 'Куда записать unit-файлы. По умолчанию storage/app/systemd.')
             ->addOption('system', null, InputOption::VALUE_NONE, 'Писать в /etc/systemd/system. Требует прав root.')
             ->addOption('print', null, InputOption::VALUE_NONE, 'Только вывести unit-файлы.')
@@ -51,7 +51,7 @@ final class SystemdInstallCommand extends BaseCommand
             $preview = $generator->preview($options);
             $units = $this->kind === 'scheduler'
                 ? array_intersect_key($preview['units'], array_flip(['cajeerengine-scheduler.service', 'cajeerengine-scheduler.timer']))
-                : array_intersect_key($preview['units'], array_flip(['cajeerengine-worker.service']));
+                : array_filter($preview['units'],fn($name)=>str_starts_with($name,'cajeerengine-worker'),ARRAY_FILTER_USE_KEY);
             $result = ['ok' => true, 'dry_run' => true, 'units' => $units, 'unit_names' => $preview['unit_names'] ?? []];
         } else {
             $result = $this->kind === 'scheduler' ? $generator->writeScheduler($options) : $generator->writeWorker($options);

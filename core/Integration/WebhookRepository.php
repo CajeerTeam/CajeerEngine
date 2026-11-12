@@ -13,6 +13,51 @@ final readonly class WebhookRepository
     {
     }
 
+    public function rootPath(): string { return $this->rootPath; }
+
+    private function locked(string $name, callable $callback): mixed
+    {
+        $dir=\CajeerEngine\Update\OperationFiles::path($this->rootPath,'storage/app/webhook-locks');
+        \CajeerEngine\Update\OperationFiles::dir($dir,0770);
+        $h=fopen($dir.'/'.hash('sha256',$name).'.lock','c+');if(!$h)throw new \RuntimeException('Cannot open webhook lock');
+        try{if(!flock($h,LOCK_EX))throw new \RuntimeException('Cannot lock webhooks');return $callback();}finally{fclose($h);}
+    }
+
+    /** Record successful delivery before acknowledging queue job. Receiver must deduplicate the event ID. */
+    public function deliverOnce(string $webhookId,string $eventId,callable $send): array
+    {
+        $key=hash('sha256',json_encode([$webhookId,$eventId],JSON_THROW_ON_ERROR));
+        return $this->locked('delivery.'.$key,function()use($key,$send){
+            $file=new JsonFile(\CajeerEngine\Update\OperationFiles::path($this->rootPath,'storage/app/webhook-receipts/'.$key.'.json'));
+            $old=$file->readObject();if(($old['ok']??false)===true)return $old;
+            $result=$send();if(($result['ok']??false)!==true)throw new \RuntimeException('Webhook was not delivered');$file->writeObject($result);return $result;
+        });
+    }
+
+    /** Materialize a stable per-target job before marking the outbox event handed off. */
+    public function enqueuePending(\CajeerEngine\Queue\ManagedQueueDriverInterface $queue,int $limit=50): array
+    {
+        return $this->locked('outbox',function()use($queue,$limit){
+            $data=$this->outboxData();$events=0;$deliveries=0;$visited=0;$errors=[];
+            foreach($data['events'] as &$item){
+                if($visited>=max(1,$limit))break;
+                if(($item['status']??'pending')!=='pending'||strtotime($item['available_at']??'now')>time())continue;
+                $visited++;
+                try {
+                    // Persist target selection before enqueue: retries use the original recipient set.
+                    if(!isset($item['targets'])){$item['targets']=array_column($this->matching($item['event']),'id');(new JsonFile($this->outboxPath()))->writeObject($data);}
+                    foreach($item['targets'] as $id){$queue->push('webhook.deliver',['event'=>$item['event'],'payload'=>$item['payload'],'webhook_id'=>$id,'event_id'=>$item['id'],'_idempotency_key'=>'webhook:'.$item['id'].':'.$id]);$deliveries++;}
+                    $item['status']='processed';$item['processed_at']=$this->now();$events++;
+                } catch(\Throwable $e) {
+                    $item['attempts']=(int)($item['attempts']??0)+1;$item['last_error']=\CajeerEngine\Queue\QueueOptions::error($e->getMessage(),1000);
+                    $item['available_at']=gmdate(DATE_ATOM,time()+\CajeerEngine\Queue\QueueOptions::backoff($item['attempts']));$errors[]=$item['id'];
+                }
+                (new JsonFile($this->outboxPath()))->writeObject($data);
+            }
+            unset($item);return ['ok'=>$errors===[],'events'=>$events,'deliveries'=>$deliveries,'errors'=>$errors,'error'=>$errors===[]?null:'Outbox handoff failed; events retained for retry'];
+        });
+    }
+
     /** @return list<array<string, mixed>> */
     public function all(): array
     {
@@ -33,6 +78,11 @@ final readonly class WebhookRepository
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
     public function create(array $payload): array
+    {
+        return $this->locked('registry',fn()=> $this->createLocked($payload));
+    }
+
+    private function createLocked(array $payload): array
     {
         $url = trim((string) ($payload['url'] ?? ''));
         if (!filter_var($url, FILTER_VALIDATE_URL)) {
@@ -62,6 +112,11 @@ final readonly class WebhookRepository
 
     /** @param array<string, mixed> $payload */
     public function update(string $id, array $payload): ?array
+    {
+        return $this->locked('registry',fn()=> $this->updateLocked($id,$payload));
+    }
+
+    private function updateLocked(string $id, array $payload): ?array
     {
         $items = $this->all();
         foreach ($items as $i => $item) {
@@ -95,6 +150,11 @@ final readonly class WebhookRepository
 
     public function delete(string $id): bool
     {
+        return $this->locked('registry',fn()=> $this->deleteLocked($id));
+    }
+
+    private function deleteLocked(string $id): bool
+    {
         $items = $this->all();
         $before = count($items);
         $items = array_values(array_filter($items, static fn (array $item): bool => (string) ($item['id'] ?? '') !== $id));
@@ -120,6 +180,11 @@ final readonly class WebhookRepository
     /** @param array<string, mixed> $delivery */
     public function recordDelivery(array $delivery): void
     {
+        $this->locked('delivery-log',fn()=> $this->recordDeliveryLocked($delivery));
+    }
+
+    private function recordDeliveryLocked(array $delivery): void
+    {
         $data = $this->deliveriesData();
         $items = is_array($data['deliveries'] ?? null) ? $data['deliveries'] : [];
         array_unshift($items, $delivery);
@@ -143,6 +208,13 @@ final readonly class WebhookRepository
     /** @param array<string, mixed> $payload */
     public function pushOutbox(string $event, array $payload): string
     {
+        return $this->locked('outbox',fn()=> $this->pushOutboxLocked($event,$payload));
+    }
+
+    private function pushOutboxLocked(string $event, array $payload): string
+    {
+        if($event===''||strlen($event)>200||preg_match('/[\x00-\x1f\x7f]/',$event))throw new \InvalidArgumentException('Invalid event name');
+        if(strlen(json_encode($payload,JSON_THROW_ON_ERROR))>900000)throw new \InvalidArgumentException('Event payload too large');
         $data = $this->outboxData();
         $items = is_array($data['events'] ?? null) ? $data['events'] : [];
         $id = Uuid::v4();
@@ -177,6 +249,11 @@ final readonly class WebhookRepository
     }
 
     public function markOutboxProcessed(string $id): void
+    {
+        $this->locked('outbox',fn()=> $this->markOutboxProcessedLocked($id));
+    }
+
+    private function markOutboxProcessedLocked(string $id): void
     {
         $data = $this->outboxData();
         $items = is_array($data['events'] ?? null) ? $data['events'] : [];

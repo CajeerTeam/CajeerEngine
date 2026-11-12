@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -4343,7 +4343,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Требуется авторизация. Права: *.",
+        "description": "Требуется авторизация. Права: *. Выполняет ограниченную порцию задач. Для фонового выполнения используйте CLI worker.",
         "requestBody": {
           "required": false,
           "content": {
@@ -4355,7 +4355,9 @@
                     "type": "string"
                   },
                   "limit": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000
                   }
                 },
                 "additionalProperties": true
@@ -5956,7 +5958,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Требуется авторизация. Права: *.",
+        "description": "Требуется авторизация. Права: *. Сохраняет событие в durable outbox; доставка выполняется фоновыми задачами.",
         "requestBody": {
           "required": false,
           "content": {
@@ -5987,7 +5989,33 @@
                   "properties": {
                     "data": {
                       "type": "object",
-                      "additionalProperties": true
+                      "additionalProperties": true,
+                      "properties": {
+                        "event": {
+                          "type": "string"
+                        },
+                        "event_id": {
+                          "type": "string"
+                        },
+                        "queued": {
+                          "type": "boolean"
+                        },
+                        "deliveries": {
+                          "type": "integer"
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        }
+                      },
+                      "required": [
+                        "event",
+                        "event_id",
+                        "queued"
+                      ]
                     },
                     "meta": {
                       "type": "object",

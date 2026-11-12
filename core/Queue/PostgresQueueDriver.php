@@ -1,113 +1,38 @@
 <?php
-
 declare(strict_types=1);
-
 namespace CajeerEngine\Queue;
 
 use PDO;
-use Symfony\Component\Uid\Uuid;
 
-final readonly class PostgresQueueDriver implements ManagedQueueDriverInterface
+final readonly class PostgresQueueDriver implements LeaseQueueDriverInterface
 {
-    public function __construct(private PDO $pdo)
+    public function __construct(private PDO $pdo,private int $leaseSeconds=300) {}
+    public function push(string $job,array $payload=[],?string $queue=null): string
     {
+        $q=QueueOptions::queue($queue);$id=QueueOptions::id($q,$job,$payload);
+        $r=$this->run('INSERT INTO ce_jobs (id,queue,name,payload,available_at,max_attempts,created_at,updated_at) VALUES (:id,:q,:name,CAST(:payload AS jsonb),to_timestamp(:available),:max,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET id=ce_jobs.id WHERE ce_jobs.name=EXCLUDED.name AND ce_jobs.payload=EXCLUDED.payload RETURNING id',['id'=>$id,'q'=>$q,'name'=>$job,'payload'=>json_encode($payload,JSON_THROW_ON_ERROR),'available'=>QueueOptions::available($payload),'max'=>QueueOptions::maxAttempts($payload)]);if(!$r->fetchColumn())throw new \RuntimeException('Idempotency key reused with different job');return $id;
     }
-
-    public function push(string $job, array $payload = [], ?string $queue = null): string
+    public function pop(?string $queue=null): ?QueuedJob
     {
-        $id = (string) Uuid::v7();
-        $stmt = $this->pdo->prepare('INSERT INTO ce_jobs (id, queue, name, payload, available_at, created_at, updated_at) VALUES (:id, :queue, :name, CAST(:payload AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)');
-        $stmt->execute([
-            'id' => $id,
-            'queue' => $queue ?: 'default',
-            'name' => $job,
-            'payload' => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
-        ]);
-        return $id;
+        $q=QueueOptions::queue($queue);$this->recover($q);
+        $row=$this->run("WITH candidate AS (SELECT id FROM ce_jobs WHERE queue=:q AND status='pending' AND available_at<=clock_timestamp() ORDER BY available_at,created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE ce_jobs j SET status='reserved',reserved_at=clock_timestamp(),attempts=j.attempts+1,reservation_token=:token,lease_until=clock_timestamp()+CAST(:lease AS integer)*interval '1 second',updated_at=clock_timestamp() FROM candidate c WHERE j.id=c.id RETURNING j.*",['q'=>$q,'token'=>QueueOptions::token(),'lease'=>QueueOptions::lease($this->leaseSeconds)])->fetch(PDO::FETCH_ASSOC);
+        return $row?$this->job($row):null;
     }
-
-    public function pop(?string $queue = null): ?QueuedJob
+    public function heartbeat(QueuedJob $job): bool {return $this->ownedUpdate($job,"lease_until=clock_timestamp()+CAST(:lease AS integer)*interval '1 second',updated_at=clock_timestamp()",['lease'=>QueueOptions::lease($this->leaseSeconds)])===1;}
+    public function complete(QueuedJob $job): void {if($this->ownedUpdate($job,"status='processed',processed_at=clock_timestamp(),updated_at=clock_timestamp(),reserved_at=NULL,reservation_token=NULL,lease_until=NULL")!==1)throw new \RuntimeException('Queue reservation lost');}
+    public function fail(QueuedJob $job,string $error,int $backoffSeconds=60): void
     {
-        $this->pdo->beginTransaction();
-        $stmt = $this->pdo->prepare("SELECT * FROM ce_jobs WHERE queue = :queue AND status = 'pending' AND reserved_at IS NULL AND available_at <= CURRENT_TIMESTAMP ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED");
-        $stmt->execute(['queue' => $queue ?: 'default']);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$row) {
-            $this->pdo->commit();
-            return null;
-        }
-        $update = $this->pdo->prepare("UPDATE ce_jobs SET status = 'reserved', reserved_at = CURRENT_TIMESTAMP, attempts = attempts + 1, updated_at = CURRENT_TIMESTAMP WHERE id = :id");
-        $update->execute(['id' => $row['id']]);
-        $this->pdo->commit();
-        return $this->jobFromRow($row, ((int) ($row['attempts'] ?? 0)) + 1);
+        if($this->ownedUpdate($job,"status=CASE WHEN attempts<max_attempts THEN 'pending' ELSE 'failed' END,available_at=clock_timestamp()+CAST(:delay AS integer)*interval '1 second',failed_at=CASE WHEN attempts>=max_attempts THEN clock_timestamp() ELSE NULL END,last_error=:error,updated_at=clock_timestamp(),reserved_at=NULL,reservation_token=NULL,lease_until=NULL",['delay'=>max(1,$backoffSeconds),'error'=>QueueOptions::error($error)])!==1)throw new \RuntimeException('Queue reservation lost');
     }
-
-    public function complete(QueuedJob $job): void
+    private function ownedUpdate(QueuedJob $j,string $set,array $params=[]): int {return $this->run("UPDATE ce_jobs SET $set WHERE id=:id AND queue=:q AND status='reserved' AND reservation_token=:token AND lease_until>clock_timestamp()",$params+['id'=>$j->id,'q'=>$j->queue,'token'=>$j->reservationToken])->rowCount();}
+    public function recover(?string $queue=null,int $limit=100): int
     {
-        $stmt = $this->pdo->prepare("UPDATE ce_jobs SET status = 'processed', processed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id");
-        $stmt->execute(['id' => $job->id]);
+        return $this->run("WITH expired AS (SELECT id FROM ce_jobs WHERE queue=:q AND status='reserved' AND COALESCE(lease_until,reserved_at+CAST(:lease AS integer)*interval '1 second','-infinity'::timestamptz)<=clock_timestamp() ORDER BY lease_until NULLS FIRST,id LIMIT CAST(:lim AS integer) FOR UPDATE SKIP LOCKED) UPDATE ce_jobs j SET status=CASE WHEN attempts<max_attempts THEN 'pending' ELSE 'failed' END,available_at=clock_timestamp()+interval '1 second',failed_at=CASE WHEN attempts>=max_attempts THEN clock_timestamp() ELSE NULL END,last_error='Reservation expired',updated_at=clock_timestamp(),reserved_at=NULL,reservation_token=NULL,lease_until=NULL FROM expired e WHERE j.id=e.id",['q'=>QueueOptions::queue($queue),'lease'=>QueueOptions::lease($this->leaseSeconds),'lim'=>max(1,min(1000,$limit))])->rowCount();
     }
-
-    public function fail(QueuedJob $job, string $error, int $backoffSeconds = 60): void
-    {
-        $max = max(1, $job->maxAttempts);
-        if ($job->attempts < $max) {
-            $stmt = $this->pdo->prepare("UPDATE ce_jobs SET status = 'pending', reserved_at = NULL, available_at = CURRENT_TIMESTAMP + (:backoff || ' seconds')::interval, last_error = :error, updated_at = CURRENT_TIMESTAMP WHERE id = :id");
-            $stmt->execute(['id' => $job->id, 'backoff' => max(1, $backoffSeconds), 'error' => $error]);
-            return;
-        }
-        $stmt = $this->pdo->prepare("UPDATE ce_jobs SET status = 'failed', failed_at = CURRENT_TIMESTAMP, last_error = :error, updated_at = CURRENT_TIMESTAMP WHERE id = :id");
-        $stmt->execute(['id' => $job->id, 'error' => $error]);
-    }
-
-    public function retry(string $id, ?string $queue = null): bool
-    {
-        $sql = "UPDATE ce_jobs SET status = 'pending', reserved_at = NULL, available_at = CURRENT_TIMESTAMP, failed_at = NULL, last_error = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = :id AND status = 'failed'";
-        $params = ['id' => $id];
-        if ($queue !== null && $queue !== '') {
-            $sql .= ' AND queue = :queue';
-            $params['queue'] = $queue;
-        }
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
-        return $stmt->rowCount() > 0;
-    }
-
-    public function failed(?string $queue = null): array
-    {
-        $sql = "SELECT * FROM ce_jobs WHERE status = 'failed'";
-        $params = [];
-        if ($queue !== null && $queue !== '') {
-            $sql .= ' AND queue = :queue';
-            $params['queue'] = $queue;
-        }
-        $sql .= ' ORDER BY failed_at DESC';
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
-
-    public function diagnostics(): array
-    {
-        $rows = $this->pdo->query('SELECT queue, status, COUNT(*) AS count FROM ce_jobs GROUP BY queue, status ORDER BY queue, status')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $queues = [];
-        foreach ($rows as $row) {
-            $queues[(string) $row['queue']][(string) $row['status']] = (int) $row['count'];
-        }
-        return ['driver' => 'pgsql', 'queues' => $queues];
-    }
-
-    public function cleanupProcessed(int $olderThanSeconds = 604800): int
-    {
-        $stmt = $this->pdo->prepare("DELETE FROM ce_jobs WHERE status = 'processed' AND processed_at < CURRENT_TIMESTAMP - (:age || ' seconds')::interval");
-        $stmt->execute(['age' => max(1, $olderThanSeconds)]);
-        return $stmt->rowCount();
-    }
-
-    /** @param array<string, mixed> $row */
-    private function jobFromRow(array $row, int $attempts): QueuedJob
-    {
-        $payload = json_decode((string) ($row['payload'] ?? '{}'), true);
-        return new QueuedJob((string) $row['id'], (string) $row['name'], is_array($payload) ? $payload : [], (string) $row['queue'], $attempts, (int) ($row['max_attempts'] ?? 3));
-    }
+    public function retry(string $id,?string $queue=null): bool {QueueOptions::validateId($id);return $this->run("UPDATE ce_jobs SET status='pending',attempts=0,reserved_at=NULL,reservation_token=NULL,lease_until=NULL,available_at=clock_timestamp(),failed_at=NULL,last_error=NULL,updated_at=clock_timestamp() WHERE id=:id AND queue=:q AND status='failed'",['id'=>$id,'q'=>QueueOptions::queue($queue)])->rowCount()>0;}
+    public function failed(?string $queue=null): array {return $this->run("SELECT * FROM ce_jobs WHERE queue=:q AND status='failed' ORDER BY failed_at DESC LIMIT 1000",['q'=>QueueOptions::queue($queue)])->fetchAll(PDO::FETCH_ASSOC);}
+    public function diagnostics(): array {$queues=[];foreach($this->pdo->query('SELECT queue,status,COUNT(*) AS count FROM ce_jobs GROUP BY queue,status')->fetchAll(PDO::FETCH_ASSOC)as $r)$queues[$r['queue']][$r['status']]=(int)$r['count'];return ['driver'=>'pgsql','queues'=>$queues,'lease_seconds'=>QueueOptions::lease($this->leaseSeconds)];}
+    public function cleanupProcessed(int $olderThanSeconds=604800): int {return $this->run("DELETE FROM ce_jobs WHERE status='processed' AND processed_at<clock_timestamp()-CAST(:age AS integer)*interval '1 second'",['age'=>max(1,$olderThanSeconds)])->rowCount();}
+    private function run(string $sql,array $args): \PDOStatement {$s=$this->pdo->prepare($sql);$s->execute($args);return $s;}
+    private function job(array $r): QueuedJob {return new QueuedJob($r['id'],$r['name'],json_decode($r['payload'],true,512,JSON_THROW_ON_ERROR),$r['queue'],(int)$r['attempts'],(int)$r['max_attempts'],$r['available_at'],$r['reserved_at'],null,$r['reservation_token'],strtotime($r['lease_until']));}
 }

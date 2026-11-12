@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.2 — Queue & Scheduler Reliability
+
+- Durable queue reservations with fencing tokens, heartbeat, expiry recovery and delayed exponential retry.
+- Atomic file and PostgreSQL transitions, Redis Lua transitions and offline legacy migration.
+- Persistent UTC scheduler slots, file or PostgreSQL advisory locks, interrupted run history.
+- Durable webhook outbox handoff, per-target jobs, stable signed event IDs and delivery receipts.
+- Bounded CLI workers, graceful signals, operational recovery/diagnostics and corrected systemd units.
+
 ## 1.2.1 — Performance & Database
 
 - Bounded editorial SQL pagination with deterministic sorting and indexed translation lookup.

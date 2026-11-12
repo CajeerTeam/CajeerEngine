@@ -16,10 +16,12 @@ final readonly class SystemdServiceGenerator
         $php = (string) ($options['php'] ?? $this->detectPhpBinary());
         $user = (string) ($options['user'] ?? $this->detectUser());
         $group = (string) ($options['group'] ?? $user);
-        $workerCount = max(1, (int) ($options['workers'] ?? 1));
+        $workerCount = max(1, min(32, (int) ($options['workers'] ?? 1)));
         $schedulerService = $this->schedulerService($php, $user, $group);
         $schedulerTimer = $this->schedulerTimer();
         $workerService = $this->workerService($php, $user, $group, $workerCount);
+        $workerUnits=['cajeerengine-worker.service'=>$workerService];
+        for($i=2;$i<=$workerCount;$i++)$workerUnits['cajeerengine-worker-'.$i.'.service']=$workerService;
         return [
             'ok' => true,
             'php' => $php,
@@ -34,7 +36,7 @@ final readonly class SystemdServiceGenerator
             'units' => [
                 'cajeerengine-scheduler.service' => $schedulerService,
                 'cajeerengine-scheduler.timer' => $schedulerTimer,
-                'cajeerengine-worker.service' => $workerService,
+                ...$workerUnits,
             ],
         ];
     }
@@ -50,7 +52,7 @@ final readonly class SystemdServiceGenerator
     public function writeWorker(array $options = []): array
     {
         $preview = $this->preview($options);
-        return $this->writeUnits($preview, ['cajeerengine-worker.service'], $options);
+        return $this->writeUnits($preview, array_values(array_filter(array_keys($preview['units']),fn($name)=>str_starts_with($name,'cajeerengine-worker'))), $options);
     }
 
     /** @param array<string,mixed> $preview @param list<string> $names @param array<string,mixed> $options @return array<string,mixed> */
@@ -83,7 +85,7 @@ final readonly class SystemdServiceGenerator
             'next_commands' => [
                 'sudo systemctl daemon-reload',
                 in_array('cajeerengine-scheduler.timer', $names, true) ? 'sudo systemctl enable --now cajeerengine-scheduler.timer' : null,
-                in_array('cajeerengine-worker.service', $names, true) ? 'sudo systemctl enable --now cajeerengine-worker.service' : null,
+                in_array('cajeerengine-worker.service', $names, true) ? 'sudo systemctl enable --now '.implode(' ',array_filter($names,fn($name)=>str_starts_with($name,'cajeerengine-worker'))) : null,
             ],
         ];
     }
@@ -137,18 +139,19 @@ UNIT;
 [Unit]
 Description=CajeerEngine Queue Worker
 After=network.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 User={$user}
 Group={$group}
 WorkingDirectory={$root}
-ExecStart={$php} {$root}/bin/cajeer queue:work --sleep=2 --tries=3
+ExecStart={$php} {$root}/bin/cajeer queue:work --limit=10
+TimeoutStopSec=150
+KillSignal=SIGTERM
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=300
-StartLimitBurst=10
-Environment=CAJEER_WORKERS={$workers}
+
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full

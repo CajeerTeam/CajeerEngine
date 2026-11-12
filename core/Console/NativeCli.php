@@ -146,7 +146,7 @@ final class NativeCli
         return [
             'ok' => true,
             'mode' => 'native-no-vendor',
-            'commands' => ['doctor','fix','fix:permissions','fix:env','fix:security','fix:admin-assets','fix:storage','nginx:config','scheduler:install','worker:install','post-install:report','backup:create','backup:list','backup:verify','backup:restore','backup:keygen','release:keygen','release:sign','update:verify-signature','update:stage','update:requests','update:run','update:status','install','install:check','rc:doctor','api:lint','install:web-token','system:report','stable:status','stable:smoke-test','stable:lock','security:doctor','security:harden','migrate','migrate:status','migrate:repair','release:build','release:artifacts','release:checksums','release:verify','update','update:prepare','update:apply','update:check','update:rollback','maintenance:on','maintenance:off','maintenance:status','export:create','export:list','import:diff','import:run','import:execute','import:requests','admin:assets','cms:bootstrap','cms:sitemap','static:export','routing:rebuild','routing:check','search:index','search:query','search:check','media:list','media:check','media:migrate','media:variants','media:repair','media:recover','media:usage','media:s3-sync','media:gc','make:extension','extension:list','extension:doctor','extension:runtime','extension:runtime:boot','extension:install','extension:enable','extension:disable','extension:uninstall','extension:assets','extension:migrate','extension:event:dispatch','extension:sign','extension:package:install','extension:package:upgrade','extension:package:enable','extension:package:uninstall','extension:package:recover'],
+            'commands' => array_merge(QueueCli::COMMANDS,['doctor','fix','fix:permissions','fix:env','fix:security','fix:admin-assets','fix:storage','nginx:config','scheduler:install','worker:install','post-install:report','backup:create','backup:list','backup:verify','backup:restore','backup:keygen','release:keygen','release:sign','update:verify-signature','update:stage','update:requests','update:run','update:status','install','install:check','rc:doctor','api:lint','install:web-token','system:report','stable:status','stable:smoke-test','stable:lock','security:doctor','security:harden','migrate','migrate:status','migrate:repair','release:build','release:artifacts','release:checksums','release:verify','update','update:prepare','update:apply','update:check','update:rollback','maintenance:on','maintenance:off','maintenance:status','export:create','export:list','import:diff','import:run','import:execute','import:requests','admin:assets','cms:bootstrap','cms:sitemap','static:export','routing:rebuild','routing:check','search:index','search:query','search:check','media:list','media:check','media:migrate','media:variants','media:repair','media:recover','media:usage','media:s3-sync','media:gc','make:extension','extension:list','extension:doctor','extension:runtime','extension:runtime:boot','extension:install','extension:enable','extension:disable','extension:uninstall','extension:assets','extension:migrate','extension:event:dispatch','extension:sign','extension:package:install','extension:package:upgrade','extension:package:enable','extension:package:uninstall','extension:package:recover']),
             'message' => 'Symfony Console не найден, включён native fallback для эксплуатационных команд.',
         ];
     }
@@ -246,7 +246,7 @@ final class NativeCli
         $generator = new SystemdServiceGenerator($rootPath);
         if (self::has($argv, 'print') || !self::has($argv, 'write')) {
             $preview = $generator->preview($options);
-            $names = $kind === 'scheduler' ? ['cajeerengine-scheduler.service', 'cajeerengine-scheduler.timer'] : ['cajeerengine-worker.service'];
+            $names = $kind === 'scheduler' ? ['cajeerengine-scheduler.service', 'cajeerengine-scheduler.timer'] : array_values(array_filter(array_keys($preview['units']),fn($name)=>str_starts_with($name,'cajeerengine-worker')));
             return ['ok' => true, 'dry_run' => true, 'units' => array_intersect_key($preview['units'], array_flip($names)), 'unit_names' => $preview['unit_names'] ?? []];
         }
         return $kind === 'scheduler' ? $generator->writeScheduler($options) : $generator->writeWorker($options);
@@ -461,7 +461,7 @@ PHP_STUB;
         return ['ok' => true, 'data' => ['name' => $name, 'type' => $type, 'path' => $baseDir . '/' . $shortName, 'provider' => $namespace . '\\' . $className]];
     }
 
-    private static function extensionRuntime(string $rootPath, ConfigRepository $config): ExtensionRuntime
+    public static function extensionRuntime(string $rootPath, ConfigRepository $config): ExtensionRuntime
     {
         $container = new ServiceContainer();
         $logger = new RuntimeLogger($rootPath);
@@ -647,6 +647,6 @@ PHP_STUB;
 
     private static function version(string $rootPath): string
     {
-        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.2.1';
+        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.2.2';
     }
 }

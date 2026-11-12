@@ -17,6 +17,8 @@ final readonly class QueuedJob
         public ?string $availableAt = null,
         public ?string $reservedAt = null,
         public ?string $source = null,
+        public ?string $reservationToken = null,
+        public ?int $leaseUntil = null,
     ) {
     }
 

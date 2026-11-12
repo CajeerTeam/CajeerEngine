@@ -1,11 +1,14 @@
 [Unit]
 Description=CajeerEngine Queue Worker
 After=network.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 WorkingDirectory=/var/www/cajeerengine
-ExecStart=/usr/bin/php /var/www/cajeerengine/bin/cajeer queue:work --sleep=2 --tries=3
+ExecStart=/usr/bin/php /var/www/cajeerengine/bin/cajeer queue:work --limit=10
+TimeoutStopSec=150
+KillSignal=SIGTERM
 Restart=always
 RestartSec=5
 User=www-data

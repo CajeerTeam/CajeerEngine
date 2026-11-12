@@ -72,7 +72,8 @@ final readonly class WebhookController
         $payload = $this->json($request);
         $event = (string) ($payload['event'] ?? 'manual.dispatch');
         $body = is_array($payload['payload'] ?? null) ? $payload['payload'] : [];
-        return new JsonResponse(['data' => $this->dispatcher->dispatchEvent($event, $body)]);
+        $id=$this->webhooks->pushOutbox($event,$body);
+        return new JsonResponse(['data'=>['event'=>$event,'event_id'=>$id,'queued'=>true,'deliveries'=>0,'items'=>[]]]);
     }
 
     /** @return array<string, mixed> */

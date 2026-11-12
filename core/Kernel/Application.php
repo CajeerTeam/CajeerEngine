@@ -143,7 +143,7 @@ final class Application
     public function handle(Request $request): Response
     {
         $response = $this->pipeline->handle($request, fn (Request $request): Response => $this->router->dispatch($request));
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.2.1'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.2.2'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -282,6 +282,7 @@ final class Application
             $c->get(WebhookDispatcher::class),
             $c->get(ManagedQueueDriverInterface::class),
             $c->get(ExtensionRuntime::class)->platform(),
+            \CajeerEngine\Scheduler\TaskRunStore::fromConfig($rootPath,$c->get(ConfigRepository::class),$c->get(DatabaseManager::class)),
         ));
 
         $container->set('controller.health', fn (): HealthController => new HealthController($rootPath));

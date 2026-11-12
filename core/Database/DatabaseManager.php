@@ -121,7 +121,9 @@ final class DatabaseManager
                     'missing_columns' => array_values(array_keys(array_filter($securityColumns, static fn (bool $exists): bool => !$exists))),
                 ],
                 'queue_core' => [
-                    'ready' => $this->tableExistsOn($pdo, $driver, 'ce_jobs'),
+                    'ready' => $this->tableExistsOn($pdo, $driver, 'ce_jobs') && ($driver!=='pgsql'||($this->columnExistsOn($pdo,$driver,'ce_jobs','reservation_token')&&$this->columnExistsOn($pdo,$driver,'ce_jobs','lease_until'))),
+                    'lease_columns' => $driver==='pgsql'&&$this->columnExistsOn($pdo,$driver,'ce_jobs','lease_until')&&$this->columnExistsOn($pdo,$driver,'ce_jobs','reservation_token'),
+                    'scheduler_ledger' => $driver==='pgsql'&&$this->tableExistsOn($pdo,$driver,'ce_scheduler_runs'),
                     'failed_jobs_table' => $this->tableExistsOn($pdo, $driver, 'ce_failed_jobs'),
                     'webhook_deliveries_table' => $this->tableExistsOn($pdo, $driver, 'ce_webhook_deliveries'),
                 ],
@@ -250,6 +252,7 @@ final class DatabaseManager
             'ce_cms_search',
         ];
 
+        if($driver==='pgsql')$tables[]='ce_scheduler_runs';
         $result = [];
         foreach ($tables as $table) {
             $result[$table] = $this->tableExistsOn($pdo, $driver, $table);

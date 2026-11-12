@@ -16,9 +16,11 @@ final readonly class WebhookDispatcher
     }
 
     /** @param array<string, mixed> $payload @return array{headers:array<string,string>,body:string} */
-    public function buildSignedRequest(string $event, array $payload, string $secret): array
+    public function buildSignedRequest(string $event, array $payload, string $secret, ?string $eventId = null): array
     {
+        $eventId ??= Uuid::v4();
         $body = json_encode([
+            'event_id' => $eventId,
             'event' => $event,
             'payload' => $payload,
             'created_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
@@ -28,6 +30,8 @@ final readonly class WebhookDispatcher
             'headers' => [
                 'Content-Type' => 'application/json',
                 'X-CajeerEngine-Event' => $event,
+                'X-CajeerEngine-Event-Id' => $eventId,
+                'Idempotency-Key' => $eventId,
                 'X-CajeerEngine-Signature' => $this->signedPayload->sign($body, $secret),
             ],
             'body' => $body,
@@ -48,11 +52,11 @@ final readonly class WebhookDispatcher
     }
 
     /** @param array<string, mixed> $webhook @param array<string, mixed> $payload @return array<string, mixed> */
-    public function dispatchWebhook(array $webhook, string $event, array $payload): array
+    public function dispatchWebhook(array $webhook, string $event, array $payload, ?string $eventId = null): array
     {
         $started = microtime(true);
         $secret = (string) ($webhook['secret'] ?? '');
-        $request = $this->buildSignedRequest($event, $payload, $secret);
+        $request = $this->buildSignedRequest($event, $payload, $secret, $eventId);
         $statusCode = 0;
         $error = null;
         $responseBody = '';
@@ -65,6 +69,7 @@ final readonly class WebhookDispatcher
 
         $delivery = [
             'id' => Uuid::v4(),
+            'event_id' => $request['headers']['X-CajeerEngine-Event-Id'],
             'webhook_id' => (string) ($webhook['id'] ?? ''),
             'webhook_name' => (string) ($webhook['name'] ?? ''),
             'event' => $event,

@@ -4,6 +4,26 @@
   "generated_at": "2026-06-19T00:00:00+00:00",
   "releases": [
     {
+      "version": "1.2.2",
+      "channel": "stable",
+      "stability": "stable",
+      "released_at": "2026-11-12T00:00:00+00:00",
+      "notes": "Queue & Scheduler Reliability: fenced reservations, retry, scheduler locks and webhook outbox.",
+      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.2.2",
+      "artifacts": {
+        "source": {
+          "name": "cajeerengine-1.2.2-source.zip",
+          "checksum_name": "cajeerengine-1.2.2-source.zip.sha256",
+          "signature_name": "cajeerengine-1.2.2-source.zip.sig"
+        },
+        "dist": {
+          "name": "cajeerengine-1.2.2-dist.zip",
+          "checksum_name": "cajeerengine-1.2.2-dist.zip.sha256",
+          "signature_name": "cajeerengine-1.2.2-dist.zip.sig"
+        }
+      }
+    },
+    {
       "version": "1.2.1",
       "channel": "stable",
       "stability": "stable",
