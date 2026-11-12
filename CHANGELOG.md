@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.2] - 2026-11-12
+
+- Clean source/dist packaging: allowlisted files, deterministic ZIP output, checksums and verified archive inventory.
+- Production Admin SPA published from a single source; read-only asset checks and no fallback repair.
+- Strict release verification and clean Git staging build with locked Composer dependencies.
+- Installation lock acquired before work and completion marker written only after final checks.
+- Regression tests and SQLite/PostgreSQL dist installation smoke pipeline.
+
 ## [1.1.1] - 2026-06-19
 
 ### Added

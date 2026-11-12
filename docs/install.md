@@ -1,10 +1,10 @@
-# Установка CajeerEngine 1.1.1
+# Установка CajeerEngine 1.1.2
 
 ## Web Installer
 
 Основной путь для обычного пользователя:
 
-1. Скачать `cajeerengine-1.1.1-dist.zip`.
+1. Скачать `cajeerengine-1.1.2-dist.zip`.
 2. Загрузить архив на сервер.
 3. Распаковать проект так, чтобы web root указывал на `public/`.
 4. Открыть `https://site.ru/install`.
@@ -79,7 +79,7 @@ PostgreSQL 17+/18+ рекомендуется для production.
 - создаёт `storage/app/installed.lock`.
 
 
-## Admin UI 1.1.1
+## Admin UI 1.1.2
 
 После установки откройте:
 
@@ -108,7 +108,7 @@ php bin/cajeer admin:assets --check --json
 node admin/scripts/publish-admin-assets.mjs --check
 ```
 
-## Server automation 1.1.1
+## Server automation 1.1.2
 
 После установки или переноса на другой сервер проверь окружение одной командой:
 
@@ -190,7 +190,7 @@ php bin/cajeer backup:create
 
 Post-install отчёт сохраняется в `storage/app/reports/post-install-latest.json`.
 
-## Release UX 1.1.1
+## Release UX 1.1.2
 
 Сборка source artifact:
 
@@ -219,16 +219,18 @@ php bin/cajeer release:checksums
 Release builder создаёт ZIP, `release-manifest.json` внутри архива, внешний `.sha256` файл и artifact index:
 
 ```text
-storage/releases/cajeerengine-1.1.1-source.zip
-storage/releases/cajeerengine-1.1.1-source.zip.sha256
-storage/releases/cajeerengine-1.1.1-dist.zip
-storage/releases/cajeerengine-1.1.1-dist.zip.sha256
-storage/releases/cajeerengine-1.1.1-artifacts.json
+storage/releases/cajeerengine-1.1.2-source.zip
+storage/releases/cajeerengine-1.1.2-source.zip.sha256
+storage/releases/cajeerengine-1.1.2-dist.zip
+storage/releases/cajeerengine-1.1.2-dist.zip.sha256
+storage/releases/cajeerengine-1.1.2-artifacts.json
 ```
 
 Source artifact предназначен для разработчиков и не содержит `vendor/`. Dist artifact предназначен для установки на сервер и должен содержать `vendor/autoload.php`, `composer.lock` и готовые `public/admin/assets/`.
 
-## Upgrade Wizard 1.1.1
+## Upgrade Wizard 1.1.2
+
+**Ограничение:** updater и резервное копирование БД ещё не прошли production-приёмку. Не включайте web upgrade на рабочем сайте. Примеры ниже относятся к изолированной тестовой установке.
 
 Web-обновление доступно только после установки проекта, когда существует `storage/app/installed.lock`, и дополнительно требует явного включения:
 
@@ -258,16 +260,12 @@ CLI-эквивалент:
 
 ```bash
 php bin/cajeer update:check --json
-php bin/cajeer update:prepare --package=/path/to/cajeerengine-1.1.1-dist.zip
-php bin/cajeer update --package=/path/to/cajeerengine-1.1.1-dist.zip --dry-run
-php bin/cajeer update --package=/path/to/cajeerengine-1.1.1-dist.zip --apply
+php bin/cajeer update:prepare --package=/path/to/cajeerengine-1.1.2-dist.zip
+php bin/cajeer update --package=/path/to/cajeerengine-1.1.2-dist.zip --dry-run
+php bin/cajeer update --package=/path/to/cajeerengine-1.1.2-dist.zip --apply
 ```
 
-По умолчанию перед `--apply` создаётся backup в `storage/app/backups`. Отключать это можно только явно:
-
-```bash
-php bin/cajeer update --package=/path/to/cajeerengine-1.1.1-dist.zip --apply --no-backup
-```
+По умолчанию создаётся файловый backup в `storage/app/backups`. Он не заменяет полный согласованный backup базы данных; не применяйте обновление рабочей установки без отдельно проверенного восстановления БД.
 
 ## После установки: CMS bootstrap
 
@@ -280,16 +278,26 @@ php bin/cajeer cms:bootstrap --demo-home
 Команда создаёт тип контента `pages`, базовую главную страницу, theme config и меню `primary`. После этого доступны `/`, `/sitemap.xml`, `/robots.txt` и CMS-раздел в Admin UI.
 
 
-## Import/export и update hardening 1.1.1
+## Import/export и update hardening 1.1.2
 
 ```bash
 php bin/cajeer export:create --json
 php bin/cajeer import:diff storage/app/exports/site.json --json
 php bin/cajeer import:run storage/app/exports/site.json --json
-php bin/cajeer update --package=/path/to/cajeerengine-1.1.1-dist.zip --dry-run --json
-php bin/cajeer update --package=/path/to/cajeerengine-1.1.1-dist.zip --apply
-php bin/cajeer update:rollback --backup=storage/app/updates/rollback/rollback-YYYYmmdd-HHMMSS-1.1.1.zip
+php bin/cajeer update --package=/path/to/cajeerengine-1.1.2-dist.zip --dry-run --json
+php bin/cajeer update --package=/path/to/cajeerengine-1.1.2-dist.zip --apply
+php bin/cajeer update:rollback --backup=storage/app/updates/rollback/rollback-YYYYmmdd-HHMMSS-1.1.2.zip
 ```
 
-При реальном `apply` CajeerEngine 1.1.1 по умолчанию делает runtime backup, создаёт code rollback snapshot, включает maintenance mode, копирует файлы artifact, обрабатывает `removed_files`, запускает migrations и выполняет post-update doctor. Downgrade заблокирован без `--force`.
+При реальном `apply` CajeerEngine 1.1.2 по умолчанию делает runtime backup, создаёт code rollback snapshot, включает maintenance mode, копирует файлы artifact, обрабатывает `removed_files`, запускает migrations и выполняет post-update doctor. Downgrade заблокирован без `--force`.
 
+
+## 1.1.2 — сборка и проверка дистрибутива
+
+Публикация admin и проверка — разные операции: `node admin/scripts/publish-admin-assets.mjs` копирует канонический Static SPA из `admin/static`, `--check` только проверяет и не восстанавливает файлы. В dist нет исходников админки: при повреждении восстановите файлы из проверенного release ZIP, не генерируйте fallback.
+
+На release host закоммитьте настоящий `composer.lock` (первичное разрешение зависимостей: `composer update --no-install`). `bash tools/release-pipeline.sh /tmp/cajeer-release` собирает чистый Git snapshot с `composer install --no-dev`; отсутствие lock, несовпадение vendor или повреждённые assets блокируют сборку. `php bin/cajeer release:verify --dist --strict` проверяет prerequisites, `--artifact=/path/to/cajeerengine-1.1.2-dist.zip` проверяет физический ZIP и оба sidecar. Для source используйте `--source`.
+
+`bash tools/release-smoke.sh /path/to/dist.zip sqlite` распаковывает dist во временную директорию, проверяет отказ установки с повреждённой админкой, устанавливает CMS, авторизуется через HTTP API и публикует страницу. Для PostgreSQL используйте `pgsql` и отдельную пустую тестовую БД (`CE_DB_HOST`, `CE_DB_PORT`, `CE_DB_NAME`, `CE_DB_USER`, `CE_DB_PASSWORD`). Не запускайте smoke на рабочей БД.
+
+Если installer сообщает ошибку финальной проверки, `installed.lock` не создаётся. Проверьте `storage/app/install-state.json`, исправьте причину и повторите с тем же подключением к БД и тем же администратором/паролем. Частично применённые миграции и данные не удаляются автоматически. Не удаляйте вручную lock установленной CMS. Доступ к `/install` до первой установки ограничьте локальной сетью или IP администратора на уровне web-сервера.

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace CajeerEngine\Console\Command;
 
-use CajeerEngine\Rc\ReleaseVerifier;
+use CajeerEngine\Release\ReleaseBuilder;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -15,20 +15,17 @@ final class ReleaseVerifyCommand extends BaseCommand
 {
     protected function configure(): void
     {
-        $this->addOption('json', null, InputOption::VALUE_NONE, 'Вывести JSON.');
+        $this->addOption('json', null, InputOption::VALUE_NONE, 'JSON')
+            ->addOption('source', null, InputOption::VALUE_NONE, 'Source requirements')
+            ->addOption('dist', null, InputOption::VALUE_NONE, 'Dist requirements')
+            ->addOption('strict', null, InputOption::VALUE_NONE, 'Require a locked dependency set')
+            ->addOption('artifact', null, InputOption::VALUE_REQUIRED, 'Verify a physical ZIP and sidecars');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $checks = array_map(static fn ($check): array => $check->toArray(), (new ReleaseVerifier($this->rootPath))->verify());
-        $fail = count(array_filter($checks, static fn (array $check): bool => $check['status'] === 'fail'));
-        if ((bool) $input->getOption('json')) {
-            $output->writeln(json_encode(['checks' => $checks, 'fail' => $fail], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-        } else {
-            foreach ($checks as $check) {
-                $output->writeln(sprintf('[%s] %s — %s', strtoupper($check['status']), $check['name'], $check['message']));
-            }
-        }
-        return $fail > 0 ? self::FAILURE : self::SUCCESS;
+        $result = (new ReleaseBuilder($this->rootPath))->verifyRelease($input->getOption('dist') ? 'dist' : 'source', (bool) $input->getOption('strict'), $input->getOption('artifact'));
+        $output->writeln(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        return $result['ok'] ? self::SUCCESS : self::FAILURE;
     }
 }

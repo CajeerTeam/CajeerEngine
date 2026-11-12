@@ -24,7 +24,7 @@ final class AdminAssetsCommand extends BaseCommand
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $publisher = new AdminAssetPublisher($this->rootPath);
-        $manifest = $publisher->manifest((bool) $input->getOption('write-manifest'));
+        $manifest = $publisher->manifest((bool) $input->getOption('write-manifest') && !$input->getOption('check'));
 
         if ((bool) $input->getOption('json')) {
             $output->writeln((string) json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -38,12 +38,12 @@ final class AdminAssetsCommand extends BaseCommand
                     (string) ($file['size'] ?? 0)
                 ));
             }
-            if ((bool) $input->getOption('write-manifest')) {
+            if ((bool) $input->getOption('write-manifest') && !$input->getOption('check') && !empty($manifest['ready'])) {
                 $output->writeln('[OK] Manifest записан в public/admin/assets/admin-manifest.json');
             }
         }
 
-        if ((bool) $input->getOption('check') && empty($manifest['ready'])) {
+        if (empty($manifest['ready'])) {
             return self::FAILURE;
         }
 

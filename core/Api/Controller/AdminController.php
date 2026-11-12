@@ -37,7 +37,7 @@ final readonly class AdminController
             'data' => [
                 'app' => [
                     'name' => $this->config->string('app.name', 'CajeerEngine'),
-                    'version' => $this->config->string('app.version', '1.1.1'),
+                    'version' => $this->config->string('app.version', '1.1.2'),
                     'locale' => $this->config->string('app.locale', 'ru'),
                     'api_base' => '/api/v1',
                     'admin_base' => '/admin/',
@@ -85,7 +85,7 @@ final readonly class AdminController
         return new JsonResponse([
             'data' => [
                 'cards' => [
-                    ['label' => 'Версия', 'value' => $this->config->string('app.version', '1.1.1'), 'status' => 'ok'],
+                    ['label' => 'Версия', 'value' => $this->config->string('app.version', '1.1.2'), 'status' => 'ok'],
                     ['label' => 'Типы контента', 'value' => count($this->contentTypes->all()), 'status' => 'ok'],
                     ['label' => 'Записи', 'value' => (int) ($entryCounts['entries'] ?? 0), 'status' => 'ok'],
                     ['label' => 'Опубликовано', 'value' => (int) ($entryCounts['published'] ?? 0), 'status' => 'ok'],

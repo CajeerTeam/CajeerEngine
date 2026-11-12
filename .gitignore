@@ -14,6 +14,8 @@
 !/public/admin/assets/admin-preview.js
 !/public/admin/assets/admin-preview.css
 !/public/admin/assets/admin-manifest.json
+!/public/admin/assets/admin-app.js
+!/public/admin/assets/admin-app.css
 !/storage/cache/.gitkeep
 !/storage/logs/.gitkeep
 !/storage/tmp/.gitkeep
@@ -23,3 +25,14 @@
 /storage/releases/
 /storage/static-export/
 /storage/queue/
+
+/admin/.output/
+/admin/.nuxt/
+/storage/app/**
+!/storage/app/**/
+!/storage/app/**/.gitkeep
+!/storage/app/.gitkeep
+/public/uploads/*
+!/public/uploads/.gitkeep
+/public/extensions/*
+!/public/extensions/.gitkeep

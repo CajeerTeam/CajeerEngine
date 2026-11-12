@@ -155,20 +155,20 @@ header('Content-Type: text/html; charset=utf-8');
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>CajeerEngine Upgrade UX 1.1.1</title>
+<title>CajeerEngine Upgrade UX 1.1.2</title>
 <style>
 :root{color-scheme:light;--bg:#f6f7fb;--card:#fff;--border:#d8dee9;--text:#111827;--muted:#64748b;--ok:#147a35;--fail:#b42318;--warn:#a15c00;--primary:#1f5eff}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif}main{max-width:1100px;margin:32px auto;padding:0 16px 48px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:20px;margin:18px 0;box-shadow:0 8px 32px rgba(15,23,42,.04)}h1{font-size:32px;margin:0 0 8px}h2{font-size:20px;margin:0 0 14px}p{color:var(--muted)}label{display:block;font-weight:650;margin:12px 0 6px}input{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:12px;padding:12px 13px;font:inherit;background:#fff}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.btn{border:0;background:var(--primary);color:white;border-radius:12px;padding:13px 18px;font-weight:750;cursor:pointer}.btn.secondary{background:#334155}.btn.warn{background:#a15c00}.muted{color:var(--muted);font-size:14px}.ok{color:var(--ok)}.fail{color:var(--fail)}.warn{color:var(--warn)}.pill{display:inline-flex;border-radius:999px;padding:4px 9px;font-weight:700;background:#eef2ff;color:#1e3a8a}.error{border-color:#fda29b;background:#fff5f4;color:#7a271a}.success{border-color:#86efac;background:#f0fdf4;color:#14532d}.locked{border-color:#fde68a;background:#fffbeb;color:#713f12}code,pre{background:#111827;color:#e5e7eb;border-radius:12px;padding:12px;display:block;overflow:auto}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}@media(max-width:850px){.grid,.row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <main>
-<h1>CajeerEngine Upgrade UX <span class="pill">1.1.1</span></h1>
+<h1>CajeerEngine Upgrade UX <span class="pill">1.1.2</span></h1>
 <p>Upgrade Wizard проверяет release ZIP artifact, SHA256/manifest, делает backup перед обновлением и не перезаписывает `.env`, uploads, SQLite database и runtime-директории.</p>
 <?php if ($error !== null): ?><section class="card error"><h2>Ошибка</h2><p><?= cu_h($error) ?></p></section><?php endif; ?>
 <?php if (is_array($result)): ?><section class="card success"><h2>Результат</h2><pre><?= cu_h(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?></pre></section><?php endif; ?>
 <?php if (!$upgradeUnlocked): ?>
-<section class="card locked"><h2>Web Upgrade заблокирован</h2><p>В 1.1.1 применение обновлений через браузер требует явного включения и отдельного секрета. Это защищает production-проект от несанкционированной загрузки ZIP artifact.</p><pre>UPDATE_WEB_UPGRADE_ENABLED=true
-UPDATE_WEB_UPGRADE_SECRET=replace-with-long-random-secret</pre><form method="post"><input type="hidden" name="_csrf" value="<?= cu_h($csrf) ?>"><label for="upgrade_secret">Upgrade secret</label><input id="upgrade_secret" name="upgrade_secret" type="password" autocomplete="off"><div class="actions"><button class="btn" name="action" value="unlock" type="submit">Разблокировать текущую сессию</button></div></form><p class="muted">CLI остаётся основным способом production-обновления: <code>php bin/cajeer update --package=/path/to/cajeerengine-1.1.1-dist.zip --apply</code></p></section>
+<section class="card locked"><h2>Web Upgrade заблокирован</h2><p>В 1.1.2 применение обновлений через браузер требует явного включения и отдельного секрета. Это защищает production-проект от несанкционированной загрузки ZIP artifact.</p><pre>UPDATE_WEB_UPGRADE_ENABLED=true
+UPDATE_WEB_UPGRADE_SECRET=replace-with-long-random-secret</pre><form method="post"><input type="hidden" name="_csrf" value="<?= cu_h($csrf) ?>"><label for="upgrade_secret">Upgrade secret</label><input id="upgrade_secret" name="upgrade_secret" type="password" autocomplete="off"><div class="actions"><button class="btn" name="action" value="unlock" type="submit">Разблокировать текущую сессию</button></div></form><p class="muted">CLI остаётся основным способом production-обновления: <code>php bin/cajeer update --package=/path/to/cajeerengine-1.1.2-dist.zip --apply</code></p></section>
 <?php else: ?>
 <section class="card success"><h2>Web Upgrade разблокирован</h2><p>Разблокировка действует только для текущей PHP session.</p><form method="post"><input type="hidden" name="_csrf" value="<?= cu_h($csrf) ?>"><button class="btn secondary" name="action" value="lock" type="submit">Заблокировать</button></form></section>
 <?php endif; ?>
@@ -193,7 +193,7 @@ UPDATE_WEB_UPGRADE_SECRET=replace-with-long-random-secret</pre><form method="pos
 <label for="package_upload">Загрузить ZIP artifact</label>
 <input id="package_upload" name="package_upload" type="file" accept=".zip,application/zip" <?= $upgradeUnlocked ? '' : 'disabled' ?>>
 <label for="package">Или локальный путь / URL</label>
-<input id="package" name="package" placeholder="storage/app/updates/downloads/cajeerengine-1.1.1-dist.zip" <?= $upgradeUnlocked ? '' : 'disabled' ?>>
+<input id="package" name="package" placeholder="storage/app/updates/downloads/cajeerengine-1.1.2-dist.zip" <?= $upgradeUnlocked ? '' : 'disabled' ?>>
 <label for="sha256">SHA256, если известен</label>
 <input id="sha256" name="sha256" placeholder="abcdef..." <?= $upgradeUnlocked ? '' : 'disabled' ?>>
 <div class="row">
@@ -215,7 +215,7 @@ UPDATE_WEB_UPGRADE_SECRET=replace-with-long-random-secret</pre><form method="pos
 <input type="hidden" name="_csrf" value="<?= cu_h($csrf) ?>">
 <h2>Rollback snapshot</h2>
 <label for="rollback_backup">Путь к rollback ZIP</label>
-<input id="rollback_backup" name="rollback_backup" placeholder="storage/app/updates/rollback/rollback-YYYYmmdd-HHMMSS-1.1.1.zip" <?= $upgradeUnlocked ? '' : 'disabled' ?>>
+<input id="rollback_backup" name="rollback_backup" placeholder="storage/app/updates/rollback/rollback-YYYYmmdd-HHMMSS-1.1.2.zip" <?= $upgradeUnlocked ? '' : 'disabled' ?>>
 <div class="actions"><button class="btn warn" name="action" value="rollback" type="submit" <?= $upgradeUnlocked ? '' : 'disabled' ?>>Выполнить rollback</button></div>
 <p class="muted">Если путь не указан, будет использован snapshot из последнего update report.</p>
 </form>

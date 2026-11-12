@@ -1,0 +1,48 @@
+name: Release verification
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: cajeer
+          POSTGRES_PASSWORD: release-smoke
+          POSTGRES_DB: cajeer_smoke
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U cajeer -d cajeer_smoke"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, pdo_pgsql, zip, dom, xml, xmlwriter, curl, openssl
+          tools: composer:v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: php tools/release-regression.php
+      - run: bash tools/release-pipeline.sh "$RUNNER_TEMP/release"
+      - run: bash tools/release-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip" sqlite
+      - run: bash tools/release-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip" pgsql
+        env:
+          CE_DB_NAME: cajeer_smoke
+          CE_DB_USER: cajeer
+          CE_DB_PASSWORD: release-smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cajeerengine-verified-release
+          path: |
+            ${{ runner.temp }}/release/*.zip
+            ${{ runner.temp }}/release/*.sha256
+            ${{ runner.temp }}/release/*.manifest.json
+            ${{ runner.temp }}/release/*-artifacts.json
+          if-no-files-found: error

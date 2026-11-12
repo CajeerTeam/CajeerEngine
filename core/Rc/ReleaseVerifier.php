@@ -21,6 +21,7 @@ final readonly class ReleaseVerifier
             $sourcePlan = $builder->build(true, 'source');
             $distPlan = $builder->plan('dist');
             $files = $sourcePlan['files'] ?? [];
+            $checks[] = $sourcePlan['release_requirements']['ready'] ? CheckResult::pass('release', 'source.integrity', 'Source prerequisites verified') : CheckResult::fail('release', 'source.integrity', 'Source prerequisites failed', $sourcePlan['release_requirements']);
             $checks[] = is_array($files) && count($files) > 30
                 ? CheckResult::pass('release', 'source.files', 'Source release plan содержит файлы.', ['count' => count($files)])
                 : CheckResult::fail('release', 'source.files', 'Source release plan содержит недостаточно файлов.', ['count' => is_array($files) ? count($files) : 0]);
@@ -53,7 +54,7 @@ final readonly class ReleaseVerifier
                 ? CheckResult::pass('release', 'dist.mode', 'Dist release mode реализован.', ['requirements' => $distReq])
                 : CheckResult::fail('release', 'dist.mode', 'Dist release mode отсутствует.');
 
-            foreach (['vendor_autoload', 'composer_lock', 'admin_prebuilt_assets', 'env_example', 'cli'] as $requirement) {
+            foreach (['vendor_autoload', 'composer_lock', 'admin_prebuilt_assets', 'locked_vendor', 'env_example', 'cli'] as $requirement) {
                 $ok = (bool) ($distReq[$requirement] ?? false);
                 $checks[] = $ok
                     ? CheckResult::pass('release', 'dist.requirement.' . $requirement, 'Dist requirement выполнен: ' . $requirement)

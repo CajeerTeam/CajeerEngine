@@ -66,7 +66,7 @@ final class InstallCommand extends BaseCommand
             $io->warning('Финальная проверка завершилась с предупреждениями. Запустите: php bin/cajeer install:check или php bin/cajeer security:doctor');
         }
 
-        return $finalOk ? self::SUCCESS : self::SUCCESS;
+        return $finalOk ? self::SUCCESS : self::FAILURE;
     }
 
     /** @return array<string, mixed> */

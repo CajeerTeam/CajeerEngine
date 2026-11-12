@@ -8,9 +8,9 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "typecheck": "nuxt typecheck",
-    "build:release": "nuxt generate && node ./scripts/publish-admin-assets.mjs --check",
+    "build:release": "node ./scripts/publish-admin-assets.mjs && node ./scripts/publish-admin-assets.mjs --check",
     "preview:static": "node ./scripts/publish-admin-assets.mjs --check",
-    "build:static": "node ./scripts/publish-admin-assets.mjs --check"
+    "build:static": "node ./scripts/publish-admin-assets.mjs"
   },
   "dependencies": {
     "nuxt": "4.2.0",
@@ -19,7 +19,7 @@
   "devDependencies": {
     "typescript": "5.9.3"
   },
-  "version": "1.1.1",
+  "version": "1.1.2",
   "engines": {
     "node": ">=20.19.0"
   }

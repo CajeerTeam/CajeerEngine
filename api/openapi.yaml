@@ -1,11 +1,11 @@
 openapi: 3.1.1
 info:
   title: CajeerEngine REST API
-  version: 1.1.1
-  summary: Рабочий REST API CajeerEngine 1.1.1 stable.
+  version: 1.1.2
+  summary: Рабочий REST API CajeerEngine 1.1.2 stable.
   description: |
     REST API между Backend Core, Admin UI, SDK и headless-frontends.
-    В 1.1.1 добавлен полноценный Admin UI hardening: production static SPA, dashboard, CRUD-экраны CMS, media, users/RBAC, extensions, updates, search и import/export.
+    В 1.1.2 добавлен полноценный Admin UI hardening: production static SPA, dashboard, CRUD-экраны CMS, media, users/RBAC, extensions, updates, search и import/export.
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 servers:
   - url: /api/v1

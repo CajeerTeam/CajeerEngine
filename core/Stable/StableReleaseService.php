@@ -38,10 +38,10 @@ final readonly class StableReleaseService
         $lockValid = $this->lockValid($lock, $version);
 
         $checks = [
-            'version_is_1_1_1' => $version === '1.1.1',
+            'version_is_1_1_2' => $version === '1.1.2',
             'release_channel_stable' => ($release['channel'] ?? null) === 'stable',
             'release_stability_stable' => ($release['stability'] ?? null) === 'stable',
-            'engine_api_1_0' => ($release['engine_api_version'] ?? null) === '1.0',
+            'engine_api_1_1' => ($release['engine_api_version'] ?? null) === '1.1',
             'api_v1_frozen' => $this->config->string('app.api_version', 'v1') === 'v1',
             'rc_ready' => (bool) ($rc['ready'] ?? false),
             'release_builder_ready' => ($releasePlan['file_count'] ?? 0) > 50,
@@ -85,7 +85,7 @@ final readonly class StableReleaseService
     public function smokeTest(): array
     {
         $checks = [];
-        $checks[] = $this->check('version', $this->version() === '1.1.1', 'VERSION содержит 1.1.1.');
+        $checks[] = $this->check('version', $this->version() === '1.1.2', 'VERSION содержит 1.1.2.');
         $checks[] = $this->check('composer_autoload', $this->composerAutoloadReady(), 'Composer PSR-4 указывает на core/.');
         $checks[] = $this->check('openapi', is_file($this->rootPath . '/api/openapi.yaml') && str_contains((string) file_get_contents($this->rootPath . '/api/openapi.yaml'), '/stable'), 'OpenAPI содержит stable endpoints.');
         $checks[] = $this->check('admin_assets', (bool) ((new AdminAssetPublisher($this->rootPath))->manifest(false)['ready'] ?? false), 'Prebuilt Admin assets присутствуют.');
@@ -300,7 +300,7 @@ final readonly class StableReleaseService
 
     private function version(): string
     {
-        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.1';
+        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.2';
     }
 
     private function now(): string

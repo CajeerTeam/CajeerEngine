@@ -131,36 +131,24 @@ final readonly class ServerFixerService
     /** @return array<string,mixed> */
     public function fixAdminAssets(bool $dryRun = false): array
     {
-        $base = $this->rootPath . '/public/admin';
-        $assets = $base . '/assets';
+        $publisher = new AdminAssetPublisher($this->rootPath);
+        $paths = ['index.html', 'assets/admin-app.js', 'assets/admin-app.css', 'assets/admin-preview.js', 'assets/admin-preview.css'];
+        $source = $this->rootPath . '/admin/static/';
+        if (!is_dir($source)) return ['ok' => $publisher->manifest()['ready'], 'created' => [], 'message' => 'Dist: restore damaged assets from the verified release archive.', 'dry_run' => $dryRun];
+        foreach ($paths as $path) if (!is_file($source . $path) || filesize($source . $path) === 0) throw new \RuntimeException('Missing canonical admin source: ' . $path);
         $created = [];
-        if (!$dryRun && !is_dir($assets)) {
-            mkdir($assets, 0775, true);
-        }
-
-        $files = [
-            'index.html' => $this->adminIndexHtml(),
-            'assets/admin-app.css' => $this->adminCss(),
-            'assets/admin-app.js' => $this->adminJs(),
-            'assets/admin-preview.css' => "@import url('/admin/assets/admin-app.css');\n",
-            'assets/admin-preview.js' => "import '/admin/assets/admin-app.js';\n",
-        ];
-        foreach ($files as $relative => $content) {
-            $path = $base . '/' . $relative;
-            $needsWrite = !is_file($path) || filesize($path) === 0;
-            if ($needsWrite) {
+        foreach ($paths as $path) {
+            $target = $this->rootPath . '/public/admin/' . $path;
+            if (!is_file($target) || hash_file('sha256', $target) !== hash_file('sha256', $source . $path)) {
+                $created[] = 'public/admin/' . $path;
                 if (!$dryRun) {
-                    if (!is_dir(dirname($path))) {
-                        mkdir(dirname($path), 0775, true);
-                    }
-                    file_put_contents($path, $content, LOCK_EX);
+                    if (!is_dir(dirname($target))) mkdir(dirname($target), 0775, true);
+                    if (!copy($source . $path, $target)) throw new \RuntimeException('Cannot publish ' . $path);
                 }
-                $created[] = 'public/admin/' . $relative;
             }
         }
-
-        $manifest = $dryRun ? ['ready' => true, 'dry_run' => true] : (new AdminAssetPublisher($this->rootPath))->manifest(true);
-        return ['ok' => true, 'created' => $created, 'manifest' => $manifest, 'dry_run' => $dryRun];
+        $manifest = $publisher->manifest(!$dryRun);
+        return ['ok' => $dryRun || $manifest['ready'], 'created' => $created, 'manifest' => $manifest, 'dry_run' => $dryRun];
     }
 
     /** @return array<string,mixed> */
@@ -190,7 +178,7 @@ final readonly class ServerFixerService
             'APP_ENV' => $existing['APP_ENV'] ?? 'production',
             'APP_DEBUG' => $existing['APP_DEBUG'] ?? 'false',
             'APP_KEY' => $this->secret($existing['APP_KEY'] ?? null, 'base64:' . base64_encode(random_bytes(32))),
-            'APP_VERSION' => trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.1',
+            'APP_VERSION' => trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.2',
             'JWT_SECRET' => $this->secret($existing['JWT_SECRET'] ?? null, bin2hex(random_bytes(48))),
             'API_TOKEN_SECRET' => $this->secret($existing['API_TOKEN_SECRET'] ?? null, bin2hex(random_bytes(48))),
             'WEBHOOK_SIGNING_SECRET' => $this->secret($existing['WEBHOOK_SIGNING_SECRET'] ?? null, bin2hex(random_bytes(48))),
@@ -230,30 +218,4 @@ final readonly class ServerFixerService
         return $generated;
     }
 
-    private function adminIndexHtml(): string
-    {
-        return $this->adminStaticFile('index.html', <<<'HTML'
-<!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>CajeerEngine Admin 1.1.1</title><link rel="stylesheet" href="/admin/assets/admin-app.css"></head><body><noscript>Для CajeerEngine Admin UI нужен JavaScript.</noscript><div id="app"></div><script type="module" src="/admin/assets/admin-app.js"></script></body></html>
-HTML);
-    }
-
-    private function adminCss(): string
-    {
-        return $this->adminStaticFile('assets/admin-app.css', 'body{margin:0;background:#f4f7fb;color:#172033;font-family:Inter,system-ui,sans-serif}.empty{padding:24px}\n');
-    }
-
-    private function adminJs(): string
-    {
-        return $this->adminStaticFile('assets/admin-app.js', "document.getElementById('app').innerHTML='<main class=empty><h1>CajeerEngine Admin UI 1.1.1</h1><p>Admin assets were repaired. Run admin/scripts/publish-admin-assets.mjs for full production assets.</p></main>'\n");
-    }
-
-    private function adminStaticFile(string $relative, string $fallback): string
-    {
-        $path = $this->rootPath . '/admin/static/' . $relative;
-        if (is_file($path) && filesize($path) > 0) {
-            return (string) file_get_contents($path);
-        }
-        return $fallback;
-    }
 }

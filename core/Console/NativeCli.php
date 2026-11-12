@@ -88,7 +88,7 @@ final class NativeCli
                 'release:build' => self::releaseBuild($rootPath, $argv),
                 'release:artifacts' => (new ReleaseBuilder($rootPath))->buildAll(self::has($argv, 'dry-run'), self::option($argv, 'target-dir')),
                 'release:checksums' => (new ReleaseBuilder($rootPath))->verifyArtifacts(self::option($argv, 'target-dir')),
-                'release:verify' => (new ReleaseBuilder($rootPath))->plan(self::has($argv, 'dist') ? 'dist' : 'source', self::option($argv, 'target-dir')),
+                'release:verify' => (new ReleaseBuilder($rootPath))->verifyRelease(self::has($argv, 'dist') ? 'dist' : 'source', self::has($argv, 'strict'), self::option($argv, 'artifact')),
                 'update' => self::update($rootPath, $config, $argv),
                 'update:prepare' => (new UpdateManager($rootPath, $config))->prepare(self::updateOptions($argv)),
                 'update:apply' => (new UpdateManager($rootPath, $config))->apply(self::updateOptions($argv) + ['dry_run' => self::has($argv, 'dry-run')]),
@@ -101,7 +101,7 @@ final class NativeCli
                 'export:list' => ['ok' => true, 'data' => (new ImportExportService($rootPath))->exports()],
                 'import:diff' => self::importDiff($rootPath, $argv),
                 'import:run' => self::importRun($rootPath, $argv),
-                'admin:assets' => (new AdminAssetPublisher($rootPath))->manifest(true),
+                'admin:assets' => (new AdminAssetPublisher($rootPath))->manifest(self::has($argv, 'write-manifest') && !self::has($argv, 'check')),
                 'cms:bootstrap' => (new CmsBootstrapService($rootPath))->run(self::has($argv, 'demo-home')),
                 'cms:sitemap' => self::cmsSitemap($rootPath, $config, $argv),
                 'make:extension' => self::makeExtension($rootPath, $argv),
@@ -625,6 +625,6 @@ PHP_STUB;
 
     private static function version(string $rootPath): string
     {
-        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.1.1';
+        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.1.2';
     }
 }

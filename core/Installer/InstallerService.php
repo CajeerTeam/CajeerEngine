@@ -68,8 +68,13 @@ final readonly class InstallerService
             }
         }
 
+        $preflight = $checks;
+        unset($preflight['env_file'], $preflight['app_key']);
+        $preflightReady = !in_array(false, array_column($preflight, 'ok'), true);
+        $configuredReady = $preflightReady && $checks['env_file']['ok'] && $checks['app_key']['ok'] && ($database['schema_ready'] ?? false) === true && ($migrations['ok'] ?? false) === true && ($migrations['pending'] ?? -1) === 0;
         return [
-            'ready' => !in_array(false, array_map(static fn (array $check): bool => (bool) $check['ok'], $checks), true),
+            'ready' => $this->installed() ? $configuredReady : $preflightReady,
+            'configured_ready' => $configuredReady,
             'installed' => $this->installed(),
             'version' => $this->version(),
             'driver' => $driver,
@@ -84,11 +89,28 @@ final readonly class InstallerService
     /** @param array<string, mixed> $options @return array<string, mixed> */
     public function install(array $options = []): array
     {
+        $dir = $this->rootPath . '/storage/app';
+        if (!is_dir($dir) && !mkdir($dir, 0770, true) && !is_dir($dir)) throw new \RuntimeException('Cannot create installer state directory');
+        $lock = fopen($dir . '/install-running.lock', 'c');
+        if ($lock === false) throw new \RuntimeException('Cannot open installer lock');
+        try {
+            if (!flock($lock, LOCK_EX | LOCK_NB)) throw new \RuntimeException('Установка уже выполняется другим процессом.');
+            return $this->installLocked($options);
+        } finally { flock($lock, LOCK_UN); fclose($lock); }
+    }
+
+    private function installLocked(array $options): array
+    {
         if ($this->installed() && empty($options['force'])) {
             throw new \RuntimeException('CajeerEngine уже установлен. Найден lock-файл: ' . $this->lockPath());
         }
 
         $profile = $this->profile($options);
+        if (!is_file($this->rootPath . '/vendor/autoload.php')) throw new \RuntimeException('Используйте dist с production Composer dependencies.');
+        require_once $this->rootPath . '/vendor/autoload.php';
+        if (!class_exists(\Symfony\Component\HttpFoundation\Request::class) || !class_exists(\Symfony\Component\Dotenv\Dotenv::class)) throw new \RuntimeException('Production Composer dependencies are incomplete.');
+        if (!$this->adminAssetsReady()) throw new \RuntimeException('Admin assets повреждены или отсутствуют. Восстановите dist или выполните publish-admin-assets.mjs.');
+        if ($profile['write_lock'] && !$profile['create_admin']) throw new \RuntimeException('Для завершения установки требуется первый администратор.');
         foreach (['json', 'mbstring', 'openssl', 'pdo'] as $requiredExtension) {
             if (!extension_loaded($requiredExtension)) {
                 throw new \RuntimeException('Не установлен обязательный PHP extension: ' . $requiredExtension);
@@ -98,13 +120,18 @@ final readonly class InstallerService
         if (!extension_loaded($extension)) {
             throw new \RuntimeException('Не установлен PHP extension для выбранной БД: ' . $extension);
         }
+        if ($profile['create_admin']) (new PasswordHasher(new ConfigRepository($this->rootPath)))->assertStrong((string) $profile['admin_password']);
+        if (!$profile['create_env'] && !is_file($this->rootPath . '/.env')) throw new \RuntimeException('--no-env requires an existing .env');
         $created = $this->ensureRuntimeDirectories(true);
         $envResult = ['created' => false, 'changed' => []];
-        if (($profile['create_env'] ?? true) === true) {
+        if ($profile['create_env']) {
             $envResult = $this->writeEnv($profile);
+        } else {
+            (new \Symfony\Component\Dotenv\Dotenv())->usePutenv()->loadEnv($this->rootPath . '/.env');
+            $config = new ConfigRepository($this->rootPath);
+            if ((new DatabaseManager($config))->driver() !== $profile['db_driver'] || !$this->appKeyReady() || !(new SecurityHardener($this->rootPath, $config))->diagnose()['ok']) throw new \RuntimeException('Existing .env does not match the selected database or security prerequisites.');
+            $profile['db_name'] = $config->string('database.connections.' . $profile['db_driver'] . '.database');
         }
-
-        $this->loadProcessEnv($profile['env']);
         $this->prepareDatabaseStorage($profile);
 
         $dbCheck = $this->checkDatabaseConnection();
@@ -123,12 +150,9 @@ final readonly class InstallerService
         }
 
         $final = $this->finalVerify();
-        if (($profile['write_lock'] ?? true) === true) {
-            $this->writeInstallLock($profile, $final);
-        }
 
         $result = [
-            'ok' => true,
+            'ok' => $final['ok'] === true,
             'installed_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
             'source' => (string) ($profile['source'] ?? 'installer'),
             'preset' => $profile['preset'],
@@ -145,6 +169,8 @@ final readonly class InstallerService
         ];
 
         $this->writeInstallState($result);
+        if (!$result['ok']) throw new \RuntimeException('Финальная проверка не пройдена. installed.lock не создан. Проверьте storage/app/install-state.json и повторите установку с теми же данными.');
+        if ($profile['write_lock']) $this->writeInstallLock($profile, $final);
         return $result;
     }
 
@@ -427,8 +453,18 @@ final readonly class InstallerService
         $settings->set('app.locale', $config->string('app.locale', 'ru'), 'string');
         $settings->set('engine.version', $this->version(), 'string');
         $settings->set('engine.database_driver', $database->driver(), 'string');
-        $userId = $users->createAdmin($email, $name, $password);
-        $audit->record('installer.admin_created', $userId, ['email' => mb_strtolower($email), 'source' => 'install-1.1.1']);
+        $existing = $users->findByEmail($email);
+        if ($existing !== null) {
+            $auth = $users->findByEmailForAuth($email);
+            if (!in_array('admin', $existing['roles'] ?? [], true) || ($existing['status'] ?? '') !== 'active' || !password_verify($password, (string) ($auth['password_hash'] ?? ''))) {
+                throw new \RuntimeException('Для повторной установки используйте существующего активного администратора и его пароль.');
+            }
+            $userId = (string) $existing['id'];
+        } else {
+            if ($users->count() > 0) throw new \RuntimeException('База уже содержит пользователей. Используйте существующую учётную запись администратора.');
+            $userId = $users->createAdmin($email, $name, $password);
+        }
+        $audit->record('installer.admin_created', $userId, ['email' => mb_strtolower($email), 'source' => 'install-1.1.2']);
 
         return [
             'roles_seeded' => $roleCount,
@@ -448,8 +484,11 @@ final readonly class InstallerService
         $adminAssets = $this->adminAssetsReady();
         $databaseHealth = $database->health();
         $ok = ($databaseHealth['ok'] ?? false) === true
+            && ($databaseHealth['schema_ready'] ?? false) === true
             && count($migrationStatus['failed']) === 0
             && count($migrationStatus['pending']) === 0
+            && !in_array(false, array_column($migrationStatus['applied'], 'checksum_ok'), true)
+            && $this->appKeyReady()
             && (bool) ($security['ok'] ?? false)
             && $adminAssets;
 
@@ -484,7 +523,8 @@ final readonly class InstallerService
         if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0775, true) && !is_dir(dirname($path))) {
             throw new \RuntimeException('Не удалось создать директорию lock-файла.');
         }
-        file_put_contents($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL, LOCK_EX);
+        if (($final['ok'] ?? false) !== true) throw new \RuntimeException('Cannot lock incomplete installation');
+        $this->atomicWrite($path, $payload);
     }
 
     private function writable(string $relativePath): bool
@@ -501,9 +541,7 @@ final readonly class InstallerService
 
     private function adminAssetsReady(): bool
     {
-        return is_file($this->rootPath . '/public/admin/assets/admin-app.js')
-            && is_file($this->rootPath . '/public/admin/assets/admin-app.css')
-            && is_file($this->rootPath . '/public/admin/index.html');
+        return (new \CajeerEngine\Admin\AdminAssetPublisher($this->rootPath))->manifest()['ready'];
     }
 
     private function envValue(string $key): ?string
@@ -591,11 +629,20 @@ final readonly class InstallerService
         if (!is_dir(dirname($path))) {
             mkdir(dirname($path), 0775, true);
         }
-        file_put_contents($path, json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL, LOCK_EX);
+        $this->atomicWrite($path, $state);
+    }
+
+    private function atomicWrite(string $path, array $payload): void
+    {
+        $body = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
+        $tmp = $path . '.' . bin2hex(random_bytes(8)) . '.tmp';
+        try {
+            if (file_put_contents($tmp, $body, LOCK_EX) !== strlen($body) || !rename($tmp, $path)) throw new \RuntimeException('Cannot save installation state');
+        } finally { if (is_file($tmp)) unlink($tmp); }
     }
 
     private function version(): string
     {
-        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.1';
+        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.2';
     }
 }

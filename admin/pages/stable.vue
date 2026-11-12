@@ -1,6 +1,6 @@
 <template>
   <section class="ce-page">
-    <h1>Stable 1.1.1</h1>
+    <h1>Stable 1.1.2</h1>
     <p>Production readiness, release lock, backup and support bundle.</p>
     <div class="ce-actions">
       <button @click="load">Обновить статус</button>

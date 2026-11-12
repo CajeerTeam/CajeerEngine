@@ -21,9 +21,9 @@ final readonly class VersionVerifier
         $admin = $this->json('admin/package.json');
         $checks = [];
 
-        $checks[] = $version === '1.1.1'
-            ? CheckResult::pass('version', 'VERSION', 'VERSION содержит 1.1.1.')
-            : CheckResult::fail('version', 'VERSION', 'VERSION должен быть 1.1.1.', ['actual' => $version]);
+        $checks[] = $version === '1.1.2'
+            ? CheckResult::pass('version', 'VERSION', 'VERSION содержит 1.1.2.')
+            : CheckResult::fail('version', 'VERSION', 'VERSION должен быть 1.1.2.', ['actual' => $version]);
 
         $expected = [
             'release.json' => $release['version'] ?? null,
@@ -31,7 +31,9 @@ final readonly class VersionVerifier
             'packages/ts-sdk/package.json' => $tsSdk['version'] ?? null,
             'admin/package.json' => $admin['version'] ?? null,
         ];
+        $dist = ($this->json('release-manifest.json')['mode'] ?? '') === 'dist';
         foreach ($expected as $file => $actual) {
+            if ($dist && $file !== 'release.json' && !is_file($this->rootPath . '/' . $file)) continue;
             $checks[] = $actual === $version
                 ? CheckResult::pass('version', $file, $file . ' синхронизирован с VERSION.', ['version' => $actual])
                 : CheckResult::fail('version', $file, $file . ' не синхронизирован с VERSION.', ['expected' => $version, 'actual' => $actual]);

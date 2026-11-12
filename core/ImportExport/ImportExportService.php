@@ -47,7 +47,7 @@ final readonly class ImportExportService
     public function createExport(array $sections = ['content', 'media', 'users', 'settings', 'themes', 'extensions'], ?string $filename = null): array
     {
         $sections = $sections === [] ? ['content', 'media', 'users', 'settings', 'themes', 'extensions'] : array_values(array_unique($sections));
-        $version = trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.1';
+        $version = trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.2';
         $data = [];
         $config = new ConfigRepository($this->rootPath);
         $database = new DatabaseManager($config);

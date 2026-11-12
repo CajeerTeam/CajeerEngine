@@ -506,7 +506,7 @@ final class UpdateManager
 
     private function currentVersion(): string
     {
-        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: $this->config->string('app.version', '1.1.1');
+        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: $this->config->string('app.version', '1.1.2');
     }
 
     private function maintenancePath(): string

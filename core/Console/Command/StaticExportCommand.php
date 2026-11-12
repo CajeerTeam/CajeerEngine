@@ -67,7 +67,7 @@ final class StaticExportCommand extends BaseCommand
 
         file_put_contents($target . '/manifest.json', json_encode([
             'generated_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
-            'version' => trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.1',
+            'version' => trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.2',
             'entries' => $manifest,
             'media' => $media->diagnostics(),
             'pages_written' => $count,

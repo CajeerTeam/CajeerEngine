@@ -20,7 +20,7 @@ final readonly class UpdateController
     public function diagnostics(Request $request, array $parameters): JsonResponse
     {
         $resolver = new UpdateResolver($this->config->get('updates', []), $this->config->rootPath());
-        return new JsonResponse(['data' => $resolver->diagnostics($this->config->string('app.version', '1.1.1'))]);
+        return new JsonResponse(['data' => $resolver->diagnostics($this->config->string('app.version', '1.1.2'))]);
     }
 
     /** @param array<string, mixed> $parameters */
