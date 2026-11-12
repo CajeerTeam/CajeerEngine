@@ -11,13 +11,7 @@
     {!! $content_html ?? '' !!}
   </div>
 
-  @if (!empty($data['blocks']) && is_array($data['blocks']))
-    <section class="ce-blocks">
-      @foreach ($data['blocks'] as $block)
-        @component('block', ['block' => $block])
-      @endforeach
-    </section>
-  @endif
+  <section class="ce-blocks">{!! $blocks_html ?? '' !!}</section>
 
   <footer class="ce-meta">
     @if (!empty($published_at))

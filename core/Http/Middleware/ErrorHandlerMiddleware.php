@@ -22,6 +22,8 @@ final readonly class ErrorHandlerMiddleware implements MiddlewareInterface
     {
         try {
             return $next($request);
+        } catch (\CajeerEngine\Content\RevisionConflict $e) {
+            return $this->jsonError($request, 'revision_conflict', $e->getMessage(), Response::HTTP_CONFLICT);
         } catch (\InvalidArgumentException|\DomainException $e) {
             return $this->jsonError($request, 'validation_failed', $e->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
         } catch (\RuntimeException $e) {

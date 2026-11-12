@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.9 — Admin & Public Rendering Completion
+
+- Schema-driven entry and field editor, reorderable blocks, media picker, revision restore and localization workflows.
+- Built-in theme selection, corrected structured block rendering, referenced media lookup, preview toolbar and optional validated HTML cache.
+- Revision preconditions and staged static site export preserving the real homepage.
+
+
 ## 1.1.8 — Media Library
 
 - SQL-backed metadata with explicit legacy migration; folders, tags, collections, filtered pagination.

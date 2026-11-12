@@ -7,6 +7,7 @@ namespace CajeerEngine\Template;
 final class CajeerTemplateEngine
 {
     private TemplateCompiler $compiler;
+    private int $depth = 0;
     private TemplateExpressionEvaluator $expressions;
 
     public function __construct(private readonly TemplateSandbox $sandbox, private readonly string $templatesRoot, private readonly ?string $cachePath = null)
@@ -18,6 +19,8 @@ final class CajeerTemplateEngine
     /** @param array<string, mixed> $context */
     public function render(string $templatePath, array $context = []): string
     {
+        if(++$this->depth>32){--$this->depth;throw new \RuntimeException("Template nesting limit exceeded");}
+        try {
         $this->sandbox->assertTemplatePath($templatePath);
         $source = file_get_contents($templatePath);
         if ($source === false) {
@@ -39,6 +42,7 @@ final class CajeerTemplateEngine
         }
 
         return $html;
+        } finally { --$this->depth; }
     }
 
 
@@ -128,7 +132,7 @@ final class CajeerTemplateEngine
         }
 
         $cacheFile = rtrim($this->cachePath, '/') . '/' . hash('sha256', $templatePath) . '.php.cache.json';
-        $mtime = (int) filemtime($templatePath);
+        $mtime = hash('sha256',$source . hash_file('sha256',__DIR__.'/TemplateCompiler.php'));
         if (is_file($cacheFile)) {
             $cached = json_decode((string) file_get_contents($cacheFile), true);
             if (is_array($cached) && ($cached['mtime'] ?? null) === $mtime && isset($cached['template'])) {
@@ -143,11 +147,11 @@ final class CajeerTemplateEngine
         if (!is_dir(dirname($cacheFile))) {
             @mkdir(dirname($cacheFile), 0775, true);
         }
-        @file_put_contents($cacheFile, json_encode([
+        try { \CajeerEngine\Update\OperationFiles::write($cacheFile, json_encode([
             'mtime' => $mtime,
             'template' => $compiled['template'],
             'extends' => $compiled['extends'],
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),0640); } catch (\Throwable) { /* compilation still succeeds without a writable cache */ }
 
         return $compiled;
     }

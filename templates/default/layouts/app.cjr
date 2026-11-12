@@ -35,6 +35,13 @@
     .ce-page h1 { margin-top: 0; font-size: clamp(30px, 6vw, 56px); line-height: 1.05; }
     .ce-summary { color: #555; font-size: 18px; }
     .ce-content { line-height: 1.75; }
+    .ce-block { margin: 28px 0; line-height: 1.65; }
+    .ce-block img, .ce-content img { max-width:100%; height:auto; border-radius:8px; }
+    .ce-gallery, .ce-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+    .ce-block figure { margin:0; }
+    .ce-block-hero, .ce-block-cta { padding:24px; background:#eef2f8; border-radius:12px; }
+    .ce-button { display:inline-block; background:var(--ce-accent); color:white; padding:10px 18px; border-radius:8px; }
+    @media (max-width:600px) { .ce-gallery,.ce-columns { grid-template-columns:1fr; } .ce-topbar { flex-wrap:wrap; } }
     .ce-meta { color: #777; font-size: 14px; margin-top: 28px; }
     .ce-preview { padding: 10px 14px; margin-bottom: 16px; border-radius: 10px; background: #fff7df; border: 1px solid #ffe2a3; }
     .ce-footer { margin-top:28px; color:#64748b; font-size:13px; }
@@ -53,7 +60,7 @@
       @endif
     </header>
     @if (!empty($preview))
-      <div class="ce-preview">Preview mode: страница показана без требования статуса published.</div>
+      {!! $preview_toolbar ?? '' !!}
     @endif
     <article class="ce-card">
       {!! $slot ?? '' !!}

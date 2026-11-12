@@ -41,6 +41,7 @@ final class ThemeConfigRepository
 
     private function saveRaw(array $payload): array
     {
+        if(isset($payload['active_theme']) && $payload['active_theme']!==$this->get()['active_theme'] && !in_array($payload['active_theme'],array_column($this->availableThemes(),'id'),true)) throw new \InvalidArgumentException('Theme is not installed and enabled');
         $config = $this->normalize($payload + $this->get());
         if ($this->useDatabase()) {
             $this->saveDatabase($config);
@@ -59,6 +60,7 @@ final class ThemeConfigRepository
     public function defaults(): array
     {
         return [
+            'active_theme' => 'auto',
             'site_name' => 'CajeerEngine',
             'site_description' => 'Сайт работает на CajeerEngine.',
             'locale' => 'ru',
@@ -145,6 +147,7 @@ final class ThemeConfigRepository
         $locales=array_values(array_unique(array_merge([$locale],$locales)));
         $errorPath=static function($p){if($p==='')return ''; $path=\CajeerEngine\Public\PublicPath::content((string)$p);if($path==='/')throw new \InvalidArgumentException('Error page cannot be the homepage');return $path;};
         return [
+            'active_theme'=>$this->themeName($input['active_theme']??'auto'),
             'locale_strategy'=>$strategy,
             'enabled_locales'=>$locales,
             'error_404_path'=>$errorPath($input['error_404_path']??''),
@@ -216,6 +219,20 @@ final class ThemeConfigRepository
     private function pdo(): PDO
     {
         return $this->database()->connection();
+    }
+
+    public function availableThemes(): array
+    {
+        $result=[['id'=>'auto','name'=>'Автоматически'],['id'=>'default','name'=>'Стандартная'],['id'=>'editorial','name'=>'Editorial']];
+        $registry=new \CajeerEngine\Extension\ExtensionRegistry($this->rootPath,new ConfigRepository($this->rootPath));
+        foreach(\CajeerEngine\Extension\DependencyGraph::order($registry->all()) as $item)if($item['type']==='theme')$result[]=['id'=>$item['name'],'name'=>$item['title']??$item['name']];
+        return $result;
+    }
+
+    private function themeName(mixed $name): string
+    {
+        if(!is_string($name)||!preg_match('~^(?:auto|default|editorial|[a-z0-9_-]+/[a-z0-9_-]+)$~D',$name))throw new \InvalidArgumentException('Invalid active theme');
+        return $name;
     }
 
     private function shortString(mixed $value, int $max): string

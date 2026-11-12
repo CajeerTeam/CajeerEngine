@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.1.8",
+    "version": "1.1.9",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -1841,6 +1841,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Revision conflict: the entry has changed since it was opened.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -1993,6 +2003,16 @@
           },
           "500": {
             "description": "Внутренняя ошибка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision conflict: the entry has changed since it was opened.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19386,6 +19406,11 @@
           "data": {
             "type": "object",
             "additionalProperties": true
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Optimistic concurrency: current revision number."
           }
         },
         "additionalProperties": true
@@ -19782,6 +19807,10 @@
           },
           "error_410_path": {
             "type": "string"
+          },
+          "active_theme": {
+            "type": "string",
+            "description": "auto, default, editorial, or enabled vendor/theme."
           }
         },
         "additionalProperties": true

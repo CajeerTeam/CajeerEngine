@@ -1,0 +1,8 @@
+@extends('default.layouts.app')
+<section class="ce-editorial" style="font-family:Georgia,serif;max-width:760px;margin:auto">
+  <p> {{ $theme['site_name'] }} </p>
+  <h1 style="font-size:clamp(32px,6vw,64px)">{{ $heading }}</h1>
+  <p class="ce-summary">{{ $summary }}</p>
+  <div class="ce-content">{!! $content_html !!}</div>
+  {!! $blocks_html !!}
+</section>

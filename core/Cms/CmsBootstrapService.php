@@ -32,6 +32,11 @@ final class CmsBootstrapService
             $created[] = 'content_type:pages';
         }
 
+        // Extend existing pages without overwriting custom block definitions.
+        $known=array_column($pageType['blocks']??[],null,'handle');
+        $extra=array_filter($this->pageTypePayload()['blocks'],static fn($b)=>!isset($known[$b['handle']]));
+        if($extra!==[]) { $pageType=$types->update('pages',['blocks'=>array_values(array_merge($pageType['blocks']??[], $extra))]); $created[]='content_type:pages:block_upgrade'; }
+
         if ($withDemoHome && !array_filter($entries->list('pages',['locale'=>'ru']),static fn($e)=>$e['slug']==='home')) {
             $entries->create('pages', [
                 'title' => 'Главная страница',
@@ -103,6 +108,11 @@ final class CmsBootstrapService
                         ['handle' => 'content', 'type' => 'richtext', 'label' => 'Текст', 'required' => false],
                     ],
                 ],
+                ['handle'=>'hero','name'=>'Hero','fields'=>[
+                    ['handle'=>'title','type'=>'text','label'=>'Заголовок'],['handle'=>'content','type'=>'richtext','label'=>'Текст'],['handle'=>'image','type'=>'media','label'=>'Изображение'],['handle'=>'button_label','type'=>'text','label'=>'Кнопка'],['handle'=>'button_url','type'=>'text','label'=>'URL']]],
+                ['handle'=>'image','name'=>'Изображение','fields'=>[['handle'=>'title','type'=>'text','label'=>'Заголовок'],['handle'=>'image','type'=>'media','label'=>'Изображение','required'=>true]]],
+                ['handle'=>'gallery','name'=>'Галерея','fields'=>[['handle'=>'title','type'=>'text','label'=>'Заголовок'],['handle'=>'images','type'=>'media','label'=>'Изображения','settings'=>['multiple'=>true]]]],
+                ['handle'=>'columns','name'=>'Две колонки','fields'=>[['handle'=>'title','type'=>'text','label'=>'Заголовок'],['handle'=>'left','type'=>'richtext','label'=>'Левая колонка'],['handle'=>'right','type'=>'richtext','label'=>'Правая колонка']]],
                 [
                     'handle' => 'cta',
                     'name' => 'CTA-блок',

@@ -1,4 +1,4 @@
-# CajeerEngine 1.1.8
+# CajeerEngine 1.1.9
 
 API-first CMS на PHP с собственным ядром (`core/`), шаблонами `.cjr`, REST API (`api/openapi.yaml`) и статической админкой (`admin/static`, опубликованные файлы `public/admin`). CLI: `bin/cajeer`.
 
@@ -53,3 +53,7 @@ ZIP export v3 переносит контент, медиа, CMS-конфигу�
 ## Media Library 1.1.8
 
 SQL catalog, folders, tags, collections, image variants, private downloads and verified S3 replicas. See [media library guide](docs/media-library.md).
+
+## Admin & Rendering 1.1.9
+
+See [editor and rendering guide](docs/admin-rendering.md). Run `php bin/cajeer cms:bootstrap` to add standard page blocks without replacing existing definitions.

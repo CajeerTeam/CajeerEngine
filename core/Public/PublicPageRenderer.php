@@ -141,7 +141,10 @@ final readonly class PublicPageRenderer
         $navigation = $this->navigation();
         foreach ($navigation['primary']['items'] ?? [] as $i => $item) { $navigation['primary']['items'][$i]['url'] = SafeHtml::url((string) ($item['url'] ?? '')) ?: '#'; }
         if (is_array($data['blocks'] ?? null)) foreach ($data['blocks'] as $i => $block) { if (is_array($block)) $data['blocks'][$i]['content_html'] = SafeHtml::sanitize((string) ($block['content'] ?? '')); }
+        $blocks = new BlockRenderer($this->media);
+        $blocks->references($data);
         $seo = $this->seo($entry, $theme, $path);
+        if (is_string($data['og_image'] ?? null) && $blocks->imageUrl($data['og_image']) !== '') $seo['og_image']=$blocks->imageUrl($data['og_image']);
         if($preview||$this->errorStatus($path)!==null) $seo['robots']='noindex,nofollow';
         $content = (string) ($data['body'] ?? $data['content'] ?? '');
         $title = (string) ($entry['title'] ?? ($data['title'] ?? $data['heading'] ?? ''));
@@ -156,7 +159,10 @@ final readonly class PublicPageRenderer
             'type' => $type,
             'locale' => (string) ($entry['locale'] ?? ($theme['locale'] ?? 'ru')),
             'preview' => $preview,
-            'media' => $this->media->publicItems(),
+            'media' => array_values($blocks->media()),
+            'media_by_id' => $blocks->media(),
+            'blocks_html' => $blocks->render(is_array($data['blocks'] ?? null) ? $data['blocks'] : []),
+            'preview_toolbar' => $preview ? '<aside class="ce-preview">Предпросмотр · '.htmlspecialchars((string)$entry['status'],ENT_QUOTES,'UTF-8').' · revision '.(int)$entry['revision'].' · <a href="/admin/#/content">Редактор</a> · <a href="'.htmlspecialchars($path,ENT_QUOTES,'UTF-8').'">Выход</a></aside>' : '',
             'published_at' => (string) ($entry['published_at'] ?? ''),
             'updated_at' => (string) ($entry['updated_at'] ?? ''),
             'theme' => $theme,
@@ -166,7 +172,9 @@ final readonly class PublicPageRenderer
             'path' => $path,
         ];
 
-        $html = $this->renderActiveTheme($context) ?? $this->templates->render($template, $context);
+         $active = $this->renderActiveTheme($context);
+        $render = fn() => $this->templates->render($template, $context);
+        $html = $active ?? ($preview ? $render() : (new RenderCache($this->rootPath))->render($path,$context,$render));
         return [
             'type' => $type,
             'entry' => $entry,
@@ -226,7 +234,7 @@ final readonly class PublicPageRenderer
         $collect=function(array $items)use(&$collect,&$ids){foreach($items as $item){if(!empty($item['entry_id']))$ids[]=$item['entry_id'];$collect($item['children']??[]);}};
         foreach(array_merge($menus,[$primary]) as $menu)$collect($menu['items']??[]);
         $paths=$this->routeIndex()->pathsForEntries($ids);
-        $resolve=function(array $items)use(&$resolve,$paths){$out=[];foreach($items as $item){$id=$item['entry_id']??null;if($id){if(!isset($paths[$id]))continue;$item['url']=$paths[$id];}$item['children']=$resolve($item['children']??[]);$out[]=$item;}return $out;};
+        $resolve=function(array $items)use(&$resolve,$paths){$out=[];foreach($items as $item){$id=$item['entry_id']??null;if($id){if(!isset($paths[$id]))continue;$item['url']=$paths[$id];}$item['url']=SafeHtml::url((string)($item['url']??''))?:'#';$item['children']=$resolve($item['children']??[]);$out[]=$item;}return $out;};
         foreach($menus as &$menu)$menu['items']=$resolve($menu['items']??[]);unset($menu);$primary['items']=$resolve($primary['items']??[]);
         return ['primary'=>$primary,'menus'=>$menus];
     }
@@ -258,14 +266,18 @@ final readonly class PublicPageRenderer
     private function renderActiveTheme(array $context): ?string
     {
         $registry=new \CajeerEngine\Extension\ExtensionRegistry($this->rootPath,new \CajeerEngine\Runtime\ConfigRepository($this->rootPath));
+        $selected=$context['theme']['active_theme']??'auto';
+        if($selected==='default')return null;
+        if($selected==='editorial')return $this->templates->renderName('editorial.page',$context);
         foreach (\CajeerEngine\Extension\DependencyGraph::order($registry->all()) as $item) {
-            if ($item['type']!=='theme') continue;
+            if ($item['type']!=='theme'||($selected!=='auto'&&$selected!==$item['name'])) continue;
             $root=$this->rootPath.'/'.$item['path'].'/templates';
             if (!is_file($root.'/page.cjr')) throw new \RuntimeException('Active theme has no templates/page.cjr');
             $engine=new CajeerTemplateEngine(new \CajeerEngine\Template\TemplateSandbox($root),$root);
             $context['theme_assets']='/extensions/'.$item['slug'];
             return $engine->render($root.'/page.cjr',$context);
         }
+        // A disabled or missing extension falls back to the bundled theme.
         return null;
     }
 

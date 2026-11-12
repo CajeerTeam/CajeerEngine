@@ -117,6 +117,7 @@ final readonly class ContentEntryValidator
                 continue;
             }
 
+            if ($required && ($data[$handle] === null || $data[$handle] === '' || $data[$handle] === [])) throw new \InvalidArgumentException('Обязательное поле пустое: '.$handle);
             $normalized[$handle] = $this->value($handle, (string) ($field['type'] ?? 'text'), $data[$handle], is_array($field['settings'] ?? null) ? $field['settings'] : []);
         }
 

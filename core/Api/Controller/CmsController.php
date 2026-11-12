@@ -59,7 +59,7 @@ final readonly class CmsController
 
     public function theme(Request $request): JsonResponse
     {
-        return new JsonResponse(['data' => $this->theme->get()]);
+        return new JsonResponse(['data' => $this->theme->get(),'meta'=>['themes'=>$this->theme->availableThemes()]]);
     }
 
     public function updateTheme(Request $request): JsonResponse

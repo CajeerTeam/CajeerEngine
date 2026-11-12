@@ -169,6 +169,10 @@ final class ContentEntryRepository
 
     private function updateRaw(string $typeHandle, string $idOrSlug, array $payload): ?array
     {
+        if (array_key_exists('expected_revision',$payload)) {
+            $current=$this->find($typeHandle,$idOrSlug);
+            if($current!==null && (!is_int($payload['expected_revision']) || $payload['expected_revision']!==(int)$current['revision'])) throw new RevisionConflict('Revision conflict: reload the current entry before saving.');
+        }
         if ($this->useDatabase()) {
             return $this->updateInDatabase($typeHandle, $idOrSlug, $payload, 'updated');
         }
@@ -418,6 +422,7 @@ final class ContentEntryRepository
             return null;
         }
 
+        foreach($this->localizations($typeHandle,$entry['id']) as $existing) if($existing['locale']===($payload['locale']??'ru')) throw new \DomainException('Translation already exists for this locale.');
         $payload['translation_group'] = (string) ($entry['translation_group'] ?? $entry['id']);
         $payload['status'] = $payload['status'] ?? 'draft';
         $created = $this->create($typeHandle, $payload);
