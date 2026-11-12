@@ -114,3 +114,5 @@ bash tools/update-dist-smoke.sh /release/cajeerengine-1.1.4-dist.zip
 ```
 
 The last test needs actual Composer dependencies and PDO. It installs a real dist in a disposable directory, adds a test migration to a signed newer dist, tests commit/rollback and a failing migration. The CI PostgreSQL round-trip uses `tools/backup-db-regression.php` with a specifically named disposable database. Do not set the release gate to PASS if these tests cannot execute. Use a staging copy of each actual production profile and verify HTTP/FPM, restore time and off-host backups before live deployment.
+
+For encrypted off-host transport and isolated recovery drills, see [Disaster Recovery 1.2.4](disaster-recovery.md).

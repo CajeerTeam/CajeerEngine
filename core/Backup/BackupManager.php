@@ -69,7 +69,11 @@ final class BackupManager
     }
     public function verify(string $id): array
     {
-        $dir=$this->directory($id); F::hash($dir.'/manifest.json'); F::hash($dir.'/manifest.mac'); $key=$this->secretKey();
+        return $this->verifyDirectory($id,$this->directory($id));
+    }
+    private function verifyDirectory(string $id,string $dir): array
+    {
+        F::hash($dir.'/manifest.json'); F::hash($dir.'/manifest.mac'); $key=$this->secretKey();
         try { $mac=hash_hmac('sha256',(string)file_get_contents($dir.'/manifest.json'),$key); if (!is_file($dir.'/manifest.mac')||!hash_equals($mac,trim((string)file_get_contents($dir.'/manifest.mac')))) throw new \RuntimeException('Backup manifest authentication failed'); } finally { sodium_memzero($key); }
         $m=F::read($dir.'/manifest.json');
         if (($m['format']??null)!=='cajeerengine.backup.v2'||($m['id']??null)!==$id||!is_array($m['files']??null)||is_file($dir.'/incomplete.json')) throw new \RuntimeException('Incomplete or invalid recovery set');
@@ -79,11 +83,82 @@ final class BackupManager
             if (!$this->dataAllowed($relative)&&!$this->codeAllowed($relative)) throw new \RuntimeException('Forbidden backup path');
             if (!is_array($info)||!is_int($info['mode']??null)||!hash_equals((string)($info['sha256']??''),F::hash(F::path($dir,'files/'.$relative)))) throw new \RuntimeException('Backup file checksum mismatch: '.$relative);
         }
-        foreach ($m['dirs']??[] as $relative=>$info) { F::path($this->root,$relative); if (!array_filter(array_keys($m['files']),static fn($p)=>str_starts_with($p,$relative.'/'))) throw new \RuntimeException('Invalid backup directory'); }
+        $parents=[];
+        foreach (array_keys($m['files']) as $relative) for ($p=dirname($relative);$p!=='.';$p=dirname($p)) $parents[$p]=true;
+        foreach ($m['dirs']??[] as $relative=>$info) { F::path($this->root,$relative); if (!isset($parents[$relative])) throw new \RuntimeException('Invalid backup directory'); }
         $actual=F::files($dir,'files'); $expected=array_map(static fn($p)=>'files/'.$p,array_keys($m['files'])); sort($expected);
         if ($actual!==$expected) throw new \RuntimeException('Unexpected backup files');
-        if (($m['env']??null)!==null) { if (!hash_equals((string)$m['env'],F::hash($dir.'/environment.enc'))) throw new \RuntimeException('Encrypted environment checksum mismatch'); $this->decryptEnv($dir); }
+        if (($m['env']??null)!==null) { if (!hash_equals((string)$m['env'],F::hash($dir.'/environment.enc'))) throw new \RuntimeException('Encrypted environment checksum mismatch'); $this->decryptEnv($dir); } elseif (file_exists($dir.'/environment.enc')) throw new \RuntimeException('Unexpected encrypted environment');
         return ['ok'=>true,'id'=>$id,'version'=>$m['version'],'files'=>count($m['files']),'manifest_sha256'=>F::hash($dir.'/manifest.json')];
+    }
+    /** Publish a verified encrypted copy to a separately mounted/off-host directory. */
+    public function exportBundle(string $id,string $target): array
+    {
+        $target=$this->externalPath($target,false);
+        $lock=OperationLock::acquire($this->root,false);
+        try {
+            $verified=$this->verify($id); $key=$this->secretKey();
+            try { RecoveryBundle::export($this->directory($id),$target,$key); }
+            finally { sodium_memzero($key); }
+            return $verified+['bundle'=>$target,'bundle_sha256'=>F::hash($target),'bytes'=>filesize($target)];
+        } finally { OperationLock::release($lock); }
+    }
+    /** Import is non-destructive; nothing becomes visible until authentication and verification pass. */
+    public function importBundle(string $source): array
+    {
+        $source=$this->externalPath($source,true);
+        $lock=OperationLock::acquire($this->root,true); $stage=null;
+        try {
+            $this->privateBase(); $stage=$this->base.'/.import-'.bin2hex(random_bytes(16)); F::dir($stage);
+            $key=$this->secretKey();
+            try { RecoveryBundle::extract($source,$stage,$key); }
+            finally { sodium_memzero($key); }
+            $id=(string)(F::read($stage.'/manifest.json')['id']??''); $target=$this->directory($id);
+            $result=$this->verifyDirectory($id,$stage);
+            if (file_exists($target)) {
+                $existing=$this->verify($id);
+                if ($existing['manifest_sha256']!==$result['manifest_sha256']) throw new \RuntimeException('Backup ID already exists with different contents');
+                return $result+['already_present'=>true];
+            }
+            if (!rename($stage,$target)) throw new \RuntimeException('Cannot publish imported backup');
+            $stage=null; F::syncDir($this->base);
+            return $result+['already_present'=>false];
+        } finally { try { if ($stage!==null) RecoveryBundle::cleanup($stage); } finally { OperationLock::release($lock); } }
+    }
+    /** Actual restore into a new private workspace and, for PostgreSQL, a generated scratch database. */
+    public function drill(string $source,string $workspace,int $rto=0,int $rpo=0): array
+    {
+        $this->assertStorage();
+        $source=$this->externalPath($source,true); $workspace=$this->externalPath($workspace,false);
+        $started=microtime(true); $lock=OperationLock::acquire($this->root,false);
+        $created=false;
+        try {
+            if (!mkdir($workspace,0700)) throw new \RuntimeException('Cannot create isolated drill workspace');
+            $created=true; $stage=$workspace.'/snapshot'; F::dir($stage);
+            $key=$this->secretKey();
+            try { RecoveryBundle::extract($source,$stage,$key); }
+            finally { sodium_memzero($key); }
+            $m=F::read($stage.'/manifest.json'); $id=(string)($m['id']??''); $this->directory($id);
+            $this->verifyDirectory($id,$stage);
+            $restored=$workspace.'/restored'; F::dir($restored);
+            foreach ($m['files'] as $relative=>$info) {
+                $dest=F::path($restored,$relative); F::copy(F::path($stage,'files/'.$relative),$dest,$info['mode']&0777);
+                if (!hash_equals($info['sha256'],F::hash($dest))) throw new \RuntimeException('Drill file verification failed');
+            }
+            if ($m['env']!==null) { $env=$this->decryptEnv($stage); F::write($restored.'/.env',$env); if (file_get_contents($restored.'/.env')!==$env) throw new \RuntimeException('Drill environment verification failed'); }
+            $db=$this->db->drill($stage.'/database.dump',$workspace);
+            $seconds=microtime(true)-$started; $age=max(0,time()-(new \DateTimeImmutable($m['created_at']))->getTimestamp());
+            return ['ok'=>($rto===0||$seconds<=$rto)&&($rpo===0||$age<=$rpo),'id'=>$id,'version'=>$m['version'],'verified_at'=>gmdate(DATE_ATOM),'restored_files'=>count($m['files']),'environment_restored'=>$m['env']!==null,'database'=>$db,'restore_seconds'=>round($seconds,3),'snapshot_age_seconds'=>$age,'rto_seconds'=>$rto?:null,'rpo_seconds'=>$rpo?:null,'application_boot_tested'=>false];
+        } finally { try { if ($created) RecoveryBundle::cleanup($workspace); } finally { OperationLock::release($lock); } }
+    }
+    private function externalPath(string $path,bool $existing): string
+    {
+        if (!str_starts_with($path,'/')||preg_match('~(?:^|/)(?:\.|\.\.)(?:/|$)|[\x00-\x1f]~',$path)||str_contains($path,'\\')||is_link($path)) throw new \RuntimeException('Use an absolute external recovery path');
+        $parent=realpath(dirname($path)); $root=realpath($this->root);
+        if ($parent===false||$root===false||($parent===$root||str_starts_with($parent,$root.'/'))) throw new \RuntimeException('Recovery path must be outside the installation');
+        $target=$parent.'/'.basename($path);
+        if ($existing ? !is_file($target) : file_exists($target)||is_link($target)) throw new \RuntimeException('Recovery path missing or already exists');
+        return $target;
     }
     public function restore(string $id): array
     {

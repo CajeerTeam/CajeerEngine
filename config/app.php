@@ -8,7 +8,7 @@ return [
     'debug' => filter_var(getenv('APP_DEBUG') ?: false, FILTER_VALIDATE_BOOLEAN),
     'url' => getenv('APP_URL') ?: 'http://127.0.0.1:8080',
     'locale' => getenv('APP_LOCALE') ?: 'ru',
-    'version' => getenv('APP_VERSION') ?: '1.2.3',
+    'version' => getenv('APP_VERSION') ?: '1.2.4',
     'api_version' => 'v1',
     'engine_api_version' => '1.1',
 ];

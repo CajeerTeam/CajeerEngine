@@ -13,7 +13,7 @@ use CajeerEngine\Update\UpdateManager;
 /** Operational CLI remains available without Composer; never execute through HTTP. */
 final class OperationsCli
 {
-    public const COMMANDS=['backup:create','stable:backup','backup:list','backup:verify','backup:restore','backup:keygen','release:keygen','release:sign','update:verify-signature','update:apply','update:rollback','update:stage','update:requests','update:run','update:status','maintenance:on','maintenance:off','maintenance:status','import:execute','import:requests'];
+    public const COMMANDS=['backup:create','stable:backup','backup:list','backup:verify','backup:restore','backup:keygen','backup:export','backup:import','backup:drill','release:keygen','release:sign','update:verify-signature','update:apply','update:rollback','update:stage','update:requests','update:run','update:status','maintenance:on','maintenance:off','maintenance:status','import:execute','import:requests'];
     public static function handles(array $argv): bool { return in_array($argv[1]??'',self::COMMANDS,true)||(($argv[1]??'')==='update'&&in_array('--apply',$argv,true)); }
     public static function run(string $root,array $argv): int
     {
@@ -38,6 +38,9 @@ final class OperationsCli
                     'import:execute'=>(new \CajeerEngine\ImportExport\ImportExportService($root))->executeRequest($required('id')),
                     'import:requests'=>['ok'=>true,'requests'=>(new \CajeerEngine\ImportExport\ImportExportService($root))->requests()],
                     'backup:create','stable:backup'=> (new BackupManager($root,$config))->create(),
+                    'backup:export'=>(new BackupManager($root,$config))->exportBundle($required('id'),$required('file')),
+                    'backup:import'=>(new BackupManager($root,$config))->importBundle($required('file')),
+                    'backup:drill'=>(new BackupManager($root,$config))->drill($required('file'),$required('workspace'),self::seconds($o,'rto-seconds'),self::seconds($o,'rpo-seconds')),
                     'backup:list'=>(new BackupManager($root,$config))->list(),
                     'backup:verify'=>(new BackupManager($root,$config))->verify($required('id')),
                     'backup:restore'=>isset($o['yes'])?(new BackupManager($root,$config))->restore($required('id')):throw new \RuntimeException('Restore replaces database and files; pass --yes'),
@@ -56,6 +59,13 @@ final class OperationsCli
             echo json_encode($result,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)."\n";
             return ($result['ok']??false)?0:1;
         } catch (\Throwable $e) { fwrite(STDERR,'[FAIL] '.$e->getMessage()."\n"); return 1; }
+    }
+    private static function seconds(array $options,string $name): int
+    {
+        if (!isset($options[$name])) return 0;
+        $value=$options[$name];
+        if (!is_string($value)||!ctype_digit($value)||strlen($value)>9||(int)$value<1) throw new \RuntimeException('Provide a positive integer --'.$name);
+        return (int)$value;
     }
     private static function externalKey(string $root,string $path): string
     {

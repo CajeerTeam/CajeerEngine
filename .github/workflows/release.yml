@@ -40,6 +40,7 @@ jobs:
       - run: php bin/cajeer api:lint --strict --json
       - run: php tools/release-regression.php
       - run: php tools/update-regression.php
+      - run: php tools/disaster-recovery-regression.php
       - run: php tools/import-regression.php
       - run: php tools/extension-regression.php
       - run: php tools/routing-regression.php
@@ -87,6 +88,7 @@ jobs:
         run: |
           createdb -h 127.0.0.1 -U cajeer cajeer_backup_test
           php tools/backup-db-regression.php
+          php tools/disaster-recovery-regression.php --pgsql
       - name: PostgreSQL CMS search integration
         env:
           PGPASSWORD: release-smoke
@@ -120,6 +122,7 @@ jobs:
           CE_DB_NAME: cajeer_smoke
           CE_DB_USER: cajeer
           CE_DB_PASSWORD: release-smoke
+      - run: bash tools/disaster-recovery-dist-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip"
       - run: bash tools/update-dist-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip"
       - uses: actions/upload-artifact@v4
         with:

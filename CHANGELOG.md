@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.4 — Disaster Recovery
+
+- Streaming authenticated encryption for off-host database, files, and environment recovery sets.
+- Atomic import with full verification before publishing; no overwrite of existing recovery sets.
+- Isolated SQLite and PostgreSQL restore drills with data/table checks, recovery-time and snapshot-age budgets.
+- Real cold recovery release smoke: destroy installation, recover from external bundle, boot and verify content.
+
 ## 1.2.3 — Observability & Operations
 
 - Independent liveness/readiness, protected Prometheus endpoint and operations API/CLI.

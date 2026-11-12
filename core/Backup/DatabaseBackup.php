@@ -88,6 +88,60 @@ final class DatabaseBackup
             self::run(['pg_restore','--exit-on-error','--clean','--if-exists','--create','--no-password','--dbname=postgres',$file],$this->pgEnv());
         } else $this->mysql(['mysql','--binary-mode'],null,$file);
     }
+    /** Restore the dump without touching the configured database. No application code is executed. */
+    public function drill(string $file,string $workspace): array
+    {
+        $this->verify($file);
+        if ($this->driver==='sqlite') {
+            $target=$workspace.'/recovered.sqlite';
+            F::copy($file,$target);
+            if (!hash_equals(F::hash($file),F::hash($target))) throw new \RuntimeException('SQLite recovery copy mismatch');
+            $this->verify($target);
+            if (in_array('sqlite',\PDO::getAvailableDrivers(),true)) {
+                $pdo=new \PDO('sqlite:'.$target,null,null,[\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION]);
+                $tables=$pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")->fetchAll(\PDO::FETCH_COLUMN);
+                foreach ($tables as $table) $pdo->query('SELECT count(*) FROM "'.str_replace('"','""',$table).'"')->fetchColumn();
+                if ($pdo->query('PRAGMA foreign_key_check')->fetch()!==false) throw new \RuntimeException('Recovered SQLite foreign key violation');
+                $count=count($tables); $pdo=null;
+            } else {
+                $result=$workspace.'/sqlite-probe.json';
+                $python=(string)getenv('BACKUP_SQLITE_PYTHON');
+                if (!str_starts_with($python,'/')||!is_executable($python)) throw new \RuntimeException('SQLite recovery requires PDO or configured Python');
+                self::run([$python,'-I','-c', <<<'PYTHON'
+import sqlite3, pathlib, sys, json
+with sqlite3.connect(pathlib.Path(sys.argv[1]).resolve().as_uri()+'?mode=ro', uri=True) as db:
+    tables = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()
+    for (name,) in tables:
+        db.execute('SELECT count(*) FROM "'+name.replace('"','""')+'"').fetchone()
+    if db.execute('PRAGMA foreign_key_check').fetchone() is not None:
+        raise RuntimeError('Recovered SQLite foreign key violation')
+    print(json.dumps({'tables':len(tables)}))
+PYTHON,$target],[],$result);
+                $count=(int)F::read($result)['tables'];
+            }
+            return ['driver'=>'sqlite','tables_read'=>$count,'integrity_verified'=>true];
+        }
+        if ($this->driver!=='pgsql') throw new \RuntimeException('MySQL/MariaDB drill requires a separately provisioned isolated server; use full cold restore there');
+        // A generated name is never taken from the dump or the CLI. No --create/--clean on restore.
+        $name='ce_dr_'.bin2hex(random_bytes(12)); $env=$this->pgEnv();
+        $created=false;
+        try {
+            self::run(['createdb','--no-password','--maintenance-db=postgres','--template=template0',$name],$env); $created=true;
+            self::run(['pg_restore','--exit-on-error','--single-transaction','--no-owner','--no-privileges','--no-tablespaces','--no-password','--dbname='.$name,$file],$env);
+            $sql=<<<'SQL'
+DO $$ DECLARE t record; n bigint; BEGIN
+  FOR t IN SELECT schemaname,tablename FROM pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema') AND schemaname NOT LIKE 'pg_toast%' LOOP
+    EXECUTE format('SELECT count(*) FROM %I.%I', t.schemaname,t.tablename) INTO n;
+  END LOOP;
+END $$;
+SQL;
+            self::run(['psql','--no-password','--no-psqlrc','--set=ON_ERROR_STOP=1','--dbname='.$name,'--command='.$sql],$env);
+            $result=$workspace.'/pg-probe.txt';
+            self::run(['psql','--no-password','--no-psqlrc','--set=ON_ERROR_STOP=1','--tuples-only','--no-align','--dbname='.$name,"--command=SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema') AND schemaname NOT LIKE 'pg_toast%'"],$env,$result);
+            $count=trim((string)file_get_contents($result)); if (!ctype_digit($count)) throw new \RuntimeException('Invalid PostgreSQL recovery probe');
+            return ['driver'=>'pgsql','tables_read'=>(int)$count,'restore_verified'=>true];
+        } finally { if ($created) self::run(['dropdb','--no-password','--maintenance-db=postgres','--if-exists',$name],$env); }
+    }
     public function permissions(): array
     {
         if ($this->driver!=='sqlite') return [];

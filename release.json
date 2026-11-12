@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitFlic Wiki",
     "updates": "GitFlic Releases / Registry",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.2.3-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.2.3-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.2.4-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.2.4-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.2.3-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.2.4-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -34,7 +34,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
-    "Independent liveness/readiness, authenticated Prometheus metrics, bounded cross-process histograms, sanitized rotating JSON logs, W3C trace correlation and operations dashboard."
+    "Authenticated encrypted off-host backup transport, atomic cold import, isolated database/file recovery drills, measured RTO/RPO and destructive cold-recovery release gate."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -55,7 +55,8 @@
     "1.2.0": "Search & CMS Integration",
     "1.2.1": "Performance & Database",
     "1.2.2": "Queue & Scheduler Reliability",
-    "1.2.3": "Observability & Operations"
+    "1.2.3": "Observability & Operations",
+    "1.2.4": "Disaster Recovery"
   },
   "stability": "stable"
 }

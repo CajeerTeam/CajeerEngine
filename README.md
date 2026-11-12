@@ -1,4 +1,4 @@
-# CajeerEngine 1.2.3
+# CajeerEngine 1.2.4
 
 API-first CMS на PHP с собственным ядром (`core/`), шаблонами `.cjr`, REST API (`api/openapi.yaml`) и статической админкой (`admin/static`, опубликованные файлы `public/admin`). CLI: `bin/cajeer`.
 
@@ -27,7 +27,7 @@ node admin/scripts/publish-admin-assets.mjs --check
 php tools/release-regression.php
 # После коммита всех изменений и composer.lock:
 bash tools/release-pipeline.sh /tmp/cajeer-release
-bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.2.3-dist.zip sqlite
+bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.2.4-dist.zip sqlite
 ```
 
 Сборка использует чистый Git snapshot и проверяет каждую запись ZIP, checksum и sidecar manifest. Dist включает `vendor/`, production Admin assets, миграции и пустые runtime-маркеры. Никакие данные рабочей установки, загруженные медиа, секреты и установленные пользователем плагины не включаются. Публиковать dist только после успешных smoke tests; SHA256 проверяет целостность, но не заменяет подпись доверенного издателя.
@@ -73,3 +73,7 @@ Durable reservations, lease recovery, fenced acknowledgements, delayed retries, 
 ## Observability & Operations 1.2.3
 
 See [operations runbook](docs/observability-operations.md). Use `php bin/cajeer ops:check`, `ops:report`, `ops:metrics`; HTTP `/health/live`, `/health/ready` and token-protected `/metrics`.
+
+## Disaster Recovery 1.2.4
+
+Encrypted off-host recovery bundles, atomic import, isolated restoration drills and measured recovery objectives. See [Disaster Recovery](docs/disaster-recovery.md).
