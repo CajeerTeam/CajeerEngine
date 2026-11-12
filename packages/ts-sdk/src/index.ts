@@ -65,6 +65,12 @@ export type MediaUploadInput = {
   mime_type?: string
   title?: string
   alt?: string
+  caption?: string
+  folder?: string
+  tags?: string[]
+  collections?: string[]
+  visibility?: 'public' | 'private'
+  deduplicate?: boolean
 }
 
 export class CajeerEngineClient {
@@ -288,6 +294,7 @@ export class CajeerEngineClient {
 
     const base = this.options.baseUrl.replace(/\/$/, '')
     const response = await fetch(`${base}${path}`, { ...init, headers, redirect: 'error' })
+    if (response.ok && /(?:application\/(octet-stream|zip)|image\/)/.test(response.headers.get('Content-Type') || '')) return response.blob()
     const payload = await response.json().catch(() => null)
     if (!response.ok) {
       const message = payload && typeof payload === 'object' && 'error' in payload

@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitFlic Wiki",
     "updates": "GitFlic Releases / Registry",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.1.7-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.1.7-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.1.8-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.1.8-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.1.7-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.1.8-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -34,7 +34,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
-    "Indexed public routing, page trees, locale prefixes, canonical URLs, historical aliases and redirects."
+    "Media Library: SQL catalog, folders, variants, safe replacement, private downloads and S3 replicas."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -49,7 +49,8 @@
     "1.1.4": "Production Updater & Backup",
     "1.1.5": "Import/Export Engine",
     "1.1.6": "Extension Platform",
-    "1.1.7": "Public Routing Runtime"
+    "1.1.7": "Public Routing Runtime",
+    "1.1.8": "Media Library"
   },
   "stability": "stable"
 }

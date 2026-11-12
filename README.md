@@ -1,4 +1,4 @@
-# CajeerEngine 1.1.7
+# CajeerEngine 1.1.8
 
 API-first CMS на PHP с собственным ядром (`core/`), шаблонами `.cjr`, REST API (`api/openapi.yaml`) и статической админкой (`admin/static`, опубликованные файлы `public/admin`). CLI: `bin/cajeer`.
 
@@ -49,3 +49,7 @@ ZIP export v3 переносит контент, медиа, CMS-конфигу�
 ## Public Routing Runtime 1.1.7
 
 После обновления запустите `php bin/cajeer migrate`, `php bin/cajeer routing:rebuild --json` и `php bin/cajeer routing:check --json`. См. [Public routing](docs/public-routing.md).
+
+## Media Library 1.1.8
+
+SQL catalog, folders, tags, collections, image variants, private downloads and verified S3 replicas. See [media library guide](docs/media-library.md).

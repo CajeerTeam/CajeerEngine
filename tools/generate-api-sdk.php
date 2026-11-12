@@ -7,7 +7,7 @@ $operations = [];
 foreach ($spec['paths'] as $path => $methods) {
     foreach ($methods as $method => $op) {
         if (!in_array($method, ['get','post','put','patch','delete'], true)) continue;
-        $operations[$op['operationId']] = ['method' => strtoupper($method), 'path' => $path, 'parameters' => array_values(array_map(static fn ($p) => ['name'=>$p['name'], 'in'=>$p['in'], 'required'=>$p['required']??false], $op['parameters']??[])), 'bodyRequired' => $op['requestBody']['required']??false];
+        $operations[$op['operationId']] = ['method' => strtoupper($method), 'path' => $path, 'parameters' => array_values(array_map(static fn ($p) => ['name'=>$p['name'], 'in'=>$p['in'], 'required'=>$p['required']??false], array_merge($methods['parameters']??[], $op['parameters']??[]))), 'bodyRequired' => $op['requestBody']['required']??false];
     }
 }
 ksort($operations);

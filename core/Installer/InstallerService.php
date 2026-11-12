@@ -248,6 +248,8 @@ final readonly class InstallerService
             'SECURITY_PROTECT_CONTENT_WRITES' => 'true',
             'SECURITY_PROTECT_SYSTEM_ROUTES' => 'true',
             'MEDIA_ALLOW_SVG' => 'false',
+            'MEDIA_STORAGE' => 'database',
+            'MEDIA_REQUIRE_IMAGE_PROCESSOR' => $production ? 'true' : 'false',
             'PASSWORD_MIN_LENGTH' => '12',
             'PASSWORD_REQUIRE_MIXED' => 'true',
             'ADMIN_EMAIL' => $adminEmail,
@@ -466,7 +468,7 @@ final readonly class InstallerService
             if ($users->count() > 0) throw new \RuntimeException('База уже содержит пользователей. Используйте существующую учётную запись администратора.');
             $userId = $users->createAdmin($email, $name, $password);
         }
-        $audit->record('installer.admin_created', $userId, ['email' => mb_strtolower($email), 'source' => 'install-1.1.7']);
+        $audit->record('installer.admin_created', $userId, ['email' => mb_strtolower($email), 'source' => 'install-1.1.8']);
 
         return [
             'roles_seeded' => $roleCount,
@@ -648,6 +650,6 @@ final readonly class InstallerService
 
     private function version(): string
     {
-        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.7';
+        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.8';
     }
 }

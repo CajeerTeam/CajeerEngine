@@ -40,7 +40,7 @@ final class ImportExportService
     {
         $this->config=new ConfigRepository($rootPath); $this->db=new DatabaseManager($this->config);
         $this->types=new ContentTypeRepository($rootPath,$this->db); $this->entries=new ContentEntryRepository($rootPath,$this->db);
-        $this->storage=new StorageManager($rootPath,$this->config); $this->media=new MediaRepository($rootPath,$this->storage);
+        $this->storage=new StorageManager($rootPath,$this->config); $this->media=new MediaRepository($rootPath,$this->storage,$this->db);
         $this->navigation=new NavigationRepository($rootPath,$this->db); $this->redirects=new RedirectRepository($rootPath,$this->db); $this->theme=new ThemeConfigRepository($rootPath,$this->db);
     }
 
@@ -71,11 +71,12 @@ final class ImportExportService
                         $data['content']=$content;
                     } elseif($section==='media') {
                         $items=$this->media->all();
-                        foreach($items as $item) {
-                            $source=F::path($this->rootPath,'public/uploads/'.$item['path']);
+                        foreach($items as &$item) {
+                            unset($item['s3_replica']);
+                            $source=$this->media->sourcePath($item);
                             if(F::hash($source)!==$item['checksum'])throw new \RuntimeException('Missing or changed media: '.$item['id']);
                             $package->addMedia($source,$item['checksum']);
-                        }
+                        } unset($item);
                         $data['media']=['items'=>$items];
                     } elseif($section==='cms') {
                         $data['cms']=['theme'=>$this->theme->get(),'navigation'=>$this->navigation->all(),'redirects'=>$this->redirects->all()];
@@ -84,7 +85,7 @@ final class ImportExportService
                 $filename=$filename?:'cajeerengine-export-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(4)).'.zip';
                 $this->filename($filename); $path=$this->directory('exports').'/'.$filename;
                 if(file_exists($path)||is_link($path))throw new \InvalidArgumentException('Export already exists');
-                $manifest=$package->write($path,$data,$this->config->string('app.version','1.1.7'),str_ends_with($filename,'.json'));
+                $manifest=$package->write($path,$data,$this->config->string('app.version','1.1.8'),str_ends_with($filename,'.json'));
                 return ['ok'=>true,'path'=>$path,'file'=>$filename,'sha256'=>F::hash($path),'manifest'=>$manifest];
             } finally { $package->close(); }
         });
@@ -203,7 +204,7 @@ final class ImportExportService
         }
         $p['state']['content']=[$typeIndex,$entryIndex];
         $mediaIds=[];$mediaHashes=[];
-        foreach($this->media->all() as $item){$mediaIds[$item['id']]=$item;$mediaHashes[$item['checksum']]=$item;}
+        foreach($this->media->all() as $item){$mediaIds[$item['id']]=$item;$mediaHashes[($item['visibility']??'public').':'.$item['checksum']]=$item;}
         $p['state']['media']=$mediaIds;
         $mediaPlan=[];$seenMedia=[];
         if(in_array('media',$sections,true))foreach($this->rows($data['media']['items']??null,'media.items') as $item){
@@ -211,22 +212,27 @@ final class ImportExportService
             $hash=$item['checksum']??'';if(!is_string($hash)||!isset($package->files[$hash]))throw new \InvalidArgumentException('Missing media bytes: '.$id);
             $meta=$this->media->inspectImportFile($package->files[$hash],(string)($item['filename']??''));
             if($meta['checksum']!==$hash||isset($item['size'])&&(int)$item['size']!==$meta['size'])throw new \InvalidArgumentException('Media metadata mismatch');
-            $existing=$mediaHashes[$hash]??null;
+            $visibility=$this->media->visibility($item);$hashKey=$visibility.':'.$hash;$existing=$mediaHashes[$hashKey]??null;
             if($existing!==null){
-                $target=$existing; if(!isset($mediaPlan[$target['id']])&&F::hash(F::path($this->rootPath,'public/uploads/'.$target['path']))!==$hash)throw new \RuntimeException('Target media corrupted');
+                $target=$existing; if(!isset($mediaPlan[$target['id']])&&F::hash($this->media->sourcePath($target))!==$hash)throw new \RuntimeException('Target media corrupted');
                 $action='skip';
             }else{
                 if(isset($mediaIds[$id]))throw new \InvalidArgumentException('Media ID collision: '.$id);
                 $relative='import/'.$id.'.'.pathinfo($meta['filename'],PATHINFO_EXTENSION);
-                if(file_exists(F::path($this->rootPath,'public/uploads/'.$relative)))throw new \InvalidArgumentException('Media path collision');
-                $target=$meta+['id'=>$id,'path'=>$relative,'url'=>$this->storage->publicUrl($relative),'title'=>(string)($item['title']??''),'alt'=>(string)($item['alt']??'')];
-                $mediaPlan[$id]=$target;$mediaHashes[$hash]=$target;$mediaIds[$id]=$target;$action='create';
+                if(file_exists($this->media->sourcePath(['path'=>$relative,'visibility'=>$visibility])))throw new \InvalidArgumentException('Media path collision');
+                $target=$meta+['id'=>$id,'path'=>$relative,'url'=>$visibility==='private'?'/api/v1/media/'.$id.'/download':$this->storage->publicUrl($relative),'visibility'=>$visibility,'title'=>(string)($item['title']??''),'alt'=>(string)($item['alt']??'')]+$this->media->metadata($item);
+                $mediaPlan[$id]=$target;$mediaHashes[$hashKey]=$target;$mediaIds[$id]=$target;$action='create';
             }
             $p['mapping']['media'][$id]=$target['id'];
+            foreach(array_merge(array_values($item['variants']??[]),$item['retired_variants']??[]) as $variant){
+                $vp=$variant['path']??'';$vu=$variant['url']??'';
+                if(!is_string($vp)||!preg_match('~^variants/[a-f0-9-]{36}/[a-f0-9]{64}/(?:thumbnail|small|medium|large|webp)\.(?:jpg|png|webp)$~D',$vp)||!is_string($vu)||($visibility==='private'?(parse_url($vu,PHP_URL_PATH)!=='/api/v1/media/'.$id.'/download'):!str_ends_with((string)parse_url($vu,PHP_URL_PATH),'/'.$vp))||SafeHtml::url($vu)==='')throw new \InvalidArgumentException('Invalid media variant URL');
+                foreach(array_unique($visibility==='private'?[$vu]:[$vu,'/uploads/'.$vp]) as $url){if(isset($p['mapping']['urls'][$url])&&$p['mapping']['urls'][$url]!==$target['url'])throw new \InvalidArgumentException('Ambiguous media variant URL');$p['mapping']['urls'][$url]=$target['url'];}
+            }
             $oldPath=(string)($item['path']??''); if($oldPath===''||str_contains($oldPath, '\\')||preg_match('~(?:^|/)(?:\.\.?)(?:/|$)|[\x00-\x20]|^/|//~',$oldPath))throw new \InvalidArgumentException('Invalid media path');
             $oldUrl=(string)($item['url']??'');
-            if($oldUrl!==''&& (SafeHtml::url($oldUrl)===''||!str_ends_with((string)parse_url($oldUrl,PHP_URL_PATH),'/'.$oldPath)))throw new \InvalidArgumentException('Invalid media URL');
-            foreach(array_filter([$oldUrl,'/uploads/'.$oldPath]) as $url){
+            if($oldUrl!==''&& (SafeHtml::url($oldUrl)===''||($visibility==='private'?$oldUrl!=='/api/v1/media/'.$id.'/download':!str_ends_with((string)parse_url($oldUrl,PHP_URL_PATH),'/'.$oldPath))))throw new \InvalidArgumentException('Invalid media URL');
+            foreach(array_filter($visibility==='private'?[$oldUrl]:[$oldUrl,'/uploads/'.$oldPath]) as $url){
                 if(isset($p['mapping']['urls'][$url])&&$p['mapping']['urls'][$url]!==$target['url'])throw new \InvalidArgumentException('Ambiguous media URL');
                 $p['mapping']['urls'][$url]=$target['url'];
             }
@@ -388,7 +394,7 @@ final class ImportExportService
     private function rows(mixed $rows,string $name): array{if(!is_array($rows)||!array_is_list($rows))throw new \InvalidArgumentException('Invalid list: '.$name);foreach($rows as $row)if(!is_array($row))throw new \InvalidArgumentException('Invalid row: '.$name);return $rows;}
     private function sections(array $sections): array{$sections=$sections?:self::SECTIONS; $sections=array_values(array_unique(array_map(static fn($s)=>$s==='themes'?'cms':$s,$sections)));if(array_diff($sections,self::SECTIONS))throw new \InvalidArgumentException('Only content, media, cms and settings are portable');sort($sections);return $sections;}
     private function settings(): array{if($this->types->storage()!=='database')return []; $out=[];$repo=new SettingsRepository($this->db);foreach(self::SETTINGS as $key){$v=$repo->get($key);if($v!==null)$out[$key]=$v;}return $out;}
-    private function databaseMode(array $sections): bool{return $this->types->storage()==='database'||(in_array('cms',$sections,true)&&$this->theme->storage()==='database')||($this->config->string('search.default','file')==='pgsql');}
+    private function databaseMode(array $sections): bool{return getenv('MEDIA_STORAGE')==='database'||$this->types->storage()==='database'||(in_array('cms',$sections,true)&&$this->theme->storage()==='database')||($this->config->string('search.default','file')==='pgsql');}
     private function directory(string $name): string{$p=F::path($this->rootPath,'storage/app/'.$name);F::dir($p,02770);return $p;}
     private function filename(string $name): void{if(!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,180}\.(?:zip|json)$/D',$name))throw new \InvalidArgumentException('Invalid package filename');}
     private function resolve(string $file): string{if(PHP_SAPI==='cli'&&str_contains($file,'/')&&is_file($file)&&!is_link($file))return $file;$this->filename($file);foreach(['imports','exports'] as $dir){$p=F::path($this->rootPath,'storage/app/'.$dir.'/'.$file);if(is_file($p))return $p;}throw new \InvalidArgumentException('Package not found');}

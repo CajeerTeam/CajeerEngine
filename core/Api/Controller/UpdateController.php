@@ -20,7 +20,7 @@ final readonly class UpdateController
     public function diagnostics(Request $request, array $parameters): JsonResponse
     {
         $resolver = new UpdateResolver($this->config->get('updates', []), $this->config->rootPath());
-        return new JsonResponse(['data' => $resolver->diagnostics($this->config->string('app.version', '1.1.7')) + ['wizard'=>$this->manager()->wizardState(),'staged'=>$this->manager()->staged(),'requests'=>$this->manager()->pending()]]);
+        return new JsonResponse(['data' => $resolver->diagnostics($this->config->string('app.version', '1.1.8')) + ['wizard'=>$this->manager()->wizardState(),'staged'=>$this->manager()->staged(),'requests'=>$this->manager()->pending()]]);
     }
 
     /** @param array<string, mixed> $parameters */

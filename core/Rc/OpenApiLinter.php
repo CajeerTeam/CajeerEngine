@@ -47,7 +47,7 @@ final readonly class OpenApiLinter
                 if ($scopes !== null && !isset($op['responses']['401'],$op['responses']['403'])) $errors[] = 'Missing auth responses: '.$key;
                 if (!($op['deprecated'] ?? false) && !array_filter(array_keys($op['responses'] ?? []),static fn($s)=>str_starts_with((string)$s,'2'))) $errors[] = 'Missing success response: '.$key;
                 foreach ($op['responses'] ?? [] as $status=>$response) {
-                    if ((string)$status !== '204' && !isset($response['content']['application/json']['schema']) && !isset($response['content']['application/zip']['schema'])) $errors[] = 'Missing response schema: '.$key.' '.$status;
+                    if ((string)$status !== '204' && !isset($response['content']['application/json']['schema']) && !isset($response['content']['application/zip']['schema']) && !isset($response['content']['application/octet-stream']['schema'])) $errors[] = 'Missing response schema: '.$key.' '.$status;
                 }
                 if (isset($op['requestBody']) && !isset($op['requestBody']['content']['application/json']['schema']) && !isset($op['requestBody']['content']['multipart/form-data']['schema'])) $errors[] = 'Missing body schema: '.$key;
             }

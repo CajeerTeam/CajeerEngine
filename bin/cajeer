@@ -99,6 +99,10 @@ $autoload = $root . '/vendor/autoload.php';
 require_once $root . '/core/Update/OperationFiles.php';
 require_once $root . '/core/Update/OperationLock.php';
 require_once $root . '/core/Console/OperationsCli.php';
+if (in_array($argv[1]??'', ['media:list','media:check','media:migrate','media:variants','media:repair','media:recover','media:usage','media:s3-sync','media:gc'],true)) {
+    if (is_file($autoload)) require_once $autoload; else require_once $root.'/core/Console/NativeCli.php';
+    exit(\CajeerEngine\Media\MediaOperations::run($root,$argv));
+}
 if (CajeerEngine\Console\OperationsCli::handles($argv)) {
     if (is_file($autoload)) require_once $autoload;
     else require_once $root . '/core/Console/NativeCli.php';
@@ -138,7 +142,7 @@ if (is_file($root . '/.env')) {
     (new Dotenv())->usePutenv()->loadEnv($root . '/.env');
 }
 
-$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.1.7');
+$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.1.8');
 
 /** @var list<Symfony\Component\Console\Command\Command> $commands */
 $commands = [

@@ -129,6 +129,7 @@ final class ContentEntryRepository
 
         $type = $this->contentType($typeHandle);
         $normalized = (new ContentEntryValidator($type))->normalizeForCreate($payload);
+        $this->assertMediaReferences($type,$normalized['data']);
         $items = $this->list($typeHandle, ['status' => 'all']);
         $slug = $this->uniqueSlug($items, $normalized['slug'], $normalized['locale']);
         $now = $this->now();
@@ -181,6 +182,7 @@ final class ContentEntryRepository
             }
 
             $normalized = (new ContentEntryValidator($type))->normalizeForUpdate($payload, $entry);
+        $this->assertMediaReferences($type,$normalized['data']);
             $slug = $this->uniqueSlug($items, $normalized['slug'], $normalized['locale'], (string) $entry['id']);
             $nextRevision = ((int) ($entry['revision'] ?? 1)) + 1;
             $now = $this->now();
@@ -468,6 +470,21 @@ final class ContentEntryRepository
     }
 
     /** @return array<string, mixed> */
+    private function assertMediaReferences(array $type,array $data): void
+    {
+        $catalog=null;
+        foreach($type['fields']??[] as $field){$v=$data[$field['handle']]??null;if($v===null)continue;
+            if(($field['type']??'')==='media')foreach((array)$v as $id){
+                // Legacy URL values remain readable; UUID-based fields cannot point at missing media.
+                if(is_string($id)&&preg_match('/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iD',$id)){
+                    $catalog??=new \CajeerEngine\Media\MediaCatalog($this->rootPath,$this->database());
+                    if(!$catalog->find(strtolower($id)))throw new \InvalidArgumentException('Media reference does not exist: '.$id);
+                }
+            }
+            if(($field['type']??'')==='blocks'){$defs=array_column($type['blocks']??[],null,'handle');foreach((array)$v as $b)if(isset($defs[$b['handle']]))$this->assertMediaReferences($defs[$b['handle']],$b['data']??[]);}
+        }
+    }
+
     private function contentType(string $typeHandle): array
     {
         $type = $this->types->find($typeHandle);
@@ -645,6 +662,7 @@ final class ContentEntryRepository
     {
         $type = $this->contentType($typeHandle);
         $normalized = (new ContentEntryValidator($type))->normalizeForCreate($payload);
+        $this->assertMediaReferences($type,$normalized['data']);
         $now = $this->nowForDatabase();
         $id = $importId ?? Uuid::v4();
         $translationGroup = (string) ($payload['translation_group'] ?? Uuid::v4());
@@ -701,6 +719,7 @@ final class ContentEntryRepository
         }
 
         $normalized = (new ContentEntryValidator($type))->normalizeForUpdate($payload, $existing);
+        $this->assertMediaReferences($type,$normalized['data']);
         $slug = $this->uniqueSlugInDatabase((string) $type['id'], $normalized['slug'], $normalized['locale'], (string) $existing['id']);
         $revision = ((int) ($existing['revision'] ?? 1)) + 1;
         $now = $this->nowForDatabase();

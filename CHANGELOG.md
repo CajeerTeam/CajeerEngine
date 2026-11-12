@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.8 — Media Library
+
+- SQL-backed metadata with explicit legacy migration; folders, tags, collections, filtered pagination.
+- Streamed uploads, safe replacement, image variants, reference checks, private downloads and signed S3 replicas.
+- Portable import/export and Admin SPA media workflows; recovery and verification CLI.
+
 ## 1.1.7 — Public Routing Runtime (2026-11-12)
 
 - Transactional SQL route index and deterministic page trees; canonical paths, locale prefixes, redirect history, and published-ancestor visibility.

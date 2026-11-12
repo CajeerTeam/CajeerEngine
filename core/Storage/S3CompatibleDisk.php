@@ -61,6 +61,39 @@ final readonly class S3CompatibleDisk implements StorageDiskInterface
         $this->request('DELETE', $path);
     }
 
+    /** Short-lived SigV4 presigning, used only with a private bucket and configured endpoint. */
+    public function presignedUrl(string $path,string $method='GET',int $ttl=300,bool $download=false): string
+    {
+        if(!in_array($method,['GET','PUT'],true)||$ttl<1||$ttl>900||!preg_match('~^[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.-]+)*$~D',$path)||preg_match('~(?:^|/)\.\.?(?:/|$)~',$path))throw new \InvalidArgumentException('Invalid S3 object or expiry');
+        $url=$this->objectUrl($path);$parts=parse_url($url);
+        if(!is_array($parts)||empty($parts['host'])||(isset($parts['user'])||isset($parts['pass']))||isset($parts['query'])||isset($parts['fragment']))throw new \RuntimeException('Invalid S3 endpoint');
+        if(($parts['scheme']??'')!=='https'&&!(($parts['scheme']??'')==='http'&&in_array(getenv('APP_ENV'),['local','testing'],true)&&getenv('MEDIA_S3_ALLOW_HTTP')==='true'))throw new \RuntimeException('Media S3 requires HTTPS');
+        $host=$parts['host'].(isset($parts['port'])?':'.$parts['port']:'');$now=gmdate('Ymd\THis\Z');$date=substr($now,0,8);$scope=$date.'/'.$this->region.'/s3/aws4_request';
+        $query=['X-Amz-Algorithm'=>'AWS4-HMAC-SHA256','X-Amz-Credential'=>$this->accessKey.'/'.$scope,'X-Amz-Date'=>$now,'X-Amz-Expires'=>(string)$ttl,'X-Amz-SignedHeaders'=>'host'];
+        if($download&&$method==='GET'){$query['response-content-disposition']='attachment';$query['response-content-type']='application/octet-stream';}
+        ksort($query,SORT_STRING);$canonicalQuery=http_build_query($query,'','&',PHP_QUERY_RFC3986);
+        $request=implode("\n",[$method,$this->canonicalUri($parts['path']??'/'),$canonicalQuery,'host:'.$host."\n",'host','UNSIGNED-PAYLOAD']);
+        $signature=hash_hmac('sha256',"AWS4-HMAC-SHA256\n".$now."\n".$scope."\n".hash('sha256',$request),$this->signingKey($date));
+        return $url.'?'.$canonicalQuery.'&X-Amz-Signature='.$signature;
+    }
+    public function putFile(string $key,string $localPath): void
+    {
+        if(!function_exists('curl_init'))throw new \RuntimeException('ext-curl required for streaming S3 replicas');
+        $in=fopen($localPath,'rb');if(!$in)throw new \RuntimeException('Cannot open media for S3');
+        $curl=curl_init($this->presignedUrl($key,'PUT',900));
+        try{curl_setopt_array($curl,[CURLOPT_UPLOAD=>true,CURLOPT_INFILE=>$in,CURLOPT_INFILESIZE=>filesize($localPath),CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>300,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_RETURNTRANSFER=>true,CURLOPT_PROTOCOLS=>CURLPROTO_HTTP|CURLPROTO_HTTPS,CURLOPT_HTTPHEADER=>['Content-Type: application/octet-stream','Expect:']]);
+            $result=curl_exec($curl);$status=curl_getinfo($curl,CURLINFO_RESPONSE_CODE);if($result===false||$status<200||$status>=300)throw new \RuntimeException('S3 upload failed: HTTP '.$status);
+        }finally{curl_close($curl);fclose($in);}
+    }
+    public function fileChecksum(string $key): string
+    {
+        if(!function_exists('curl_init'))throw new \RuntimeException('ext-curl required for streaming S3 replicas');
+        $ctx=hash_init('sha256');$curl=curl_init($this->presignedUrl($key,'GET',900));$bytes=0;
+        try{curl_setopt_array($curl,[CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>300,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_PROTOCOLS=>CURLPROTO_HTTP|CURLPROTO_HTTPS,CURLOPT_WRITEFUNCTION=>static function($ch,string $data)use($ctx,&$bytes){$bytes+=strlen($data);if($bytes>104857600)return 0;hash_update($ctx,$data);return strlen($data);}]);
+            $ok=curl_exec($curl);$status=curl_getinfo($curl,CURLINFO_RESPONSE_CODE);if($ok===false||$status!==200)throw new \RuntimeException('S3 verification failed: HTTP '.$status);return hash_final($ctx);
+        }finally{curl_close($curl);}
+    }
+
     /** @return array{status:int,headers:list<string>,body:string} */
     private function request(string $method, string $path, string $body = '', array $extraHeaders = []): array
     {
@@ -121,6 +154,7 @@ final readonly class S3CompatibleDisk implements StorageDiskInterface
                 'header' => implode("\r\n", $headerLines),
                 'content' => $method === 'GET' || $method === 'HEAD' ? '' : $body,
                 'ignore_errors' => true,
+                'follow_location' => 0,
                 'timeout' => (float) ($this->config['timeout'] ?? 15),
             ],
         ]);

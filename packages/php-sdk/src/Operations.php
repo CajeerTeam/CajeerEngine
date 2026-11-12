@@ -12,6 +12,12 @@ final class Operations {
     'path' => '/api-tokens/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -21,6 +27,12 @@ final class Operations {
     'path' => '/cms/navigation/{handle}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'handle',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -30,6 +42,12 @@ final class Operations {
     'path' => '/cms/redirects/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -39,6 +57,18 @@ final class Operations {
     'path' => '/content/{type}/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -48,6 +78,12 @@ final class Operations {
     'path' => '/content-types/{handle}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'handle',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -57,6 +93,12 @@ final class Operations {
     'path' => '/media/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -66,6 +108,12 @@ final class Operations {
     'path' => '/users/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -75,6 +123,12 @@ final class Operations {
     'path' => '/webhooks/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -171,6 +225,12 @@ final class Operations {
     'path' => '/cms/navigation/{handle}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'handle',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -230,23 +290,29 @@ final class Operations {
     array (
       0 => 
       array (
-        'name' => 'status',
-        'in' => 'query',
-        'required' => false,
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
       ),
       1 => 
       array (
-        'name' => 'locale',
+        'name' => 'status',
         'in' => 'query',
         'required' => false,
       ),
       2 => 
       array (
-        'name' => 'q',
+        'name' => 'locale',
         'in' => 'query',
         'required' => false,
       ),
       3 => 
+      array (
+        'name' => 'q',
+        'in' => 'query',
+        'required' => false,
+      ),
+      4 => 
       array (
         'name' => 'published_only',
         'in' => 'query',
@@ -261,6 +327,18 @@ final class Operations {
     'path' => '/content/{type}/{id}/localizations',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -270,6 +348,18 @@ final class Operations {
     'path' => '/content/{type}/{id}/revisions',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -279,6 +369,18 @@ final class Operations {
     'path' => '/content/{type}/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -297,6 +399,12 @@ final class Operations {
     'path' => '/content-types/{handle}/schema',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'handle',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -306,6 +414,12 @@ final class Operations {
     'path' => '/content-types/{handle}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'handle',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -459,6 +573,39 @@ final class Operations {
     'path' => '/media/diagnostics',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'verify',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_MediaDownload' => 
+  array (
+    'method' => 'GET',
+    'path' => '/media/{id}/download',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'variant',
+        'in' => 'query',
+        'required' => false,
+      ),
+      2 => 
+      array (
+        'name' => 'version',
+        'in' => 'query',
+        'required' => false,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -474,6 +621,36 @@ final class Operations {
         'in' => 'query',
         'required' => false,
       ),
+      1 => 
+      array (
+        'name' => 'folder',
+        'in' => 'query',
+        'required' => false,
+      ),
+      2 => 
+      array (
+        'name' => 'mime',
+        'in' => 'query',
+        'required' => false,
+      ),
+      3 => 
+      array (
+        'name' => 'limit',
+        'in' => 'query',
+        'required' => false,
+      ),
+      4 => 
+      array (
+        'name' => 'offset',
+        'in' => 'query',
+        'required' => false,
+      ),
+      5 => 
+      array (
+        'name' => 'visibility',
+        'in' => 'query',
+        'required' => false,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -483,6 +660,90 @@ final class Operations {
     'path' => '/media/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_MediaSign' => 
+  array (
+    'method' => 'GET',
+    'path' => '/media/{id}/sign',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'variant',
+        'in' => 'query',
+        'required' => false,
+      ),
+      2 => 
+      array (
+        'name' => 'version',
+        'in' => 'query',
+        'required' => false,
+      ),
+      3 => 
+      array (
+        'name' => 'ttl',
+        'in' => 'query',
+        'required' => false,
+      ),
+      4 => 
+      array (
+        'name' => 's3',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_MediaSignedDownload' => 
+  array (
+    'method' => 'GET',
+    'path' => '/media/{id}/signed-download',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'variant',
+        'in' => 'query',
+        'required' => false,
+      ),
+      2 => 
+      array (
+        'name' => 'version',
+        'in' => 'query',
+        'required' => false,
+      ),
+      3 => 
+      array (
+        'name' => 'expires',
+        'in' => 'query',
+        'required' => true,
+      ),
+      4 => 
+      array (
+        'name' => 'signature',
+        'in' => 'query',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -493,6 +754,18 @@ final class Operations {
     'parameters' => 
     array (
       0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+      2 => 
       array (
         'name' => 'format',
         'in' => 'query',
@@ -567,6 +840,12 @@ final class Operations {
     'path' => '/roles/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -669,6 +948,21 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'get_Usage' => 
+  array (
+    'method' => 'GET',
+    'path' => '/media/{id}/usage',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'get_UsersIndex' => 
   array (
     'method' => 'GET',
@@ -684,6 +978,12 @@ final class Operations {
     'path' => '/users/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -717,6 +1017,12 @@ final class Operations {
     'path' => '/cms/redirects/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -735,6 +1041,18 @@ final class Operations {
     'path' => '/content/{type}/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -744,6 +1062,12 @@ final class Operations {
     'path' => '/content-types/{handle}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'handle',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -756,12 +1080,33 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'patch_Update' => 
+  array (
+    'method' => 'PATCH',
+    'path' => '/media/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
   'patch_UsersPatch' => 
   array (
     'method' => 'PATCH',
     'path' => '/users/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -771,6 +1116,12 @@ final class Operations {
     'path' => '/webhooks/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -864,6 +1215,18 @@ final class Operations {
     'path' => '/content/{type}/{id}/archive',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -873,6 +1236,18 @@ final class Operations {
     'path' => '/content/{type}/{id}/localizations',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -882,6 +1257,18 @@ final class Operations {
     'path' => '/content/{type}/{id}/publish',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -891,6 +1278,24 @@ final class Operations {
     'path' => '/content/{type}/{id}/revisions/{revision}/restore',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+      2 => 
+      array (
+        'name' => 'revision',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -900,6 +1305,24 @@ final class Operations {
     'path' => '/content/{type}/{id}/revisions/{revision}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+      2 => 
+      array (
+        'name' => 'revision',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -909,6 +1332,12 @@ final class Operations {
     'path' => '/content/{type}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -927,6 +1356,18 @@ final class Operations {
     'path' => '/content/{type}/{id}/unpublish',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -1079,6 +1520,12 @@ final class Operations {
     array (
       0 => 
       array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
         'name' => 'queue',
         'in' => 'query',
         'required' => false,
@@ -1112,6 +1559,21 @@ final class Operations {
     array (
     ),
     'bodyRequired' => false,
+  ),
+  'post_Replace' => 
+  array (
+    'method' => 'POST',
+    'path' => '/media/{id}/replace',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
   ),
   'post_RolesStore' => 
   array (
@@ -1248,6 +1710,21 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'post_Variants' => 
+  array (
+    'method' => 'POST',
+    'path' => '/media/{id}/variants',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'post_WebhooksStore' => 
   array (
     'method' => 'POST',
@@ -1263,6 +1740,12 @@ final class Operations {
     'path' => '/webhooks/{id}/test',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -1272,6 +1755,12 @@ final class Operations {
     'path' => '/cms/navigation/{handle}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'handle',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -1281,6 +1770,12 @@ final class Operations {
     'path' => '/content-types/{handle}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'handle',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -1290,6 +1785,18 @@ final class Operations {
     'path' => '/content/{type}/{id}',
     'parameters' => 
     array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),

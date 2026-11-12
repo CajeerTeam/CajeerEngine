@@ -3,49 +3,102 @@ export const operations = {
     "delete_ApiTokensRevoke": {
         "method": "DELETE",
         "path": "/api-tokens/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "delete_CmsNavigationMenu": {
         "method": "DELETE",
         "path": "/cms/navigation/{handle}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "handle",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "delete_CmsRedirect": {
         "method": "DELETE",
         "path": "/cms/redirects/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "delete_ContentDelete": {
         "method": "DELETE",
         "path": "/content/{type}/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "delete_ContentTypesDelete": {
         "method": "DELETE",
         "path": "/content-types/{handle}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "handle",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "delete_MediaDelete": {
         "method": "DELETE",
         "path": "/media/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "delete_UsersDisable": {
         "method": "DELETE",
         "path": "/users/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "delete_WebhooksDelete": {
         "method": "DELETE",
         "path": "/webhooks/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "extensionActionRead": {
@@ -115,7 +168,13 @@ export const operations = {
     "get_CmsNavigationMenu": {
         "method": "GET",
         "path": "/cms/navigation/{handle}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "handle",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "get_CmsOverview": {
@@ -158,6 +217,11 @@ export const operations = {
         "path": "/content/{type}",
         "parameters": [
             {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
                 "name": "status",
                 "in": "query",
                 "required": false
@@ -183,19 +247,52 @@ export const operations = {
     "get_ContentLocalizations": {
         "method": "GET",
         "path": "/content/{type}/{id}/localizations",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "get_ContentRevisions": {
         "method": "GET",
         "path": "/content/{type}/{id}/revisions",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "get_ContentShow": {
         "method": "GET",
         "path": "/content/{type}/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "get_ContentTypesIndex": {
@@ -207,13 +304,25 @@ export const operations = {
     "get_ContentTypesSchema": {
         "method": "GET",
         "path": "/content-types/{handle}/schema",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "handle",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "get_ContentTypesShow": {
         "method": "GET",
         "path": "/content-types/{handle}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "handle",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "get_DatabaseMigrations": {
@@ -325,7 +434,35 @@ export const operations = {
     "get_MediaDiagnostics": {
         "method": "GET",
         "path": "/media/diagnostics",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "verify",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
+    "get_MediaDownload": {
+        "method": "GET",
+        "path": "/media/{id}/download",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "variant",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "version",
+                "in": "query",
+                "required": false
+            }
+        ],
         "bodyRequired": false
     },
     "get_MediaIndex": {
@@ -336,6 +473,31 @@ export const operations = {
                 "name": "q",
                 "in": "query",
                 "required": false
+            },
+            {
+                "name": "folder",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "mime",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "limit",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "offset",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "visibility",
+                "in": "query",
+                "required": false
             }
         ],
         "bodyRequired": false
@@ -343,13 +505,93 @@ export const operations = {
     "get_MediaShow": {
         "method": "GET",
         "path": "/media/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "get_MediaSign": {
+        "method": "GET",
+        "path": "/media/{id}/sign",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "variant",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "version",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "ttl",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "s3",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
+    "get_MediaSignedDownload": {
+        "method": "GET",
+        "path": "/media/{id}/signed-download",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "variant",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "version",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "expires",
+                "in": "query",
+                "required": true
+            },
+            {
+                "name": "signature",
+                "in": "query",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "get_PublicPreview": {
         "method": "GET",
         "path": "/public/preview/{type}/{id}",
         "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            },
             {
                 "name": "format",
                 "in": "query",
@@ -403,7 +645,13 @@ export const operations = {
     "get_RolesShow": {
         "method": "GET",
         "path": "/roles/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "get_Runtime": {
@@ -476,6 +724,18 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "get_Usage": {
+        "method": "GET",
+        "path": "/media/{id}/usage",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
     "get_UsersIndex": {
         "method": "GET",
         "path": "/users",
@@ -485,7 +745,13 @@ export const operations = {
     "get_UsersShow": {
         "method": "GET",
         "path": "/users/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "get_WebhookDeliveriesIndex": {
@@ -509,7 +775,13 @@ export const operations = {
     "patch_CmsRedirect": {
         "method": "PATCH",
         "path": "/cms/redirects/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "patch_CmsTheme": {
@@ -521,13 +793,30 @@ export const operations = {
     "patch_ContentPatch": {
         "method": "PATCH",
         "path": "/content/{type}/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "patch_ContentTypesPatch": {
         "method": "PATCH",
         "path": "/content-types/{handle}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "handle",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "patch_ExtensionsConfig": {
@@ -536,16 +825,40 @@ export const operations = {
         "parameters": [],
         "bodyRequired": true
     },
+    "patch_Update": {
+        "method": "PATCH",
+        "path": "/media/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
     "patch_UsersPatch": {
         "method": "PATCH",
         "path": "/users/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "patch_WebhooksPatch": {
         "method": "PATCH",
         "path": "/webhooks/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "post_ApiTokensStore": {
@@ -610,37 +923,108 @@ export const operations = {
     "post_ContentArchive": {
         "method": "POST",
         "path": "/content/{type}/{id}/archive",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "post_ContentLocalizationsStore": {
         "method": "POST",
         "path": "/content/{type}/{id}/localizations",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "post_ContentPublish": {
         "method": "POST",
         "path": "/content/{type}/{id}/publish",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "post_ContentRevisionsRestore": {
         "method": "POST",
         "path": "/content/{type}/{id}/revisions/{revision}/restore",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "revision",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "post_ContentRevisionsRestoreShort": {
         "method": "POST",
         "path": "/content/{type}/{id}/revisions/{revision}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "revision",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "post_ContentStore": {
         "method": "POST",
         "path": "/content/{type}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "post_ContentTypesStore": {
@@ -652,7 +1036,18 @@ export const operations = {
     "post_ContentUnpublish": {
         "method": "POST",
         "path": "/content/{type}/{id}/unpublish",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "post_EventsDispatch": {
@@ -756,6 +1151,11 @@ export const operations = {
         "path": "/queue/failed/{id}/retry",
         "parameters": [
             {
+                "name": "id",
+                "in": "path",
+                "required": true
+            },
+            {
                 "name": "queue",
                 "in": "query",
                 "required": false
@@ -780,6 +1180,18 @@ export const operations = {
         "path": "/rc/run",
         "parameters": [],
         "bodyRequired": false
+    },
+    "post_Replace": {
+        "method": "POST",
+        "path": "/media/{id}/replace",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
     },
     "post_RolesStore": {
         "method": "POST",
@@ -871,6 +1283,18 @@ export const operations = {
         "parameters": [],
         "bodyRequired": true
     },
+    "post_Variants": {
+        "method": "POST",
+        "path": "/media/{id}/variants",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
     "post_WebhooksStore": {
         "method": "POST",
         "path": "/webhooks",
@@ -880,25 +1304,54 @@ export const operations = {
     "post_WebhooksTest": {
         "method": "POST",
         "path": "/webhooks/{id}/test",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "put_CmsNavigationMenu": {
         "method": "PUT",
         "path": "/cms/navigation/{handle}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "handle",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "put_ContentTypesUpdate": {
         "method": "PUT",
         "path": "/content-types/{handle}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "handle",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "put_ContentUpdate": {
         "method": "PUT",
         "path": "/content/{type}/{id}",
-        "parameters": [],
+        "parameters": [
+            {
+                "name": "type",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     }
 } as const

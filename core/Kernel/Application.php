@@ -143,7 +143,7 @@ final class Application
     public function handle(Request $request): Response
     {
         $response = $this->pipeline->handle($request, fn (Request $request): Response => $this->router->dispatch($request));
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.1.7'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.1.8'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -215,7 +215,7 @@ final class Application
         $container->set(SystemReport::class, fn (): SystemReport => new SystemReport($rootPath));
         $container->set(AdminAssetPublisher::class, fn (): AdminAssetPublisher => new AdminAssetPublisher($rootPath));
         $container->set(StorageManager::class, fn (ServiceContainer $c): StorageManager => new StorageManager($rootPath, $c->get(ConfigRepository::class)));
-        $container->set(MediaRepository::class, fn (ServiceContainer $c): MediaRepository => new MediaRepository($rootPath, $c->get(StorageManager::class)));
+        $container->set(MediaRepository::class, fn (ServiceContainer $c): MediaRepository => new MediaRepository($rootPath, $c->get(StorageManager::class), $c->get(DatabaseManager::class)));
         $container->set(ThemeConfigRepository::class, fn (ServiceContainer $c): ThemeConfigRepository => new ThemeConfigRepository($rootPath, $c->get(DatabaseManager::class)));
         $container->set(NavigationRepository::class, fn (ServiceContainer $c): NavigationRepository => new NavigationRepository($rootPath, $c->get(DatabaseManager::class)));
         $container->set(RedirectRepository::class, fn (ServiceContainer $c): RedirectRepository => new RedirectRepository($rootPath, $c->get(DatabaseManager::class)));

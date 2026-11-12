@@ -156,7 +156,7 @@ final readonly class PublicPageRenderer
             'type' => $type,
             'locale' => (string) ($entry['locale'] ?? ($theme['locale'] ?? 'ru')),
             'preview' => $preview,
-            'media' => $this->media->all(),
+            'media' => $this->media->publicItems(),
             'published_at' => (string) ($entry['published_at'] ?? ''),
             'updated_at' => (string) ($entry['updated_at'] ?? ''),
             'theme' => $theme,

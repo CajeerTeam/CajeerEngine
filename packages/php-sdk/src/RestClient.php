@@ -30,13 +30,17 @@ final readonly class RestClient
         $response = '';
         $options = [CURLOPT_CUSTOMREQUEST=>$spec['method'], CURLOPT_FOLLOWLOCATION=>false, CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS|CURLPROTO_HTTP, CURLOPT_CONNECTTIMEOUT=>5, CURLOPT_TIMEOUT=>30, CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2,
             CURLOPT_WRITEFUNCTION=>static function ($ch,string $chunk) use (&$response): int { if (strlen($response)+strlen($chunk)>33554432) return 0; $response.=$chunk; return strlen($chunk); }];
-        if ($body !== null) { $headers[]='Content-Type: application/json'; $options[CURLOPT_POSTFIELDS]=json_encode($body, JSON_THROW_ON_ERROR); }
+        if ($body !== null) {
+            if (is_array($body) && array_filter($body,static fn($v)=>$v instanceof \CURLFile)) $options[CURLOPT_POSTFIELDS]=$body;
+            else {$headers[]='Content-Type: application/json';$options[CURLOPT_POSTFIELDS]=json_encode($body, JSON_THROW_ON_ERROR);}
+        }
         $options[CURLOPT_HTTPHEADER]=$headers;
         try {
             curl_setopt_array($ch,$options);
             if (curl_exec($ch)===false) throw new \RuntimeException('API transport failed');
             $status=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);
             if ($status<200 || $status>=300) throw new \RuntimeException('API HTTP '.$status, $status);
+            if (str_starts_with((string)curl_getinfo($ch,CURLINFO_CONTENT_TYPE),'application/octet-stream')||str_starts_with((string)curl_getinfo($ch,CURLINFO_CONTENT_TYPE),'application/zip')||str_starts_with((string)curl_getinfo($ch,CURLINFO_CONTENT_TYPE),'image/'))return $response;
             return $response === '' ? null : json_decode($response,true,512,JSON_THROW_ON_ERROR);
         } finally { curl_close($ch); }
     }
