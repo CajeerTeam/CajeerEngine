@@ -204,7 +204,8 @@ final class ContentTypeRepository
     /** @return array<string, mixed>|null */
     private function findInDatabase(string $handle): ?array
     {
-        $stmt = $this->pdo()->prepare('SELECT * FROM ce_content_types WHERE handle = :handle OR id = :id LIMIT 1');
+        $cast = $this->database()->driver() === 'pgsql' ? 'TEXT' : 'CHAR';
+        $stmt = $this->pdo()->prepare('SELECT * FROM ce_content_types WHERE handle = :handle OR CAST(id AS '.$cast.') = :id LIMIT 1');
         $stmt->execute(['handle' => $handle, 'id' => $handle]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return is_array($row) ? $this->mapDatabaseRow($row) : null;

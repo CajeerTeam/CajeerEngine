@@ -253,7 +253,7 @@ final readonly class ServerDoctorService
     private function updateChecks(ConfigRepository $config): array
     {
         try {
-            $version = $config->string('app.version', trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.4');
+            $version = $config->string('app.version', trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.5');
             $updates = (new UpdateResolver($config->get('updates', []), $this->rootPath))->diagnostics($version);
             return [
                 $this->check('updates', 'metadata_ready', (bool) ($updates['metadata_ready'] ?? false), 'Update metadata ready', 'WARN', 'Проверьте resources/updates/releases.json или GitFlic releases endpoint.', ['diagnostics' => $updates, 'fix_command' => 'php bin/cajeer update:check']),

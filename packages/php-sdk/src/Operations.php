@@ -348,10 +348,34 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'get_ImportExportDownload' => 
+  array (
+    'method' => 'GET',
+    'path' => '/import-export/download/{file}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'file',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'get_ImportExportExports' => 
   array (
     'method' => 'GET',
     'path' => '/import-export/exports',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_ImportExportRequests' => 
+  array (
+    'method' => 'GET',
+    'path' => '/import-export/requests',
     'parameters' => 
     array (
     ),
@@ -943,6 +967,15 @@ final class Operations {
   array (
     'method' => 'POST',
     'path' => '/import-export/import',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'post_ImportExportUpload' => 
+  array (
+    'method' => 'POST',
+    'path' => '/import-export/upload',
     'parameters' => 
     array (
     ),

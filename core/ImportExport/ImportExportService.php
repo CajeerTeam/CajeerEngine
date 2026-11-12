@@ -1,552 +1,400 @@
 <?php
 
 declare(strict_types=1);
-
 namespace CajeerEngine\ImportExport;
 
+use CajeerEngine\Backup\BackupManager;
+use CajeerEngine\Backup\DatabaseBackup;
+use CajeerEngine\Cms\NavigationRepository;
+use CajeerEngine\Cms\RedirectRepository;
+use CajeerEngine\Cms\ThemeConfigRepository;
 use CajeerEngine\Content\ContentEntryRepository;
+use CajeerEngine\Content\ContentEntryValidator;
 use CajeerEngine\Content\ContentTypeRepository;
+use CajeerEngine\Content\ContentTypeValidator;
 use CajeerEngine\Database\DatabaseManager;
-use CajeerEngine\Database\Repository\RoleRepository;
-use CajeerEngine\Database\Repository\UserRepository;
+use CajeerEngine\Database\Repository\SettingsRepository;
 use CajeerEngine\Media\MediaRepository;
 use CajeerEngine\Runtime\ConfigRepository;
-use CajeerEngine\Security\PasswordHasher;
+use CajeerEngine\Security\SafeHtml;
 use CajeerEngine\Storage\StorageManager;
-use CajeerEngine\Support\JsonFile;
+use CajeerEngine\Update\OperationFiles as F;
+use CajeerEngine\Update\OperationLock;
 
-final readonly class ImportExportService
+/** Portable site transfer, distinct from full installation backup. Never imports executable code or credentials. */
+final class ImportExportService
 {
-    public function __construct(private string $rootPath)
+    private const SECTIONS=['content','media','cms','settings'];
+    private const SETTINGS=['app.name','app.locale'];
+    private ConfigRepository $config;
+    private DatabaseManager $db;
+    private ContentTypeRepository $types;
+    private ContentEntryRepository $entries;
+    private MediaRepository $media;
+    private StorageManager $storage;
+    private NavigationRepository $navigation;
+    private RedirectRepository $redirects;
+    private ThemeConfigRepository $theme;
+
+    public function __construct(private readonly string $rootPath)
     {
+        $this->config=new ConfigRepository($rootPath); $this->db=new DatabaseManager($this->config);
+        $this->types=new ContentTypeRepository($rootPath,$this->db); $this->entries=new ContentEntryRepository($rootPath,$this->db);
+        $this->storage=new StorageManager($rootPath,$this->config); $this->media=new MediaRepository($rootPath,$this->storage);
+        $this->navigation=new NavigationRepository($rootPath,$this->db); $this->redirects=new RedirectRepository($rootPath,$this->db); $this->theme=new ThemeConfigRepository($rootPath,$this->db);
     }
 
-    /** @return list<array<string, mixed>> */
     public function exports(): array
     {
-        $dir = $this->exportsDir();
-        $items = [];
-        foreach (glob($dir . '/*.json') ?: [] as $file) {
-            $decoded = json_decode((string) file_get_contents($file), true);
-            $items[] = [
-                'file' => basename($file),
-                'path' => $file,
-                'size' => filesize($file) ?: 0,
-                'created_at' => is_array($decoded) ? ($decoded['manifest']['created_at'] ?? date(DATE_ATOM, filemtime($file) ?: time())) : date(DATE_ATOM, filemtime($file) ?: time()),
-                'version' => is_array($decoded) ? ($decoded['manifest']['version'] ?? null) : null,
-                'format' => is_array($decoded) ? ($decoded['manifest']['format'] ?? null) : null,
-                'checksum' => is_array($decoded) ? ($decoded['manifest']['checksum'] ?? null) : null,
-                'sections' => is_array($decoded) ? array_keys((array) ($decoded['data'] ?? [])) : [],
-            ];
+        $out=[];
+        foreach(glob($this->directory('exports').'/*.{zip,json}',GLOB_BRACE)?:[] as $file) {
+            if(is_link($file)||!is_file($file))continue;
+            $out[]=['file'=>basename($file),'size'=>filesize($file),'created_at'=>gmdate(DATE_ATOM,filemtime($file)),'format'=>str_ends_with($file,'.zip')?SitePackage::FORMAT:'cajeerengine.export.v2'];
         }
-        usort($items, static fn (array $a, array $b): int => strcmp((string) $b['created_at'], (string) $a['created_at']));
-        return $items;
+        usort($out,static fn($a,$b)=>strcmp($b['created_at'],$a['created_at']));return $out;
     }
 
-    /** @param list<string> $sections @return array<string, mixed> */
-    public function createExport(array $sections = ['content', 'media', 'users', 'settings', 'themes', 'extensions'], ?string $filename = null): array
+    public function createExport(array $sections=[], ?string $filename=null): array
     {
-        $sections = $sections === [] ? ['content', 'media', 'users', 'settings', 'themes', 'extensions'] : array_values(array_unique($sections));
-        $version = trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.4';
-        $data = [];
-        $config = new ConfigRepository($this->rootPath);
-        $database = new DatabaseManager($config);
-
-        if (in_array('content', $sections, true)) {
-            $types = new ContentTypeRepository($this->rootPath, $database);
-            $entries = new ContentEntryRepository($this->rootPath, $database);
-            $content = ['types' => $types->all(), 'entries' => []];
-            foreach ($content['types'] as $type) {
-                $handle = (string) ($type['handle'] ?? '');
-                if ($handle !== '') {
-                    $content['entries'][$handle] = $entries->list($handle, ['status' => 'all']);
-                }
-            }
-            $data['content'] = $content;
-        }
-
-        if (in_array('media', $sections, true)) {
-            $media = new MediaRepository($this->rootPath, new StorageManager($this->rootPath, $config));
-            $items = $media->all();
-            $data['media'] = [
-                'items' => $items,
-                'files' => $this->exportMediaFiles($items),
-                'diagnostics' => $media->diagnostics(),
-            ];
-        }
-
-        if (in_array('users', $sections, true)) {
-            $roles = new RoleRepository($database);
-            $users = new UserRepository($database, $roles);
-            $data['users'] = [
-                'roles' => $this->safeArray(fn (): array => $roles->all()),
-                'users' => $this->safeArray(fn (): array => $users->all()),
-                'policy' => [
-                    'password_hashes_exported' => false,
-                    'new_users_import_mode' => 'disabled-by-default',
-                    'note' => 'Экспорт пользователей не содержит password_hash. Импорт пользователей и ролей отключён: требуется ручное создание.',
-                ],
-            ];
-        }
-
-        if (in_array('settings', $sections, true)) {
-            $data['settings'] = $this->readJsonIfExists($this->rootPath . '/storage/app/settings.json');
-        }
-
-        if (in_array('themes', $sections, true)) {
-            $data['themes'] = $this->scanManifestDirectory('themes');
-            $themeConfig = $this->readJsonIfExists($this->rootPath . '/storage/app/cms/theme.json');
-            if ($themeConfig !== []) {
-                $data['theme_config'] = $themeConfig;
-            }
-        }
-
-        if (in_array('extensions', $sections, true)) {
-            $data['extensions'] = [
-                'registry' => $this->readJsonIfExists($this->rootPath . '/storage/app/extensions/registry.json'),
-                'modules' => $this->scanManifestDirectory('modules'),
-                'plugins' => $this->scanManifestDirectory('plugins'),
-                'themes' => $this->scanManifestDirectory('themes'),
-            ];
-        }
-
-        $payload = [
-            'manifest' => [
-                'format' => 'cajeerengine.export.v2',
-                'compatible_formats' => ['cajeerengine.export.v1'],
-                'version' => $version,
-                'created_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
-                'sections' => array_keys($data),
-                'media_files_embedded' => isset($data['media']['files']) && count((array) $data['media']['files']) > 0,
-            ],
-            'data' => $data,
-        ];
-        $payload['manifest']['checksum'] = hash('sha256', json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-
-        $filename = $filename ?: 'cajeerengine-export-' . str_replace(['/', ':'], '-', $payload['manifest']['created_at']) . '.json';
-        $path = $this->exportsDir() . '/' . $this->safeFilename($filename);
-        (new JsonFile($path))->writeObject($payload);
-        return ['path' => $path, 'file' => basename($path), 'manifest' => $payload['manifest']];
-    }
-
-    /** @param array<string, mixed> $options @return array<string, mixed> */
-    public function diff(string $file, array $options = []): array
-    {
-        if (filter_var($options['delete_missing_content'] ?? false, FILTER_VALIDATE_BOOLEAN) || filter_var($options['create_missing_users'] ?? false, FILTER_VALIDATE_BOOLEAN)) { throw new \InvalidArgumentException('Unsafe import option disabled.'); }
-        $path = $this->resolveImportPath($file);
-        $payload = $this->loadImportPayload($path);
-        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
-        $config = new ConfigRepository($this->rootPath);
-        $database = new DatabaseManager($config);
-        $types = new ContentTypeRepository($this->rootPath, $database);
-        $entries = new ContentEntryRepository($this->rootPath, $database);
-        $media = new MediaRepository($this->rootPath, new StorageManager($this->rootPath, $config));
-
-        $diff = [
-            'ok' => true,
-            'file' => basename($path),
-            'manifest' => $payload['manifest'],
-            'summary' => ['create' => 0, 'update' => 0, 'delete' => 0, 'skip' => 0],
-            'sections' => [],
-            'generated_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
-        ];
-
-        if (isset($data['content']) && is_array($data['content'])) {
-            $section = ['types' => [], 'entries' => []];
-            foreach ((array) ($data['content']['types'] ?? []) as $type) {
-                if (!is_array($type)) { continue; }
-                $handle = (string) ($type['handle'] ?? '');
-                if ($handle === '') { continue; }
-                $exists = $types->find($handle) !== null;
-                $action = $exists ? 'update' : 'create';
-                $section['types'][] = ['handle' => $handle, 'action' => $action];
-                $diff['summary'][$action]++;
-            }
-            foreach ((array) ($data['content']['entries'] ?? []) as $handle => $items) {
-                if (!is_array($items)) { continue; }
-                foreach ($items as $entry) {
-                    if (!is_array($entry)) { continue; }
-                    $id = (string) ($entry['id'] ?? '');
-                    $slug = (string) ($entry['slug'] ?? '');
-                    $existing = $id !== '' ? $entries->find((string) $handle, $id) : null;
-                    $existing = $existing ?? ($slug !== '' ? $entries->find((string) $handle, $slug) : null);
-                    $action = $existing === null ? 'create' : 'update';
-                    $section['entries'][] = ['type' => (string) $handle, 'id' => $id ?: null, 'slug' => $slug ?: null, 'action' => $action];
-                    $diff['summary'][$action]++;
-                }
-            }
-            $diff['sections']['content'] = $section;
-        }
-
-        if (isset($data['media']) && is_array($data['media'])) {
-            $existingChecksums = [];
-            foreach ($media->all() as $item) {
-                $checksum = (string) ($item['checksum'] ?? '');
-                if ($checksum !== '') { $existingChecksums[$checksum] = true; }
-            }
-            $section = [];
-            foreach ((array) ($data['media']['items'] ?? []) as $item) {
-                if (!is_array($item)) { continue; }
-                $checksum = (string) ($item['checksum'] ?? '');
-                $action = $checksum !== '' && isset($existingChecksums[$checksum]) ? 'skip' : 'create';
-                $section[] = ['filename' => $item['filename'] ?? null, 'path' => $item['path'] ?? null, 'checksum' => $checksum ?: null, 'action' => $action];
-                $diff['summary'][$action]++;
-            }
-            $diff['sections']['media'] = $section;
-        }
-
-        if (isset($data['settings'])) {
-            $diff['sections']['settings'] = ['action' => ($options['settings'] ?? 'merge') === 'replace' ? 'replace' : 'merge'];
-            $diff['summary']['update']++;
-        }
-        if (isset($data['extensions']['registry'])) {
-            $diff['sections']['extensions.registry'] = ['action' => 'skip', 'reason' => 'manual-install-required'];
-            $diff['summary']['skip']++;
-        }
-
-        return $diff;
-    }
-
-    /** @param array<string, mixed> $options @return array<string, mixed> */
-    public function import(string $file, array $options = []): array
-    {
-        $path = $this->resolveImportPath($file);
-        $payload = $this->loadImportPayload($path);
-        $dryRun = filter_var($options['dry_run'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        $replaceSettings = ($options['settings'] ?? 'merge') === 'replace';
-        if (filter_var($options['create_missing_users'] ?? false, FILTER_VALIDATE_BOOLEAN)) { throw new \InvalidArgumentException('User provisioning via import is disabled.'); }
-        if (filter_var($options['delete_missing_content'] ?? false, FILTER_VALIDATE_BOOLEAN)) { throw new \InvalidArgumentException('Destructive import отключён до транзакционного импорта 1.1.5.'); }
-        $deleteMissingContent = false;
-        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
-        $result = [
-            'ok' => true,
-            'dry_run' => $dryRun,
-            'file' => basename($path),
-            'manifest' => $payload['manifest'],
-            'diff' => $this->diff($file, $options),
-            'imported' => [],
-            'skipped' => [],
-            'errors' => [],
-        ];
-
-        if ($dryRun) {
-            $result['skipped'][] = 'all:dry-run';
-            $this->writeImportLog($result);
-            return $result;
-        }
-
-        $config = new ConfigRepository($this->rootPath);
-        $database = new DatabaseManager($config);
-
-        if (isset($data['content']) && is_array($data['content'])) {
-            $result['content'] = $this->importContent($data['content'], $database, $deleteMissingContent);
-            $result['imported'][] = 'content';
-        }
-
-        if (isset($data['media']) && is_array($data['media'])) {
-            $result['media'] = $this->importMedia($data['media'], $config);
-            $result['imported'][] = 'media';
-        }
-
-        if (isset($data['users']) && is_array($data['users'])) {
-            $result['skipped'][] = 'users:manual-provisioning-required';
-        }
-
-        if (isset($data['settings'])) {
-            $incoming = is_array($data['settings']) ? $data['settings'] : [];
-            $pathSettings = $this->rootPath . '/storage/app/settings.json';
-            $existing = $replaceSettings ? [] : $this->readJsonIfExists($pathSettings);
-            (new JsonFile($pathSettings))->writeObject(array_replace_recursive($existing, $incoming));
-            $result['imported'][] = $replaceSettings ? 'settings.replace' : 'settings.merge';
-        }
-
-        if (isset($data['theme_config']) && is_array($data['theme_config'])) {
-            (new JsonFile($this->rootPath . '/storage/app/cms/theme.json'))->writeObject($data['theme_config']);
-            $result['imported'][] = 'theme_config';
-        }
-
-        if (isset($data['extensions']['registry']) && is_array($data['extensions']['registry'])) {
-            $result['skipped'][] = 'extensions.registry:manual-install-required';
-        }
-
-        foreach (['content','media','users'] as $section) {
-            foreach ($result[$section]['errors'] ?? [] as $error) { $result['errors'][] = $error; }
-        }
-        $result['ok'] = $result['errors'] === [];
-        $this->writeImportLog($result);
-        return $result;
-    }
-
-    /** @param array<string, mixed> $content @return array<string, mixed> */
-    private function importContent(array $content, DatabaseManager $database, bool $deleteMissing): array
-    {
-        $types = new ContentTypeRepository($this->rootPath, $database);
-        $entries = new ContentEntryRepository($this->rootPath, $database);
-        $result = ['types_created' => 0, 'types_updated' => 0, 'entries_created' => 0, 'entries_updated' => 0, 'entries_deleted' => 0, 'errors' => []];
-
-        foreach ((array) ($content['types'] ?? []) as $type) {
-            if (!is_array($type)) { continue; }
-            $handle = (string) ($type['handle'] ?? '');
-            if ($handle === '') { continue; }
+        return $this->exclusive(function()use($sections,$filename){
+            $this->ready(); $sections=$this->sections($sections); $package=new SitePackage($this->rootPath);
             try {
-                if ($types->find($handle) === null) {
-                    $types->create($type);
-                    $result['types_created']++;
-                } else {
-                    $types->update($handle, $type);
-                    $result['types_updated']++;
+                $data=[];
+                foreach($sections as $section) {
+                    if($section==='content') {
+                        $content=['types'=>$this->types->all(),'entries'=>[],'revisions'=>[]];
+                        foreach($content['types'] as $type) {
+                            $handle=$type['handle']; $items=$this->entries->list($handle,['status'=>'all']);
+                            foreach($items as &$item) { $content['revisions'][$item['id']]=$this->entries->revisions($handle,$item['id']); unset($item['revisions']); } unset($item);
+                            $content['entries'][$handle]=$items;
+                        }
+                        $data['content']=$content;
+                    } elseif($section==='media') {
+                        $items=$this->media->all();
+                        foreach($items as $item) {
+                            $source=F::path($this->rootPath,'public/uploads/'.$item['path']);
+                            if(F::hash($source)!==$item['checksum'])throw new \RuntimeException('Missing or changed media: '.$item['id']);
+                            $package->addMedia($source,$item['checksum']);
+                        }
+                        $data['media']=['items'=>$items];
+                    } elseif($section==='cms') {
+                        $data['cms']=['theme'=>$this->theme->get(),'navigation'=>$this->navigation->all(),'redirects'=>$this->redirects->all()];
+                    } elseif($section==='settings') $data['settings']=$this->settings();
                 }
-            } catch (\Throwable $e) {
-                $result['errors'][] = ['section' => 'content.types', 'handle' => $handle, 'error' => $e->getMessage()];
-            }
-        }
-
-        foreach ((array) ($content['entries'] ?? []) as $handle => $items) {
-            if (!is_array($items)) { continue; }
-            $seen = [];
-            foreach ($items as $entry) {
-                if (!is_array($entry)) { continue; }
-                $id = (string) ($entry['id'] ?? '');
-                $slug = (string) ($entry['slug'] ?? '');
-                try {
-                    $existing = $id !== '' ? $entries->find((string) $handle, $id) : null;
-                    $existing = $existing ?? ($slug !== '' ? $entries->find((string) $handle, $slug) : null);
-                    $payload = [
-                        'title' => (string) ($entry['title'] ?? 'Без названия'),
-                        'slug' => $slug,
-                        'status' => (string) ($entry['status'] ?? 'draft'),
-                        'locale' => (string) ($entry['locale'] ?? 'ru'),
-                        'translation_group' => (string) ($entry['translation_group'] ?? ($id ?: '')),
-                        'data' => is_array($entry['data'] ?? null) ? $entry['data'] : [],
-                    ];
-                    if ($existing === null) {
-                        $created = $entries->create((string) $handle, $payload);
-                        $seen[] = (string) ($created['id'] ?? '');
-                        $result['entries_created']++;
-                    } else {
-                        $updated = $entries->update((string) $handle, (string) $existing['id'], $payload);
-                        $seen[] = (string) ($updated['id'] ?? $existing['id']);
-                        $result['entries_updated']++;
-                    }
-                } catch (\Throwable $e) {
-                    $result['errors'][] = ['section' => 'content.entries', 'type' => (string) $handle, 'id' => $id, 'slug' => $slug, 'error' => $e->getMessage()];
-                }
-            }
-            if ($deleteMissing) {
-                foreach ($entries->list((string) $handle, ['status' => 'all']) as $existingEntry) {
-                    $existingId = (string) ($existingEntry['id'] ?? '');
-                    if ($existingId !== '' && !in_array($existingId, $seen, true)) {
-                        if ($entries->delete((string) $handle, $existingId)) { $result['entries_deleted']++; }
-                    }
-                }
-            }
-        }
-        return $result;
+                $filename=$filename?:'cajeerengine-export-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(4)).'.zip';
+                $this->filename($filename); $path=$this->directory('exports').'/'.$filename;
+                if(file_exists($path)||is_link($path))throw new \InvalidArgumentException('Export already exists');
+                $manifest=$package->write($path,$data,$this->config->string('app.version','1.1.5'),str_ends_with($filename,'.json'));
+                return ['ok'=>true,'path'=>$path,'file'=>$filename,'sha256'=>F::hash($path),'manifest'=>$manifest];
+            } finally { $package->close(); }
+        });
     }
 
-    /** @param array<string, mixed> $mediaData @return array<string, mixed> */
-    private function importMedia(array $mediaData, ConfigRepository $config): array
+    public function diff(string $file,array $options=[]): array
     {
-        $media = new MediaRepository($this->rootPath, new StorageManager($this->rootPath, $config));
-        $existing = [];
-        foreach ($media->all() as $item) {
-            $checksum = (string) ($item['checksum'] ?? '');
-            if ($checksum !== '') { $existing[$checksum] = true; }
-        }
+        return $this->exclusive(function()use($file,$options){$this->ready();$package=new SitePackage($this->rootPath);
+            try { $package->read($this->resolve($file));return $this->publicPlan($this->plan($package,$options),$file); }
+            finally { $package->close(); }
+        });
+    }
 
-        $filesByChecksum = [];
-        foreach ((array) ($mediaData['files'] ?? []) as $file) {
-            if (is_array($file) && isset($file['checksum'])) {
-                $filesByChecksum[(string) $file['checksum']] = $file;
-            }
-        }
-
-        $result = ['created' => 0, 'skipped_existing' => 0, 'skipped_no_file' => 0, 'errors' => []];
-        foreach ((array) ($mediaData['items'] ?? []) as $item) {
-            if (!is_array($item)) { continue; }
-            $checksum = (string) ($item['checksum'] ?? '');
-            if ($checksum !== '' && isset($existing[$checksum])) {
-                $result['skipped_existing']++;
-                continue;
-            }
-            $file = $checksum !== '' ? ($filesByChecksum[$checksum] ?? null) : null;
-            if (!is_array($file) || (string) ($file['content_base64'] ?? '') === '') {
-                $result['skipped_no_file']++;
-                continue;
-            }
+    /** Store a validated, immutable-by-digest request for the privileged CLI operator. */
+    public function request(string $file,array $options): array
+    {
+        return $this->exclusive(function()use($file,$options){
+            $this->ready();$package=new SitePackage($this->rootPath);
             try {
-                $decoded = base64_decode((string) $file['content_base64'], true);
-                if ($decoded === false || !hash_equals($checksum, hash('sha256', $decoded))) { throw new \InvalidArgumentException('Media checksum mismatch'); }
-                $media->createFromBase64([
-                    'filename' => (string) ($item['filename'] ?? $file['filename'] ?? 'upload.bin'),
-                    'mime_type' => (string) ($item['mime_type'] ?? $file['mime_type'] ?? 'application/octet-stream'),
-                    'title' => (string) ($item['title'] ?? ''),
-                    'alt' => (string) ($item['alt'] ?? ''),
-                    'content_base64' => (string) $file['content_base64'],
-                ]);
-                $result['created']++;
-            } catch (\Throwable $e) {
-                $result['errors'][] = ['filename' => $item['filename'] ?? null, 'error' => $e->getMessage()];
-            }
-        }
-        return $result;
+                $package->read($this->resolve($file));$plan=$this->plan($package,$options);$this->confirm($plan,$options);
+                $id=bin2hex(random_bytes(16));$dir=$this->directory('import-requests');
+                $record=['id'=>$id,'file'=>basename($file),'options'=>$plan['options']+['plan'=>$plan['plan']],'sha256'=>$package->digest,'state'=>'pending','created_at'=>gmdate(DATE_ATOM)];
+                F::json($dir.'/'.$id.'.json',$record,0640);
+                return ['ok'=>true,'request'=>$record,'command'=>'php bin/cajeer import:execute --id='.$id];
+            }finally{$package->close();}
+        });
     }
 
-    /** @param array<string, mixed> $usersData @return array<string, mixed> */
-    private function importUsers(array $usersData, DatabaseManager $database, bool $createMissingUsers): array
+    public function requests(): array
     {
-        $roles = new RoleRepository($database);
-        $users = new UserRepository($database, $roles, new PasswordHasher(new ConfigRepository($this->rootPath)));
-        $result = ['roles_upserted' => 0, 'users_updated' => 0, 'users_created_disabled' => 0, 'users_skipped_missing_password' => 0, 'errors' => []];
-
-        foreach ((array) ($usersData['roles'] ?? []) as $role) {
-            if (!is_array($role)) { continue; }
-            try {
-                $roles->upsert((string) ($role['handle'] ?? ''), (string) ($role['name'] ?? $role['handle'] ?? ''), array_values(array_map('strval', (array) ($role['permissions'] ?? []))));
-                $result['roles_upserted']++;
-            } catch (\Throwable $e) {
-                $result['errors'][] = ['section' => 'users.roles', 'handle' => $role['handle'] ?? null, 'error' => $e->getMessage()];
-            }
-        }
-
-        foreach ((array) ($usersData['users'] ?? []) as $user) {
-            if (!is_array($user)) { continue; }
-            $email = (string) ($user['email'] ?? '');
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { continue; }
-            try {
-                $existing = $users->findByEmail($email);
-                $payload = [
-                    'name' => (string) ($user['name'] ?? $email),
-                    'status' => in_array(($user['status'] ?? 'active'), ['active', 'disabled'], true) ? (string) $user['status'] : 'disabled',
-                    'roles' => array_values(array_map('strval', (array) ($user['roles'] ?? ['viewer']))),
-                ];
-                if ($existing !== null) {
-                    $users->update((string) $existing['id'], $payload);
-                    $result['users_updated']++;
-                } elseif ($createMissingUsers) {
-                    $password = bin2hex(random_bytes(24));
-                    $id = $users->create($email, (string) $payload['name'], password_hash($password, PASSWORD_ARGON2ID) ?: password_hash($password, PASSWORD_DEFAULT), $payload['roles']);
-                    $users->update($id, ['status' => 'disabled']);
-                    $result['users_created_disabled']++;
-                } else {
-                    $result['users_skipped_missing_password']++;
-                }
-            } catch (\Throwable $e) {
-                $result['errors'][] = ['section' => 'users.users', 'email' => $email, 'error' => $e->getMessage()];
-            }
-        }
-        return $result;
+        $items=[];foreach(glob($this->directory('import-requests').'/*.json')?:[] as $path) if(!is_link($path)&&preg_match('/^[a-f0-9]{32}\.json$/D',basename($path)))$items[]=F::read($path);
+        usort($items,static fn($a,$b)=>strcmp($b['created_at'],$a['created_at']));return $items;
     }
 
-    /** @param list<array<string, mixed>> $items @return list<array<string, mixed>> */
-    private function exportMediaFiles(array $items): array
+    public function executeRequest(string $id): array
     {
-        $files = [];
-        foreach ($items as $item) {
-            $relative = ltrim((string) ($item['path'] ?? ''), '/');
-            if ($relative === '') { continue; }
-            $path = $this->rootPath . '/public/uploads/' . $relative;
-            if (!is_file($path)) { continue; }
-            $contents = file_get_contents($path);
-            if ($contents === false) { continue; }
-            $files[] = [
-                'path' => $relative,
-                'filename' => (string) ($item['filename'] ?? basename($relative)),
-                'mime_type' => (string) ($item['mime_type'] ?? 'application/octet-stream'),
-                'size' => strlen($contents),
-                'checksum' => hash('sha256', $contents),
-                'content_base64' => base64_encode($contents),
-            ];
-        }
-        return $files;
+        if(PHP_SAPI!=='cli'||!preg_match('/^[a-f0-9]{32}$/D',$id))throw new \InvalidArgumentException('Invalid import request');
+        return $this->exclusive(function()use($id){
+            $path=$this->directory('import-requests').'/'.$id.'.json';$request=F::read($path);
+            if(($request['state']??'')!=='pending')throw new \RuntimeException('Request already processed; create a new plan');
+            $this->filename($request['file']);
+            if(!hash_equals($request['sha256'],F::hash($this->resolve($request['file']))))throw new \RuntimeException('Requested package changed');
+            $result=$this->apply($request['file'],$request['options']);
+            $request['state']=$result['ok']?'completed':'failed';$request['result']=$result;F::json($path,$request,0640);return $result;
+        });
     }
 
-    /** @return array<string, mixed> */
-    private function loadImportPayload(string $path): array
+    public function upload(string $path,string $name): array
     {
-        $payload = (new JsonFile($path))->readObject();
-        $format = (string) ($payload['manifest']['format'] ?? '');
-        if (!in_array($format, ['cajeerengine.export.v1', 'cajeerengine.export.v2'], true)) {
-            throw new \InvalidArgumentException('Файл импорта не является экспортом CajeerEngine v1/v2.');
-        }
-        if (!is_array($payload['data'] ?? null)) throw new \InvalidArgumentException('Invalid import data');
-        if ($format === 'cajeerengine.export.v2') {
-            $expected = $payload['manifest']['checksum'] ?? '';
-            $actual = hash('sha256', json_encode($payload['data'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-            if (!is_string($expected) || !hash_equals($expected, $actual)) throw new \InvalidArgumentException('Import checksum mismatch');
-        }
-        return $payload;
+        return $this->exclusive(function()use($path,$name){
+            $this->ready();$this->filename($name);$safe=bin2hex(random_bytes(16)).'.'.pathinfo($name,PATHINFO_EXTENSION);
+            $dest=$this->directory('imports').'/'.$safe;if(filesize($path)>SitePackage::TOTAL_LIMIT)throw new \InvalidArgumentException('Package too large');F::copy($path,$dest,0640);$package=new SitePackage($this->rootPath);
+            try{$package->read($dest);return ['ok'=>true,'file'=>$safe,'sha256'=>$package->digest,'manifest'=>$package->manifest];}
+            catch(\Throwable $e){F::remove($dest);throw $e;}finally{$package->close();}
+        });
     }
 
-    private function exportsDir(): string
+    public function downloadPath(string $file): string
     {
-        $dir = $this->rootPath . '/storage/app/exports';
-        if (!is_dir($dir)) { mkdir($dir, 0775, true); }
-        return $dir;
+        $this->filename($file);$path=F::path($this->rootPath,'storage/app/exports/'.$file);
+        if(!is_file($path))throw new \InvalidArgumentException('Export not found');return $path;
     }
 
-    private function importsDir(): string
+    public function import(string $file,array $options=[]): array
     {
-        $dir = $this->rootPath . '/storage/app/imports';
-        if (!is_dir($dir)) { mkdir($dir, 0775, true); }
-        return $dir;
+        if(!empty($options['dry_run']))return $this->diff($file,$options)+['dry_run'=>true,'imported'=>[],'skipped'=>['all:dry-run']];
+        if(PHP_SAPI!=='cli')return $this->request($file,$options);
+        return $this->exclusive(fn()=>$this->apply($file,$options));
     }
 
-    /** @return array<string, mixed> */
-    private function readJsonIfExists(string $path): array
+    private function apply(string $file,array $options): array
     {
-        if (!is_file($path)) { return []; }
-        $decoded = json_decode((string) file_get_contents($path), true);
-        return is_array($decoded) ? $decoded : [];
-    }
-
-    /** @return list<array<string, mixed>> */
-    private function scanManifestDirectory(string $relative): array
-    {
-        $items = [];
-        $dir = $this->rootPath . '/' . $relative;
-        foreach (glob($dir . '/*/cajeer.extension.json') ?: [] as $manifest) {
-            $decoded = json_decode((string) file_get_contents($manifest), true);
-            if (is_array($decoded)) {
-                $decoded['_path'] = substr($manifest, strlen($this->rootPath) + 1);
-                $items[] = $decoded;
-            }
-        }
-        return $items;
-    }
-
-    /** @return list<array<string, mixed>> */
-    private function safeArray(callable $callback): array
-    {
+        $this->ready();$package=new SitePackage($this->rootPath);
         try {
-            $value = $callback();
-            return is_array($value) ? array_values($value) : [];
-        } catch (\Throwable) {
-            return [];
+            $package->read($this->resolve($file));$plan=$this->plan($package,$options);$this->confirm($plan,$options);
+            $result=$this->publicPlan($plan,$file)+['imported'=>[],'skipped'=>$plan['skipped'],'errors'=>[]];
+            if(array_sum(array_intersect_key($plan['summary'],array_flip(['create','update'])))===0)return $result+['unchanged'=>true];
+            // The same recovery gate as update/backup. No web process receives the backup key.
+            $backup=new BackupManager($this->rootPath,$this->config);
+            (new DatabaseBackup($this->rootPath,$this->config))->assertRecoveryReady();
+            $snapshot=$backup->capture();$marker=F::path($this->rootPath,'storage/app/backup-restore.json');
+            $lease='restore-'.bin2hex(random_bytes(8)).'.lock';
+            F::json($marker,['id'=>$snapshot['id'],'state'=>'importing','child_lock'=>$lease,'at'=>gmdate(DATE_ATOM)],0640);
+            $result['backup_id']=$snapshot['id'];
+            DatabaseBackup::useProcessLock($snapshot['target'].'/'.$lease);
+            try {
+                $work=function()use($plan,$package,&$result){$mask=umask(0002);try{$this->applyPlan($plan,$package);$result['imported']=$plan['options']['sections'];}finally{umask($mask);}};
+                if($this->databaseMode($plan['options']['sections']))$this->db->transaction($work);else $work();
+                $this->db->disconnect();
+                $this->report($result+['state'=>'completed']); F::remove($marker);
+                return $result;
+            } catch(\Throwable $e) {
+                $this->db->disconnect();$result['ok']=false;$result['errors'][]=$e->getMessage();
+                try{$backup->restoreCaptured($snapshot['id']);$result['rolled_back']=true;F::remove($marker);}
+                catch(\Throwable $recovery){$result['rolled_back']=false;$result['errors'][]='Recovery required: '.$recovery->getMessage();}
+                $this->report($result+['state'=>'failed']);return $result;
+            } finally {DatabaseBackup::useProcessLock(null);}
+        }finally{$package->close();}
+    }
+
+    private function plan(SitePackage $package,array $options): array
+    {
+        if(!empty($options['delete_missing_content'])||!empty($options['create_missing_users'])||($options['settings']??'merge')!=='merge')throw new \InvalidArgumentException('Destructive or privileged import is disabled');
+        $strategy=$options['strategy']??'fail';if(!in_array($strategy,['fail','skip','update'],true))throw new \InvalidArgumentException('Unknown conflict strategy');
+        $data=$package->data; foreach($data as $section=>$value)if(!is_array($value))throw new \InvalidArgumentException('Invalid section: '.$section);
+        // Legacy v2 theme configuration was exported under a separate key.
+        if(isset($data['theme_config'])&&!isset($data['cms']))$data['cms']=['theme'=>$data['theme_config']];
+        $available=array_values(array_intersect(self::SECTIONS,array_keys($data))); if($available===[])throw new \InvalidArgumentException('No portable sections');
+        $sections=$this->sections(($options['sections']??[])?:$available);
+        if(array_diff($sections,$available))throw new \InvalidArgumentException('Selected section is missing in package');
+        $p=['options'=>['sections'=>$sections,'strategy'=>$strategy,'settings'=>'merge'],'sha256'=>$package->digest,'manifest'=>$package->manifest,'summary'=>['create'=>0,'update'=>0,'skip'=>0,'conflict'=>0,'delete'=>0],'sections'=>[],'mapping'=>['content'=>[],'media'=>[],'translations'=>[],'urls'=>[]],'skipped'=>array_values(array_diff(array_keys($data),$sections)),'actions'=>[],'state'=>[]];
+        $typeIndex=[];$entryIndex=[];$allIds=[];$groupLocales=[];
+        if(in_array('content',$sections,true)||in_array('cms',$sections,true))foreach($this->types->all() as $type){
+            $typeIndex[$type['handle']]=$type;
+            foreach($this->entries->list($type['handle'],['status'=>'all']) as $entry){$key=$this->entryKey($type['handle'],$entry);$entryIndex[$key]=$entry;$allIds[$entry['id']]=$entry;$groupLocales[$entry['translation_group']??$entry['id']][$entry['locale']]=$entry['id'];}
+        }
+        $p['state']['content']=[$typeIndex,$entryIndex];
+        $mediaIds=[];$mediaHashes=[];
+        foreach($this->media->all() as $item){$mediaIds[$item['id']]=$item;$mediaHashes[$item['checksum']]=$item;}
+        $p['state']['media']=$mediaIds;
+        $mediaPlan=[];$seenMedia=[];
+        if(in_array('media',$sections,true))foreach($this->rows($data['media']['items']??null,'media.items') as $item){
+            $id=$this->id($item['id']??null);if(isset($seenMedia[$id]))throw new \InvalidArgumentException('Duplicate media ID');$seenMedia[$id]=true;
+            $hash=$item['checksum']??'';if(!is_string($hash)||!isset($package->files[$hash]))throw new \InvalidArgumentException('Missing media bytes: '.$id);
+            $meta=$this->media->inspectImportFile($package->files[$hash],(string)($item['filename']??''));
+            if($meta['checksum']!==$hash||isset($item['size'])&&(int)$item['size']!==$meta['size'])throw new \InvalidArgumentException('Media metadata mismatch');
+            $existing=$mediaHashes[$hash]??null;
+            if($existing!==null){
+                $target=$existing; if(!isset($mediaPlan[$target['id']])&&F::hash(F::path($this->rootPath,'public/uploads/'.$target['path']))!==$hash)throw new \RuntimeException('Target media corrupted');
+                $action='skip';
+            }else{
+                if(isset($mediaIds[$id]))throw new \InvalidArgumentException('Media ID collision: '.$id);
+                $relative='import/'.$id.'.'.pathinfo($meta['filename'],PATHINFO_EXTENSION);
+                if(file_exists(F::path($this->rootPath,'public/uploads/'.$relative)))throw new \InvalidArgumentException('Media path collision');
+                $target=$meta+['id'=>$id,'path'=>$relative,'url'=>$this->storage->publicUrl($relative),'title'=>(string)($item['title']??''),'alt'=>(string)($item['alt']??'')];
+                $mediaPlan[$id]=$target;$mediaHashes[$hash]=$target;$mediaIds[$id]=$target;$action='create';
+            }
+            $p['mapping']['media'][$id]=$target['id'];
+            $oldPath=(string)($item['path']??''); if($oldPath===''||str_contains($oldPath, '\\')||preg_match('~(?:^|/)(?:\.\.?)(?:/|$)|[\x00-\x20]|^/|//~',$oldPath))throw new \InvalidArgumentException('Invalid media path');
+            $oldUrl=(string)($item['url']??'');
+            if($oldUrl!==''&& (SafeHtml::url($oldUrl)===''||!str_ends_with((string)parse_url($oldUrl,PHP_URL_PATH),'/'.$oldPath)))throw new \InvalidArgumentException('Invalid media URL');
+            foreach(array_filter([$oldUrl,'/uploads/'.$oldPath]) as $url){
+                if(isset($p['mapping']['urls'][$url])&&$p['mapping']['urls'][$url]!==$target['url'])throw new \InvalidArgumentException('Ambiguous media URL');
+                $p['mapping']['urls'][$url]=$target['url'];
+            }
+            $this->action($p,'media',$id,$action);
+        }
+        $p['actions']['media']=$mediaPlan;
+        $incomingTypes=[];$typePlan=[];$entryPlan=[];$seenIds=[];$seenKeys=[];$groups=[];
+        if(in_array('content',$sections,true)){
+            foreach($this->rows($data['content']['types']??null,'content.types') as $type){
+                $normalized=ContentTypeValidator::normalize($type);$handle=$normalized['handle'];if(isset($incomingTypes[$handle]))throw new \InvalidArgumentException('Duplicate content type');
+                $existing=$typeIndex[$handle]??null;$action=$this->decision($existing, $normalized,$strategy);
+                // Changing schema under existing records can discard fields. Require explicit schema migration instead.
+                if($existing!==null&&($this->canonical($existing['fields'])!==$this->canonical($normalized['fields'])||$this->canonical($existing['blocks'])!==$this->canonical($normalized['blocks'])))$action='conflict';
+                $this->action($p,'types',$handle,$action);$incomingTypes[$handle]=$action==='skip'||$action==='conflict'?$existing:$normalized;
+                if(in_array($action,['create','update'],true))$typePlan[$handle]=['action'=>$action,'data'=>$normalized];
+            }
+            if(!is_array($data['content']['entries']??null))throw new \InvalidArgumentException('Invalid content.entries');
+            foreach($data['content']['entries'] as $handle=>$rows){
+                $type=$incomingTypes[$handle]??$typeIndex[$handle]??null;if(!is_array($type))throw new \InvalidArgumentException('Missing content type: '.$handle);
+                foreach($this->rows($rows,'content.entries') as $entry){
+                    $id=$this->id($entry['id']??null);if(!is_array($entry['data']??null)||array_diff(array_keys($entry['data']),array_column($type['fields'],'handle')))throw new \InvalidArgumentException('Unknown content fields');$normalized=(new ContentEntryValidator($type))->normalizeForCreate($entry);$key=$this->entryKey($handle,$normalized);
+                    if(isset($seenIds[$id])||isset($seenKeys[$key]))throw new \InvalidArgumentException('Duplicate entry identity or locale/slug');$seenIds[$id]=true;$seenKeys[$key]=true;
+                    $existing=$entryIndex[$key]??null;
+                    if(isset($allIds[$id])&&($existing['id']??null)!==$id)throw new \InvalidArgumentException('Content ID collision: '.$id);
+                    $target=$existing['id']??$id;$p['mapping']['content'][$id]=$target;
+                    $group=$this->id($entry['translation_group']??$id);
+                    if($existing!==null){$g=$existing['translation_group']??$existing['id'];if(isset($groups[$group])&&$groups[$group]!==$g)throw new \InvalidArgumentException('Translation group conflict');$groups[$group]=$g;}
+                    $entryPlan[$id]=['type'=>$handle,'id'=>$target,'source'=>$entry,'normalized'=>$normalized,'existing'=>$existing,'group'=>$group];
+                }
+            }
+            foreach($entryPlan as $id=>&$row){$group=$groups[$row['group']]??$row['group'];$locale=$row['normalized']['locale'];$target=$row['id'];if(isset($groupLocales[$group][$locale])&&$groupLocales[$group][$locale]!==$target)throw new \InvalidArgumentException('Translation locale collision');$groupLocales[$group][$locale]=$target;$p['mapping']['translations'][$row['group']]=$group;$row['normalized']['translation_group']=$group;$allIds[$target]=['id'=>$target];}unset($row);
+            foreach($entryPlan as $id=>&$row){
+                $type=$incomingTypes[$row['type']]??$typeIndex[$row['type']];
+                $payload=$row['normalized'];$payload['data']=$this->rewriteFields($type,$payload['data'],$p['mapping'],$allIds,$mediaIds);
+                $row['payload']=$payload;$row['action']=$this->decision($row['existing'],$payload,$strategy);
+                $this->action($p,'entries',$id,$row['action']);
+                $row['history']=[];
+                if($row['action']==='create'){
+                    $history=$data['content']['revisions'][$id]??$row['source']['revisions']??[];
+                    $seenRevisions=[];foreach($this->rows($history,'revisions') as $snapshot){
+                        $n=$snapshot['revision']??null;if(!is_int($n)||$n<1||isset($seenRevisions[$n])||!is_array($snapshot['data']??null))throw new \InvalidArgumentException('Invalid historical revision');$seenRevisions[$n]=true;
+                        $snapshot['data']=$this->rewrite($snapshot['data']??[],$p['mapping']);$snapshot['translation_group']=$payload['translation_group'];$row['history'][]=$snapshot;}
+                }
+                unset($row['source'],$row['normalized'],$row['existing'],$row['group']);
+            }unset($row);
+        }
+        $p['actions']['types']=$typePlan;$p['actions']['entries']=$entryPlan;
+        if(in_array('cms',$sections,true))$this->planCms($p,$data['cms'],$allIds,$mediaIds,$strategy);
+        if(in_array('settings',$sections,true)){
+            $existing=$this->settings();$p['state']['settings']=$existing; if($data['settings']!==[]&&$this->types->storage()!=='database')throw new \InvalidArgumentException('Settings import requires database-backed target');
+            foreach($data['settings'] as $key=>$value){if(!in_array($key,self::SETTINGS,true)){$p['skipped'][]='setting:'.$key;continue;}
+                if(is_array($value)&&array_key_exists('value',$value))$value=$value['value'];
+                if(!is_string($value)||strlen($value)>255||($key==='app.locale'&&!preg_match('/^[a-z]{2}(?:-[A-Z]{2})?$/D',$value)))throw new \InvalidArgumentException('Invalid portable setting: '.$key);
+                $action=$this->decision(isset($existing[$key])?['value'=>$existing[$key]]:null,['value'=>$value],$strategy);$this->action($p,'settings',$key,$action);if(in_array($action,['create','update'],true))$p['actions']['settings'][$key]=$value;
+            }
+        }
+        if(array_filter($entryPlan,static fn($row)=>in_array($row['action'],['create','update'],true))&&!in_array($this->config->string('search.default','file'),['file','pgsql','postgresql','postgres'],true))throw new \RuntimeException('Import requires local or PostgreSQL search; rebuild external indexes separately');
+        $p['plan']=hash('sha256',$this->canonical([$package->digest,$p['options'],$p['state'],$p['sections'],$p['mapping']]));
+        $p['ok']=$p['summary']['conflict']===0;
+        return $p;
+    }
+
+    private function planCms(array &$p,array $cms,array $ids,array $media,string $strategy): void
+    {
+        if(isset($cms['theme'])){
+            $current=$this->theme->get();$incoming=$this->rewrite($cms['theme'],$p['mapping']);$p['state']['theme']=$current;
+            if(!is_array($incoming))throw new \InvalidArgumentException('Invalid theme config');
+            $incoming=$this->theme->normalizeForImport($incoming);
+            $action=$this->decision($current,$incoming,$strategy);$this->action($p,'cms','theme',$action);if($action==='update')$p['actions']['theme']=$incoming;
+        }
+        $menus=[];$menuIds=[];foreach($this->navigation->all() as $menu){$menus[$menu['handle']]=$menu;foreach($menu['items'] as $item)$menuIds[$item['id']]=$menu['handle'];}$p['state']['navigation']=$menus;
+        $seen=[];
+        foreach($this->rows($cms['navigation']??[],'navigation') as $menu){
+            $handle=$menu['handle']??'';if(!is_string($handle)||!preg_match('/^[a-z][a-z0-9_]{1,99}$/D',$handle)||isset($seen[$handle]))throw new \InvalidArgumentException('Invalid or duplicate menu');$seen[$handle]=true;
+            $items=[];$itemIds=[];foreach($this->rows($menu['items']??null,'navigation.items') as $item){
+                $item=$this->rewrite($item,$p['mapping']);if(!empty($item['children']))throw new \InvalidArgumentException('Nested menu import is not supported by current CMS');
+                if(!empty($item['entry_id'])&&!isset($ids[$item['entry_id']]))throw new \InvalidArgumentException('Unresolved navigation entry');
+                if(!is_string($item['label']??null)||$item['label']===''||!is_string($item['url']??null)||SafeHtml::url($item['url'])==='')throw new \InvalidArgumentException('Invalid navigation item');
+                // Stable item identity scoped to menu prevents collisions with other menus.
+                $sourceId=$this->id($item['id']??null);if(isset($itemIds[$sourceId]))throw new \InvalidArgumentException('Duplicate menu item ID');$itemIds[$sourceId]=true;
+                $item['id']=isset($menuIds[$sourceId])&&$menuIds[$sourceId]!==$handle?$this->stableId('menu:'.$handle.':'.$sourceId):$sourceId;
+                if(isset($menuIds[$item['id']])&&$menuIds[$item['id']]!==$handle)throw new \InvalidArgumentException('Menu item identity collision');$menuIds[$item['id']]=$handle;$items[]=['id'=>$item['id'],'label'=>$item['label'],'url'=>$item['url'],'target'=>$item['target']??'_self','entry_type'=>$item['entry_type']??null,'entry_id'=>$item['entry_id']??null,'data'=>$item['data']??[],'children'=>[]];
+            }
+            $name=trim((string)($menu['name']??$handle));$incoming=['name'=>$name!==''?$name:ucfirst($handle),'items'=>$this->navigation->normalizeItems($items)];$existing=$menus[$handle]??null;if($existing!==null)foreach($existing['items'] as &$i)$i=array_intersect_key($i,array_flip(['id','label','url','target','entry_type','entry_id','data','children']));unset($i);
+            $action=$this->decision($existing,$incoming,$strategy);$this->action($p,'navigation',$handle,$action);if(in_array($action,['create','update'],true))$p['actions']['navigation'][$handle]=$incoming;
+        }
+        $redirects=[];foreach($this->redirects->all() as $r)$redirects[$r['source_path']]=$r;$p['state']['redirects']=$redirects;$seen=[];
+        foreach($this->rows($cms['redirects']??[],'redirects') as $r){
+            $source=$r['source_path']??'';$target=$this->rewrite($r['target_url']??'',$p['mapping']);
+            if(!is_string($source)||!str_starts_with($source,'/')||$source==='/'||preg_match('~[\x00-\x20?#\\\\]|//|/$|^/(?:admin|api|install|upgrade|preview)(?:/|$)~i',$source)||isset($seen[$source])||!is_string($target)||SafeHtml::url($target)===''||$source===$target||!in_array($r['status_code']??301,[301,302,307,308],true))throw new \InvalidArgumentException('Invalid redirect');$seen[$source]=true;
+            $incoming=['source_path'=>$source,'target_url'=>$target,'status_code'=>$r['status_code']??301,'enabled'=>filter_var($r['enabled']??true,FILTER_VALIDATE_BOOLEAN)];$existing=$redirects[$source]??null;$action=$this->decision($existing,$incoming,$strategy);$this->action($p,'redirects',$source,$action);if(in_array($action,['create','update'],true))$p['actions']['redirects'][$source]=['data'=>$incoming,'id'=>$existing['id']??$this->stableId('redirect:'.$source)];
         }
     }
 
-    private function resolveImportPath(string $file): string
+    private function applyPlan(array $p,SitePackage $package): void
     {
-        if (PHP_SAPI === 'cli' && str_contains($file, DIRECTORY_SEPARATOR) && is_file($file)) { return $file; }
-        $candidate = $this->importsDir() . '/' . basename($file);
-        if (is_file($candidate) && !is_link($candidate)) { return $candidate; }
-        $candidate = $this->exportsDir() . '/' . basename($file);
-        if (is_file($candidate) && !is_link($candidate)) { return $candidate; }
-        throw new \InvalidArgumentException('Файл импорта не найден: ' . $file);
+        $a=$p['actions'];foreach($a['media']??[] as $item)$this->media->importFile($package->files[$item['checksum']],$item);
+        foreach($a['types']??[] as $handle=>$row){if($row['action']==='create')$this->types->create($row['data']);else $this->types->update($handle,$row['data']);}
+        foreach($a['entries']??[] as $row){
+            if($row['action']==='create'){$created=$this->entries->create($row['type'],$row['payload'],$row['id']);if($created['id']!==$row['id']||$created['slug']!==$row['payload']['slug'])throw new \RuntimeException('Entry identity changed');if($row['history']!==[])$this->entries->importHistory($row['type'],$row['id'],$row['history']);}
+            elseif($row['action']==='update'){if($this->entries->update($row['type'],$row['id'],$row['payload'])===null)throw new \RuntimeException('Entry update failed');}
+        }
+        if(isset($a['theme']))$this->theme->save($a['theme']);
+        foreach($a['navigation']??[] as $handle=>$menu)$this->navigation->save($handle,$menu['name'],$menu['items']);
+        foreach($a['redirects']??[] as $r)$this->redirects->save($r['data'],$r['id']);
+        if(isset($a['settings'])){
+            $repo=new SettingsRepository($this->db);foreach($a['settings'] as $key=>$value)$repo->set($key,$value,'string');
+        }
+        // Rebuild affected search documents when the local/index DB engine is used.
+        if(($a['entries']??[])!==[]){
+            $driver=$this->config->string('search.default','file');
+            if(!in_array($driver,['file','pgsql','postgresql','postgres'],true))throw new \RuntimeException('Import requires local or PostgreSQL search; rebuild external indexes separately');
+            $index=(new \CajeerEngine\Search\SearchFactory($this->rootPath,$this->config,$this->db))->make();
+            $indexer=new \CajeerEngine\Search\SearchIndexer($this->types,$this->entries,$index);
+            foreach($a['entries'] as $row)if(in_array($row['action'],['create','update'],true)){$entry=$this->entries->find($row['type'],$row['id']);if($entry===null)throw new \RuntimeException('Imported entry not found');$indexer->indexEntry($row['type'],$entry);}
+        }
     }
 
-    private function safeFilename(string $filename): string
+    private function rewriteFields(array $type,array $data,array $map,array $ids,array $media): array
     {
-        $filename = preg_replace('/[^a-zA-Z0-9._-]+/', '-', $filename) ?: 'export.json';
-        return str_ends_with($filename, '.json') ? $filename : $filename . '.json';
+        foreach($type['fields']??[] as $field){$key=$field['handle'];if(!array_key_exists($key,$data)||$data[$key]===null)continue;$v=$data[$key];
+            if(in_array($field['type'],['media','relation'],true)){
+                $kind=$field['type']==='media'?'media':'content';$valid=$kind==='media'?$media:$ids;
+                $resolve=function($id)use($map,$kind,$valid,$key){$id=(string)$id;$target=$map[$kind][$id]??$id;if(!isset($valid[$target]))throw new \InvalidArgumentException('Unresolved '.$kind.' reference in '.$key.': '.$id);return $target;};
+                $data[$key]=is_array($v)?array_map($resolve,$v):$resolve($v);
+            }elseif($field['type']==='blocks'){
+                $defs=array_column($type['blocks']??[],null,'handle');foreach($v as &$block)$block['data']=$this->rewriteFields($defs[$block['handle']],$block['data'],$map,$ids,$media);unset($block);$data[$key]=$v;
+            }else $data[$key]=$this->rewrite($v,$map);
+        }return $data;
     }
-
-    /** @param array<string, mixed> $result */
-    private function writeImportLog(array $result): void
+    private function rewrite(mixed $v,array $map): mixed
     {
-        $path = $this->rootPath . '/storage/app/imports/import-log.jsonl';
-        if (!is_dir(dirname($path))) { mkdir(dirname($path), 0775, true); }
-        file_put_contents($path, json_encode(array_merge(['time' => (new \DateTimeImmutable())->format(DATE_ATOM)], $result), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL, FILE_APPEND | LOCK_EX);
+        if(is_array($v)){foreach($v as $k=>$child)$v[$k]=$this->rewrite($child,$map);return $v;}
+        if(!is_string($v))return $v;
+        if(isset($map['content'][$v]))return $map['content'][$v];if(isset($map['media'][$v]))return $map['media'][$v];
+        if(isset($map['urls'][$v]))return $map['urls'][$v];
+        // Match complete URL tokens, not substrings of unrelated URLs or text.
+        return preg_replace_callback('~(?:https?://|/)[^\s<>"\'()]+~i',static function($m)use($map){$url=$m[0];$base=preg_split('/[?#]/',$url,2)[0];return isset($map['urls'][$base])?$map['urls'][$base].substr($url,strlen($base)):$url;},$v)??$v;
     }
+    private function decision(?array $existing,array $incoming,string $strategy): string
+    {
+        if($existing===null)return 'create';
+        $current=array_intersect_key($existing,$incoming);if($this->canonical($current)===$this->canonical($incoming))return 'skip';
+        return $strategy==='fail'?'conflict':$strategy;
+    }
+    private function canonical(mixed $v): string
+    {
+        $sort=function(mixed $x)use(&$sort):mixed{if(is_array($x)){if(!array_is_list($x))ksort($x);foreach($x as &$y)$y=$sort($y);unset($y);}return $x;};return SitePackage::encode($sort($v));
+    }
+    private function action(array &$p,string $section,string $key,string $action): void{$p['sections'][$section][]=['id'=>$key,'action'=>$action];$p['summary'][$action]++;}
+    private function publicPlan(array $p,string $file): array{unset($p['actions'],$p['state']);return $p+['file'=>basename($file)];}
+    private function confirm(array $p,array $o): void{if(!$p['ok'])throw new \InvalidArgumentException('Resolve import conflicts before apply');if(!is_string($o['plan']??null)||!hash_equals($p['plan'],$o['plan']))throw new \InvalidArgumentException('Plan missing or stale; run import:diff and confirm its plan digest');}
+    private function entryKey(string $handle,array $entry): string{return $handle.'|'.$entry['locale'].'|'.$entry['slug'];}
+    private function id(mixed $id): string{if(!is_string($id)||!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/D',$id))throw new \InvalidArgumentException('Invalid record UUID');return $id;}
+    private function stableId(string $key): string{$h=hash('sha256','cajeer-import:'.$key);return substr($h,0,8).'-'.substr($h,8,4).'-4'.substr($h,13,3).'-8'.substr($h,17,3).'-'.substr($h,20,12);}
+    private function rows(mixed $rows,string $name): array{if(!is_array($rows)||!array_is_list($rows))throw new \InvalidArgumentException('Invalid list: '.$name);foreach($rows as $row)if(!is_array($row))throw new \InvalidArgumentException('Invalid row: '.$name);return $rows;}
+    private function sections(array $sections): array{$sections=$sections?:self::SECTIONS; $sections=array_values(array_unique(array_map(static fn($s)=>$s==='themes'?'cms':$s,$sections)));if(array_diff($sections,self::SECTIONS))throw new \InvalidArgumentException('Only content, media, cms and settings are portable');sort($sections);return $sections;}
+    private function settings(): array{if($this->types->storage()!=='database')return []; $out=[];$repo=new SettingsRepository($this->db);foreach(self::SETTINGS as $key){$v=$repo->get($key);if($v!==null)$out[$key]=$v;}return $out;}
+    private function databaseMode(array $sections): bool{return $this->types->storage()==='database'||(in_array('cms',$sections,true)&&$this->theme->storage()==='database')||($this->config->string('search.default','file')==='pgsql');}
+    private function directory(string $name): string{$p=F::path($this->rootPath,'storage/app/'.$name);F::dir($p,02770);return $p;}
+    private function filename(string $name): void{if(!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,180}\.(?:zip|json)$/D',$name))throw new \InvalidArgumentException('Invalid package filename');}
+    private function resolve(string $file): string{if(PHP_SAPI==='cli'&&str_contains($file,'/')&&is_file($file)&&!is_link($file))return $file;$this->filename($file);foreach(['imports','exports'] as $dir){$p=F::path($this->rootPath,'storage/app/'.$dir.'/'.$file);if(is_file($p))return $p;}throw new \InvalidArgumentException('Package not found');}
+    private function exclusive(callable $work): mixed{if(OperationLock::exclusiveHeld($this->rootPath))return $work();$lock=OperationLock::acquire($this->rootPath,true);try{return $work();}finally{OperationLock::release($lock);}}
+    private function ready(): void{
+        if(OperationLock::maintenance($this->rootPath))throw new \RuntimeException('Maintenance/recovery active');
+        if(is_file($this->rootPath.'/storage/app/installed.lock')&&$this->config->string('app.env','production')==='production'){
+            if(strtolower((string)getenv('CONTENT_STORAGE'))==='file'||strtolower((string)getenv('CMS_STORAGE'))==='file'||$this->types->storage()!=='database'||$this->theme->storage()!=='database'||!$this->db->contentCoreReady())throw new \RuntimeException('Production transfer requires available database-backed CMS');
+        }
+    }
+    private function report(array $report): void{F::json($this->directory('import-reports').'/'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(6)).'.json',$report,0640);}
 }

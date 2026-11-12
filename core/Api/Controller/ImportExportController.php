@@ -1,71 +1,51 @@
 <?php
 
 declare(strict_types=1);
-
 namespace CajeerEngine\Api\Controller;
 
 use CajeerEngine\ImportExport\ImportExportService;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 final readonly class ImportExportController
 {
-    public function __construct(private ImportExportService $service)
-    {
-    }
+    public function __construct(private ImportExportService $service) {}
 
-    /** @param array<string, mixed> $parameters */
-    public function exports(Request $request, array $parameters): JsonResponse
+    public function exports(Request $request,array $parameters): JsonResponse
+    { return new JsonResponse(['data'=>$this->service->exports()]); }
+    public function export(Request $request,array $parameters): JsonResponse
     {
-        return new JsonResponse(['data' => $this->service->exports()]);
+        $p=$this->json($request);return new JsonResponse(['data'=>$this->service->createExport($p['sections']??[],$p['filename']??null)],201);
     }
-
-    /** @param array<string, mixed> $parameters */
-    public function export(Request $request, array $parameters): JsonResponse
+    public function diff(Request $request,array $parameters): JsonResponse
     {
-        $payload = $this->json($request);
-        $sections = is_array($payload['sections'] ?? null) ? array_values(array_map('strval', $payload['sections'])) : [];
-        $filename = isset($payload['filename']) ? (string) $payload['filename'] : null;
-        return new JsonResponse(['data' => $this->service->createExport($sections, $filename)], 201);
+        $p=$this->json($request);return new JsonResponse(['data'=>$this->service->diff($this->file($p),$p)]);
     }
-
-    /** @param array<string, mixed> $parameters */
-    public function diff(Request $request, array $parameters): JsonResponse
+    public function import(Request $request,array $parameters): JsonResponse
     {
-        $payload = $this->json($request);
-        $file = (string) ($payload['file'] ?? '');
-        if ($file !== basename($file) || !preg_match('/^[a-zA-Z0-9][a-zA-Z0-9._-]*\.json$/D', $file)) { return new JsonResponse(['error' => ['code' => 'invalid_import_file', 'message' => 'Укажите имя JSON в imports/exports.']], 422); }
-        if ($file === '') {
-            return new JsonResponse(['error' => ['code' => 'import_file_required', 'message' => 'Поле file обязательно.']], 422);
-        }
-        return new JsonResponse(['data' => $this->service->diff($file, $payload)]);
+        $p=$this->json($request);return new JsonResponse(['data'=>$this->service->request($this->file($p),$p)],202);
     }
-
-    /** @param array<string, mixed> $parameters */
-    public function import(Request $request, array $parameters): JsonResponse
+    public function upload(Request $request,array $parameters): JsonResponse
     {
-        $payload = $this->json($request);
-        $file = (string) ($payload['file'] ?? '');
-        if ($file !== basename($file) || !preg_match('/^[a-zA-Z0-9][a-zA-Z0-9._-]*\.json$/D', $file)) { return new JsonResponse(['error' => ['code' => 'invalid_import_file', 'message' => 'Укажите имя JSON в imports/exports.']], 422); }
-        if ($file === '') {
-            return new JsonResponse(['error' => ['code' => 'import_file_required', 'message' => 'Поле file обязательно.']], 422);
-        }
-        $result = $this->service->import($file, $payload);
-        return $result['ok'] ? new JsonResponse(['data' => $result]) : new JsonResponse(['error' => ['code' => 'import_partial_failure', 'message' => 'Import partially failed.', 'details' => $result]], 422);
+        $file=$request->files->get('file');
+        if(!is_object($file)||!$file->isValid())throw new \InvalidArgumentException('Valid multipart file required');
+        return new JsonResponse(['data'=>$this->service->upload($file->getPathname(),$file->getClientOriginalName())],201);
     }
-
-    /** @return array<string, mixed> */
+    public function download(Request $request,array $parameters): BinaryFileResponse
+    {
+        $file=(string)$parameters['file'];$path=$this->service->downloadPath($file);
+        $response=new BinaryFileResponse($path);$response->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT,$file);
+        $response->headers->set('Content-Type',str_ends_with($file,'.zip')?'application/zip':'application/json');
+        $response->headers->set('Cache-Control','private, no-store');$response->headers->set('X-Content-Type-Options','nosniff');return $response;
+    }
+    public function requests(Request $request,array $parameters): JsonResponse
+    { return new JsonResponse(['data'=>$this->service->requests()]); }
+    private function file(array $p): string
+    {
+        $file=$p['file']??'';if(!is_string($file)||!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,180}\.(?:zip|json)$/D',$file))throw new \InvalidArgumentException('Provide a package basename');return $file;
+    }
     private function json(Request $request): array
-    {
-        $parsed = $request->attributes->get('json');
-        if (is_array($parsed)) {
-            return $parsed;
-        }
-        $body = trim($request->getContent());
-        if ($body === '') {
-            return [];
-        }
-        $payload = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
-        return is_array($payload) ? $payload : [];
-    }
+    { $p=$request->attributes->get('json');return is_array($p)?$p:json_decode($request->getContent()?:'{}',true,64,JSON_THROW_ON_ERROR); }
 }

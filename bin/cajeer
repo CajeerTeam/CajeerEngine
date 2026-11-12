@@ -105,7 +105,7 @@ if (CajeerEngine\Console\OperationsCli::handles($argv)) {
     exit(CajeerEngine\Console\OperationsCli::run($root, $argv));
 }
 try {
-    $activityLease = CajeerEngine\Update\OperationLock::acquire($root, false);
+    $activityLease = CajeerEngine\Update\OperationLock::acquire($root, in_array($argv[1]??'', ['import:run','import:diff','export:create'],true));
     if ((CajeerEngine\Update\OperationLock::active($root)||is_file($root.'/storage/app/backup-restore.json')) && !in_array($argv[1]??'', ['list','--version'],true)) throw new RuntimeException('Recovery required; use operational CLI.');
     if (CajeerEngine\Update\OperationLock::maintenance($root) && !in_array($argv[1] ?? '', ['list','--version','doctor','rc:doctor','system:report','stable:status','update:check','update:prepare','update','api:lint','release:verify','admin:assets','migrate:status','migrate:verify'], true)) {
         throw new RuntimeException('Maintenance active; CLI writes disabled.');
@@ -129,7 +129,7 @@ if (is_file($root . '/.env')) {
     (new Dotenv())->usePutenv()->loadEnv($root . '/.env');
 }
 
-$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.1.4');
+$cli = new Application('CajeerEngine CLI', trim((string) @file_get_contents($root . '/VERSION')) ?: '1.1.5');
 
 /** @var list<Symfony\Component\Console\Command\Command> $commands */
 $commands = [

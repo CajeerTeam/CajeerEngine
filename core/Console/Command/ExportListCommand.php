@@ -26,7 +26,7 @@ final class ExportListCommand extends BaseCommand
             return self::SUCCESS;
         }
         foreach ($items as $item) {
-            $output->writeln($item['file'] . ' ' . $item['size'] . ' bytes ' . implode(',', (array) $item['sections']));
+            $output->writeln($item['file'] . ' ' . $item['size'] . ' bytes ' . (string)($item['format']??''));
         }
         if ($items === []) {
             $output->writeln('[INFO] Экспорты не найдены.');

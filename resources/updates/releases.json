@@ -4,6 +4,26 @@
   "generated_at": "2026-06-19T00:00:00+00:00",
   "releases": [
     {
+      "version": "1.1.5",
+      "channel": "stable",
+      "stability": "stable",
+      "released_at": "2026-11-12T00:00:00+00:00",
+      "notes": "Import/Export Engine: portable site packages, conflict plans and recoverable import.",
+      "source": "https://gitflic.ru/project/cajeerteam/cajeerengine/release/1.1.5",
+      "artifacts": {
+        "source": {
+          "name": "cajeerengine-1.1.5-source.zip",
+          "checksum_name": "cajeerengine-1.1.5-source.zip.sha256",
+          "signature_name": "cajeerengine-1.1.5-source.zip.sig"
+        },
+        "dist": {
+          "name": "cajeerengine-1.1.5-dist.zip",
+          "checksum_name": "cajeerengine-1.1.5-dist.zip.sha256",
+          "signature_name": "cajeerengine-1.1.5-dist.zip.sig"
+        }
+      }
+    },
+    {
       "version": "1.1.4",
       "channel": "stable",
       "stability": "stable",

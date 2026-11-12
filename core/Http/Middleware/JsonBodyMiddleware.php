@@ -22,7 +22,7 @@ final readonly class JsonBodyMiddleware implements MiddlewareInterface
         $contentType = (string) $request->headers->get('Content-Type', '');
         $path = rawurldecode($request->getPathInfo());
         if (!str_starts_with($path, '/api/')) { return $next($request); }
-        if ($path === '/api/v1/media' && $request->getMethod() === 'POST' && str_starts_with(strtolower($contentType), 'multipart/form-data')) {
+        if (in_array($path, ['/api/v1/media','/api/v1/import-export/upload'], true) && $request->getMethod() === 'POST' && str_starts_with(strtolower($contentType), 'multipart/form-data')) {
             return $next($request);
         }
         $content = trim($request->getContent());

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.5 — Import/Export Engine (2026-11-12)
+
+- Portable ZIP v3 exports with checksummed media files and bounded extraction; checksummed JSON v2 remains supported.
+- Preview and confirm an import plan with locale-aware identity mapping, conflict policies, CMS repositories, history and backup recovery.
+- Admin upload/download and operator-executed import requests.
+
+
 ## 1.1.4 — Production Updater & Backup (2026-11-12)
 
 - Ed25519 release signatures, verified staging, exclusive operation lease, durable update journal, automatic recovery and CLI rollback.

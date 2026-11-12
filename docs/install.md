@@ -1,10 +1,10 @@
-# Установка CajeerEngine 1.1.4
+# Установка CajeerEngine 1.1.5
 
 ## Web Installer
 
 Основной путь для обычного пользователя:
 
-1. Скачать `cajeerengine-1.1.4-dist.zip`.
+1. Скачать `cajeerengine-1.1.5-dist.zip`.
 2. Загрузить архив на сервер.
 3. Распаковать проект так, чтобы web root указывал на `public/`.
 4. В каталоге проекта под пользователем PHP-FPM выполнить `php bin/cajeer install:web-token` (токен действует 30 минут). Открыть `https://site.ru/install`.
@@ -79,7 +79,7 @@ PostgreSQL 17+/18+ рекомендуется для production.
 - создаёт `storage/app/installed.lock`.
 
 
-## Admin UI 1.1.4
+## Admin UI 1.1.5
 
 После установки откройте:
 
@@ -108,7 +108,7 @@ php bin/cajeer admin:assets --check --json
 node admin/scripts/publish-admin-assets.mjs --check
 ```
 
-## Server automation 1.1.4
+## Server automation 1.1.5
 
 После установки или переноса на другой сервер проверь окружение одной командой:
 
@@ -190,7 +190,7 @@ php bin/cajeer backup:create
 
 Post-install отчёт сохраняется в `storage/app/reports/post-install-latest.json`.
 
-## Release UX 1.1.4
+## Release UX 1.1.5
 
 Сборка source artifact:
 
@@ -219,16 +219,16 @@ php bin/cajeer release:checksums
 Release builder создаёт ZIP, `release-manifest.json` внутри архива, внешний `.sha256` файл и artifact index:
 
 ```text
-storage/releases/cajeerengine-1.1.4-source.zip
-storage/releases/cajeerengine-1.1.4-source.zip.sha256
-storage/releases/cajeerengine-1.1.4-dist.zip
-storage/releases/cajeerengine-1.1.4-dist.zip.sha256
-storage/releases/cajeerengine-1.1.4-artifacts.json
+storage/releases/cajeerengine-1.1.5-source.zip
+storage/releases/cajeerengine-1.1.5-source.zip.sha256
+storage/releases/cajeerengine-1.1.5-dist.zip
+storage/releases/cajeerengine-1.1.5-dist.zip.sha256
+storage/releases/cajeerengine-1.1.5-artifacts.json
 ```
 
 Source artifact предназначен для разработчиков и не содержит `vendor/`. Dist artifact предназначен для установки на сервер и должен содержать `vendor/autoload.php`, `composer.lock` и готовые `public/admin/assets/`.
 
-## Upgrade Wizard 1.1.4
+## Upgrade Wizard 1.1.5
 
 Используйте подписанный dist и отдельного CLI-оператора. `/upgrade` показывает подготовленный релиз и принимает подтверждённый запрос через административный API. Сам PHP-FPM не заменяет код и не восстанавливает БД. Полный порядок подготовки ключей, staging, backup, update и recovery описан в [Production Updater & Backup](update-backup.md).
 
@@ -247,17 +247,18 @@ php bin/cajeer cms:bootstrap --demo-home
 
 ```bash
 php bin/cajeer export:create --json
-php bin/cajeer import:diff storage/app/exports/site.json --json
-php bin/cajeer import:run storage/app/exports/site.json --json
+php bin/cajeer import:diff site.zip --strategy=update --json
+# Скопируйте digest plan из предыдущего вывода.
+php bin/cajeer import:run site.zip --strategy=update --plan=<plan-digest> --json
 ```
 
-Export не заменяет disaster-recovery backup. Destructive import остаётся ограниченным до 1.1.5.
+Export не заменяет disaster-recovery backup. Применение требует ключа backup, актуального подтверждённого плана и доступной БД. Удаление отсутствующих записей и перенос прав пользователей запрещены. Подробнее: [Import/Export](import-export.md).
 
-## 1.1.4 — сборка и проверка дистрибутива
+## 1.1.5 — сборка и проверка дистрибутива
 
 Публикация admin и проверка — разные операции: `node admin/scripts/publish-admin-assets.mjs` копирует канонический Static SPA из `admin/static`, `--check` только проверяет и не восстанавливает файлы. В dist нет исходников админки: при повреждении восстановите файлы из проверенного release ZIP, не генерируйте fallback.
 
-На release host закоммитьте настоящий `composer.lock` (первичное разрешение зависимостей: `composer update --no-install`). `bash tools/release-pipeline.sh /tmp/cajeer-release` собирает чистый Git snapshot с `composer install --no-dev`; отсутствие lock, несовпадение vendor или повреждённые assets блокируют сборку. `php bin/cajeer release:verify --dist --strict` проверяет prerequisites, `--artifact=/path/to/cajeerengine-1.1.4-dist.zip` проверяет физический ZIP и оба sidecar. Для source используйте `--source`.
+На release host закоммитьте настоящий `composer.lock` (первичное разрешение зависимостей: `composer update --no-install`). `bash tools/release-pipeline.sh /tmp/cajeer-release` собирает чистый Git snapshot с `composer install --no-dev`; отсутствие lock, несовпадение vendor или повреждённые assets блокируют сборку. `php bin/cajeer release:verify --dist --strict` проверяет prerequisites, `--artifact=/path/to/cajeerengine-1.1.5-dist.zip` проверяет физический ZIP и оба sidecar. Для source используйте `--source`.
 
 `bash tools/release-smoke.sh /path/to/dist.zip sqlite` распаковывает dist во временную директорию, проверяет отказ установки с повреждённой админкой, устанавливает CMS, авторизуется через HTTP API и публикует страницу. Для PostgreSQL используйте `pgsql` и отдельную пустую тестовую БД (`CE_DB_HOST`, `CE_DB_PORT`, `CE_DB_NAME`, `CE_DB_USER`, `CE_DB_PASSWORD`). Не запускайте smoke на рабочей БД.
 

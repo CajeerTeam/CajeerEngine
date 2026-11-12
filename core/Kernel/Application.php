@@ -143,7 +143,7 @@ final class Application
     public function handle(Request $request): Response
     {
         $response = $this->pipeline->handle($request, fn (Request $request): Response => $this->router->dispatch($request));
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.1.4'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.1.5'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),

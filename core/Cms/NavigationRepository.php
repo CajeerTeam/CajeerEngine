@@ -235,7 +235,7 @@ final class NavigationRepository
     }
 
     /** @param list<array<string,mixed>> $items @return list<array<string,mixed>> */
-    private function normalizeItems(array $items): array
+    public function normalizeItems(array $items): array
     {
         $normalized = [];
         foreach ($items as $item) {

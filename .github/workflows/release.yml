@@ -34,6 +34,8 @@ jobs:
       - run: php bin/cajeer api:lint --strict --json
       - run: php tools/release-regression.php
       - run: php tools/update-regression.php
+      - run: php tools/import-regression.php
+      - run: php tools/import-regression.php --database
       - name: Install matching PostgreSQL 17 client
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg

@@ -12,7 +12,7 @@ $installPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 require_once $root . '/core/Update/OperationFiles.php';
 require_once $root . '/core/Update/OperationLock.php';
 try {
-    $activityLease = CajeerEngine\Update\OperationLock::acquire($root, false);
+    $activityLease = CajeerEngine\Update\OperationLock::acquire($root, ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && str_starts_with(rawurldecode($installPath), '/api/v1/import-export/'));
     if (CajeerEngine\Update\OperationLock::active($root) || is_file($root.'/storage/app/backup-restore.json')) throw new RuntimeException('Recovery in progress');
 } catch (Throwable) {
     http_response_code(503); header('Retry-After: 60'); header('Cache-Control: no-store');

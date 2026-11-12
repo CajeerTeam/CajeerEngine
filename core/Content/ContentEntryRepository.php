@@ -88,10 +88,10 @@ final class ContentEntryRepository
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
-    public function create(string $typeHandle, array $payload): array
+    public function create(string $typeHandle, array $payload, ?string $importId = null): array
     {
         if ($this->useDatabase()) {
-            return $this->createInDatabase($typeHandle, $payload);
+            return $this->createInDatabase($typeHandle, $payload, $importId);
         }
 
         $type = $this->contentType($typeHandle);
@@ -102,7 +102,7 @@ final class ContentEntryRepository
         $translationGroup = (string) ($payload['translation_group'] ?? Uuid::v4());
 
         $entry = [
-            'id' => Uuid::v4(),
+            'id' => $importId ?? Uuid::v4(),
             'type' => $type['handle'],
             'title' => $normalized['title'],
             'slug' => $slug,
@@ -156,7 +156,7 @@ final class ContentEntryRepository
                 'storage' => 'file',
                 'updated_at' => $now,
                 'published_at' => $normalized['status'] === 'published' ? (($entry['published_at'] ?? null) ?: $now) : ($entry['published_at'] ?? null),
-                'deleted_at' => $normalized['status'] === 'archived' ? (($entry['deleted_at'] ?? null) ?: $now) : ($entry['deleted_at'] ?? null),
+                'deleted_at' => null,
             ]);
 
             $updated['revisions'] = $this->appendRevision(is_array($entry['revisions'] ?? null) ? $entry['revisions'] : [], $this->revisionSnapshot($updated, 'updated'));
@@ -256,6 +256,34 @@ final class ContentEntryRepository
     }
 
     /** @return array<string, mixed>|null */
+    /** Restore historical snapshots only on newly imported entries. Keep the current revision last. */
+    public function importHistory(string $typeHandle, string $id, array $history): void
+    {
+        $entry=$this->find($typeHandle,$id);
+        if ($entry===null || (int)$entry['revision']!==1) throw new \RuntimeException('History can only be installed on a new entry');
+        if (count($history)>10000) throw new \InvalidArgumentException('Too many historical revisions');
+        usort($history,static fn($a,$b)=>(int)($a['revision']??0)<=>(int)($b['revision']??0));
+        $snapshots=[];$seen=[];
+        foreach($history as $snapshot){
+            $n=$snapshot['revision']??null;
+            if(!is_int($n)||$n<1||isset($seen[$n])||!is_array($snapshot['data']??null))throw new \InvalidArgumentException('Invalid historical revision');
+            $seen[$n]=true;
+            $snapshots[]=array_intersect_key($snapshot,array_flip(['title','slug','status','locale','translation_group','data','created_at','reason']))+['revision'=>count($snapshots)+1];
+        }
+        $last=end($snapshots);
+        if(is_array($last)&&($last['data']??null)===$entry['data']&&($last['title']??null)===$entry['title']&&($last['slug']??null)===$entry['slug']&&($last['status']??null)===$entry['status']) array_pop($snapshots);
+        $entry['revision']=count($snapshots)+1;$snapshots[]=$this->revisionSnapshot($entry,'imported');
+        if($this->useDatabase()){
+            $this->database()->transaction(function(PDO $pdo)use($entry,$snapshots,$id):void{
+                $pdo->prepare('DELETE FROM ce_content_revisions WHERE entry_id = :id')->execute(['id'=>$id]);
+                foreach($snapshots as $snapshot)$this->insertRevision($pdo,$id,$snapshot['revision'],$snapshot);
+                $pdo->prepare('UPDATE ce_content_entries SET revision_number = :revision WHERE id = :id')->execute(['revision'=>$entry['revision'],'id'=>$id]);
+            });
+        }else{
+            $items=$this->list($typeHandle,['status'=>'all']);foreach($items as &$item)if($item['id']===$id){$item['revision']=$entry['revision'];$item['revisions']=$snapshots;}unset($item);$this->persist($typeHandle,$items);
+        }
+    }
+
     public function restoreRevision(string $typeHandle, string $idOrSlug, int $revision): ?array
     {
         $entry = $this->find($typeHandle, $idOrSlug);
@@ -530,19 +558,20 @@ final class ContentEntryRepository
     private function findInDatabase(string $typeHandle, string $idOrSlug): ?array
     {
         $type = $this->contentType($typeHandle);
-        $stmt = $this->pdo()->prepare('SELECT e.*, ct.handle AS type_handle FROM ce_content_entries e JOIN ce_content_types ct ON ct.id = e.content_type_id WHERE ct.handle = :handle AND e.deleted_at IS NULL AND (e.id = :id OR e.slug = :slug) LIMIT 1');
+        $idExpr = $this->database()->driver() === 'pgsql' ? 'CAST(e.id AS TEXT)' : 'CAST(e.id AS CHAR)';
+        $stmt = $this->pdo()->prepare('SELECT e.*, ct.handle AS type_handle FROM ce_content_entries e JOIN ce_content_types ct ON ct.id = e.content_type_id WHERE ct.handle = :handle AND e.deleted_at IS NULL AND (' . $idExpr . ' = :id OR e.slug = :slug) LIMIT 1');
         $stmt->execute(['handle' => $type['handle'], 'id' => $idOrSlug, 'slug' => $idOrSlug]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return is_array($row) ? $this->mapEntryRow($row, $type) : null;
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */
-    private function createInDatabase(string $typeHandle, array $payload): array
+    private function createInDatabase(string $typeHandle, array $payload, ?string $importId = null): array
     {
         $type = $this->contentType($typeHandle);
         $normalized = (new ContentEntryValidator($type))->normalizeForCreate($payload);
         $now = $this->nowForDatabase();
-        $id = Uuid::v4();
+        $id = $importId ?? Uuid::v4();
         $translationGroup = (string) ($payload['translation_group'] ?? Uuid::v4());
 
         $slug = $this->uniqueSlugInDatabase((string) $type['id'], $normalized['slug'], $normalized['locale']);
@@ -601,7 +630,7 @@ final class ContentEntryRepository
         $revision = ((int) ($existing['revision'] ?? 1)) + 1;
         $now = $this->nowForDatabase();
         $publishedAt = $normalized['status'] === 'published' ? (($existing['published_at'] ?? null) ?: $now) : ($existing['published_at'] ?? null);
-        $deletedAt = $normalized['status'] === 'archived' ? (($existing['deleted_at'] ?? null) ?: $now) : ($existing['deleted_at'] ?? null);
+        $deletedAt = null; // Archived is an editorial state; only delete() creates a tombstone.
         $translationGroup = (string) ($payload['translation_group'] ?? ($existing['translation_group'] ?? $existing['id']));
 
         $this->database()->transaction(function (PDO $pdo) use ($existing, $normalized, $slug, $translationGroup, $revision, $now, $publishedAt, $deletedAt, $reason): void {

@@ -95,6 +95,39 @@ final readonly class MediaRepository
         ]);
     }
 
+    /** Validate package bytes on disk; no trust in supplied MIME or path. */
+    public function inspectImportFile(string $path, string $filename): array
+    {
+        if (!is_file($path) || is_link($path)) throw new \InvalidArgumentException('Missing media file');
+        $filename = $this->sanitizeFilename($filename);
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($path);
+        if (!is_string($mime)) throw new \InvalidArgumentException('Cannot detect media MIME');
+        $size = filesize($path);
+        $this->assertAllowed($filename, $mime, $size);
+        $info = ['filename'=>$filename,'mime_type'=>$mime,'size'=>$size,'checksum'=>hash_file('sha256',$path)];
+        if (str_starts_with($mime,'image/')) {
+            $dim = @getimagesize($path);
+            if (!is_array($dim) || ($dim['mime']??'')!==$mime || $dim[0]<=0 || $dim[1]<=0 || $dim[0]*$dim[1]>40000000) throw new \InvalidArgumentException('Invalid image');
+            $info += ['width'=>$dim[0],'height'=>$dim[1]];
+        }
+        return $info;
+    }
+
+    /** Import service supplies a preplanned identity and relative path, never the API payload directly. */
+    public function importFile(string $source, array $item): array
+    {
+        $meta = $this->inspectImportFile($source, (string)$item['filename']);
+        if ($meta['checksum']!==$item['checksum'] || $this->find($item['id'])!==null) throw new \RuntimeException('Media import identity changed');
+        $path = \CajeerEngine\Update\OperationFiles::path($this->rootPath,'public/uploads/'.$item['path']);
+        if (file_exists($path)) throw new \RuntimeException('Media destination exists');
+        \CajeerEngine\Update\OperationFiles::dir(dirname($path),0775);
+        \CajeerEngine\Update\OperationFiles::copy($source,$path,0644);
+        $now=$this->now();
+        $record=$meta+['id'=>$item['id'],'path'=>$item['path'],'url'=>$this->storage->publicUrl($item['path']),'title'=>(string)($item['title']??''),'alt'=>(string)($item['alt']??''),'storage'=>'public-local','created_at'=>$now,'updated_at'=>$now];
+        $payload=$this->read(); $payload['items'][]=$record; $payload['updated_at']=$now; $this->file()->writeObject($payload);
+        return $record;
+    }
+
     public function delete(string $id): bool
     {
         $payload = $this->read();

@@ -241,9 +241,27 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "get_ImportExportDownload": {
+        "method": "GET",
+        "path": "/import-export/download/{file}",
+        "parameters": [
+            {
+                "name": "file",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
     "get_ImportExportExports": {
         "method": "GET",
         "path": "/import-export/exports",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "get_ImportExportRequests": {
+        "method": "GET",
+        "path": "/import-export/requests",
         "parameters": [],
         "bodyRequired": false
     },
@@ -655,6 +673,12 @@ export const operations = {
     "post_ImportExportImport": {
         "method": "POST",
         "path": "/import-export/import",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "post_ImportExportUpload": {
+        "method": "POST",
+        "path": "/import-export/upload",
         "parameters": [],
         "bodyRequired": true
     },

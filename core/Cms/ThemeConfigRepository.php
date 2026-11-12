@@ -23,6 +23,10 @@ final class ThemeConfigRepository
     }
 
     /** @return array<string,mixed> */
+    public function normalizeForImport(array $payload): array { return $this->normalize($payload + $this->get()); }
+
+    public function storage(): string { return $this->useDatabase() ? 'database' : 'file'; }
+
     public function get(): array
     {
         $config = $this->read();

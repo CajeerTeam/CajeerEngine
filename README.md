@@ -1,4 +1,4 @@
-# CajeerEngine 1.1.4
+# CajeerEngine 1.1.5
 
 API-first CMS на PHP с собственным ядром (`core/`), шаблонами `.cjr`, REST API (`api/openapi.yaml`) и статической админкой (`admin/static`, опубликованные файлы `public/admin`). CLI: `bin/cajeer`.
 
@@ -27,13 +27,17 @@ node admin/scripts/publish-admin-assets.mjs --check
 php tools/release-regression.php
 # После коммита всех изменений и composer.lock:
 bash tools/release-pipeline.sh /tmp/cajeer-release
-bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.1.4-dist.zip sqlite
+bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.1.5-dist.zip sqlite
 ```
 
 Сборка использует чистый Git snapshot и проверяет каждую запись ZIP, checksum и sidecar manifest. Dist включает `vendor/`, production Admin assets, миграции и пустые runtime-маркеры. Никакие данные рабочей установки, загруженные медиа, секреты и установленные пользователем плагины не включаются. Публиковать dist только после успешных smoke tests; SHA256 проверяет целостность, но не заменяет подпись доверенного издателя.
 
 ## Обновления и восстановление
 
-В 1.1.4 подписанный dist применяется отдельным CLI-процессом, под maintenance и эксклюзивной блокировкой. Перед изменением файлов создаётся проверяемый набор восстановления БД и данных. Ключи доверия и шифрования задаются вне проекта. Поддерживаемый базовый профиль — single-node, local storage, файловая/PostgreSQL очередь. Не запускайте обновление, пока не проверено восстановление на копии вашей установки.
+В 1.1.5 подписанный dist применяется отдельным CLI-процессом, под maintenance и эксклюзивной блокировкой. Перед изменением файлов создаётся проверяемый набор восстановления БД и данных. Ключи доверия и шифрования задаются вне проекта. Поддерживаемый базовый профиль — single-node, local storage, файловая/PostgreSQL очередь. Не запускайте обновление, пока не проверено восстановление на копии вашей установки.
+
+## Перенос сайта
+
+ZIP export v3 переносит контент, медиа, CMS-конфигурацию и разрешённые настройки. Перед импортом оператор проверяет diff и подтверждает digest плана; применение использует полный backup с автоматическим восстановлением. [Руководство Import/Export](docs/import-export.md).
 
 Подробнее: [Production updater & backup](docs/update-backup.md), [Установка](docs/install.md), [Security](SECURITY.md), [Changelog](CHANGELOG.md).

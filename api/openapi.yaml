@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.1.4",
+    "version": "1.1.5",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -8442,14 +8442,20 @@
                   "sections": {
                     "type": "array",
                     "items": {
-                      "type": "string"
+                      "type": "string",
+                      "enum": [
+                        "content",
+                        "media",
+                        "cms",
+                        "settings"
+                      ]
                     }
                   },
                   "filename": {
                     "type": "string"
                   }
                 },
-                "additionalProperties": true
+                "additionalProperties": false
               }
             }
           }
@@ -8613,19 +8619,14 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/ImportDiff"
-                    },
-                    "meta": {
-                      "type": "object",
-                      "additionalProperties": true
-                    }
-                  },
-                  "additionalProperties": true,
                   "required": [
                     "data"
-                  ]
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SiteImportPlan"
+                    }
+                  }
                 }
               }
             }
@@ -8729,7 +8730,7 @@
           "ImportExport"
         ],
         "operationId": "post_ImportExportImport",
-        "summary": "POST /import-export/import",
+        "summary": "Queue a confirmed site import for the privileged CLI operator",
         "x-cajeer-route": "api.v1.import_export.import",
         "x-cajeer-required-scopes": [
           "*"
@@ -8752,35 +8753,53 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ImportInput"
+                "type": "object",
+                "required": [
+                  "file",
+                  "plan"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,180}\\.(zip|json)$"
+                  },
+                  "sections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "content",
+                        "media",
+                        "cms",
+                        "settings"
+                      ]
+                    }
+                  },
+                  "strategy": {
+                    "type": "string",
+                    "enum": [
+                      "fail",
+                      "skip",
+                      "update"
+                    ]
+                  },
+                  "settings": {
+                    "type": "string",
+                    "enum": [
+                      "merge"
+                    ]
+                  },
+                  "plan": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "additionalProperties": false
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/ImportReport"
-                    },
-                    "meta": {
-                      "type": "object",
-                      "additionalProperties": true
-                    }
-                  },
-                  "additionalProperties": true,
-                  "required": [
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
           "401": {
             "description": "Требуется авторизация",
             "content": {
@@ -8887,6 +8906,40 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Import request accepted; CLI execution required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "ok",
+                        "request",
+                        "command"
+                      ],
+                      "properties": {
+                        "ok": {
+                          "type": "boolean"
+                        },
+                        "request": {
+                          "$ref": "#/components/schemas/SiteImportRequest"
+                        },
+                        "command": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -16839,6 +16892,382 @@
           }
         }
       }
+    },
+    "/import-export/upload": {
+      "post": {
+        "tags": [
+          "ImportExport"
+        ],
+        "operationId": "post_ImportExportUpload",
+        "summary": "Upload and verify a portable ZIP or JSON package",
+        "x-cajeer-route": "api.v1.import_export.upload",
+        "x-cajeer-required-scopes": [
+          "*"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "description": "Требуется авторизация. Права: *.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "ok",
+                        "file",
+                        "sha256",
+                        "manifest"
+                      ],
+                      "properties": {
+                        "ok": {
+                          "type": "boolean"
+                        },
+                        "file": {
+                          "type": "string"
+                        },
+                        "sha256": {
+                          "type": "string"
+                        },
+                        "manifest": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Требуется авторизация",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Недостаточно прав или CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Слишком большой запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Неподдерживаемый Content-Type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Сервис недоступен / maintenance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/import-export/download/{file}": {
+      "get": {
+        "tags": [
+          "ImportExport"
+        ],
+        "operationId": "get_ImportExportDownload",
+        "summary": "Download a private export package",
+        "x-cajeer-route": "api.v1.import_export.download",
+        "x-cajeer-required-scopes": [
+          "*"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "description": "Требуется авторизация. Права: imports:read.",
+        "responses": {
+          "200": {
+            "description": "Export archive",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Требуется авторизация",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Недостаточно прав или CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Сервис недоступен / maintenance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "file",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/import-export/requests": {
+      "get": {
+        "tags": [
+          "ImportExport"
+        ],
+        "operationId": "get_ImportExportRequests",
+        "summary": "List import requests and results",
+        "x-cajeer-route": "api.v1.import_export.requests",
+        "x-cajeer-required-scopes": [
+          "*"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "description": "Требуется авторизация. Права: imports:read.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SiteImportRequest"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Требуется авторизация",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Недостаточно прав или CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Сервис недоступен / maintenance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -17389,32 +17818,46 @@
       },
       "ImportInput": {
         "type": "object",
+        "required": [
+          "file"
+        ],
         "properties": {
           "file": {
             "type": "string",
-            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*\\.json$"
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,180}\\.(zip|json)$"
           },
-          "dry_run": {
-            "type": "boolean"
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "content",
+                "media",
+                "cms",
+                "settings"
+              ]
+            }
+          },
+          "strategy": {
+            "type": "string",
+            "enum": [
+              "fail",
+              "skip",
+              "update"
+            ]
           },
           "settings": {
             "type": "string",
             "enum": [
-              "merge",
-              "replace"
+              "merge"
             ]
           },
-          "delete_missing_content": {
-            "const": false
-          },
-          "create_missing_users": {
-            "const": false
+          "plan": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
           }
         },
-        "additionalProperties": true,
-        "required": [
-          "file"
-        ]
+        "additionalProperties": false
       },
       "ImportDiff": {
         "type": "object",
@@ -17836,6 +18279,82 @@
           "requested_at"
         ],
         "additionalProperties": true
+      },
+      "SiteImportPlan": {
+        "type": "object",
+        "required": [
+          "ok",
+          "plan",
+          "sha256",
+          "summary",
+          "mapping",
+          "sections",
+          "file"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "plan": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "mapping": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "sections": {
+            "type": "object"
+          },
+          "file": {
+            "type": "string"
+          }
+        }
+      },
+      "SiteImportRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "file",
+          "state",
+          "sha256",
+          "options"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "failed"
+            ]
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "options": {
+            "type": "object"
+          },
+          "result": {
+            "type": "object"
+          }
+        }
       }
     }
   }

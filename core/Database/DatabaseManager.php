@@ -16,6 +16,8 @@ final class DatabaseManager
     {
     }
 
+    public function disconnect(): void { $this->pdo = null; }
+
     public function driver(): string
     {
         $driver = strtolower($this->config->string('database.default', 'pgsql'));

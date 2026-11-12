@@ -140,7 +140,7 @@ final class NativeCli
         return [
             'ok' => true,
             'mode' => 'native-no-vendor',
-            'commands' => ['doctor','fix','fix:permissions','fix:env','fix:security','fix:admin-assets','fix:storage','nginx:config','scheduler:install','worker:install','post-install:report','backup:create','backup:list','backup:verify','backup:restore','backup:keygen','release:keygen','release:sign','update:verify-signature','update:stage','update:requests','update:run','update:status','install','install:check','rc:doctor','api:lint','install:web-token','system:report','stable:status','stable:smoke-test','stable:lock','security:doctor','security:harden','migrate','migrate:status','migrate:repair','release:build','release:artifacts','release:checksums','release:verify','update','update:prepare','update:apply','update:check','update:rollback','maintenance:on','maintenance:off','maintenance:status','export:create','export:list','import:diff','import:run','admin:assets','cms:bootstrap','cms:sitemap','make:extension','extension:list','extension:doctor','extension:runtime','extension:runtime:boot','extension:install','extension:enable','extension:disable','extension:uninstall','extension:assets','extension:migrate','extension:event:dispatch'],
+            'commands' => ['doctor','fix','fix:permissions','fix:env','fix:security','fix:admin-assets','fix:storage','nginx:config','scheduler:install','worker:install','post-install:report','backup:create','backup:list','backup:verify','backup:restore','backup:keygen','release:keygen','release:sign','update:verify-signature','update:stage','update:requests','update:run','update:status','install','install:check','rc:doctor','api:lint','install:web-token','system:report','stable:status','stable:smoke-test','stable:lock','security:doctor','security:harden','migrate','migrate:status','migrate:repair','release:build','release:artifacts','release:checksums','release:verify','update','update:prepare','update:apply','update:check','update:rollback','maintenance:on','maintenance:off','maintenance:status','export:create','export:list','import:diff','import:run','import:execute','import:requests','admin:assets','cms:bootstrap','cms:sitemap','make:extension','extension:list','extension:doctor','extension:runtime','extension:runtime:boot','extension:install','extension:enable','extension:disable','extension:uninstall','extension:assets','extension:migrate','extension:event:dispatch'],
             'message' => 'Symfony Console не найден, включён native fallback для эксплуатационных команд.',
         ];
     }
@@ -282,7 +282,7 @@ final class NativeCli
         if (!is_string($file) || trim($file) === '') {
             throw new \RuntimeException('Укажите файл: php bin/cajeer import:diff export.json --json');
         }
-        return (new ImportExportService($rootPath))->diff($file, ['settings' => self::option($argv, 'settings') ?: 'merge']);
+        return (new ImportExportService($rootPath))->diff($file, ['settings' => self::option($argv, 'settings') ?: 'merge','strategy'=>self::option($argv,'strategy')?:'fail','sections'=>self::csvOption($argv,'section')?:[]]);
     }
 
     /** @param list<string> $argv @return array<string,mixed> */
@@ -294,6 +294,9 @@ final class NativeCli
         }
         return (new ImportExportService($rootPath))->import($file, [
             'dry_run' => self::has($argv, 'dry-run'),
+            'strategy'=>self::option($argv,'strategy')?:'fail',
+            'sections'=>self::csvOption($argv,'section')?:[],
+            'plan'=>self::option($argv,'plan'),
             'settings' => self::option($argv, 'settings') ?: 'merge',
             'create_missing_users' => self::has($argv, 'create-missing-users'),
             'delete_missing_content' => self::has($argv, 'delete-missing-content'),
@@ -633,6 +636,6 @@ PHP_STUB;
 
     private static function version(string $rootPath): string
     {
-        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.1.4';
+        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.1.5';
     }
 }
