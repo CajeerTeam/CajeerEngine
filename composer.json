@@ -28,7 +28,8 @@
     "symfony/serializer": "^8.1",
     "symfony/uid": "^8.1",
     "symfony/validator": "^8.1",
-    "symfony/yaml": "^8.1"
+    "symfony/yaml": "^8.1",
+    "ext-fileinfo": "*"
   },
   "require-dev": {
     "phpstan/phpstan": "^2.1",
@@ -70,6 +71,6 @@
     "ext-pdo_mysql": "Нужен для optional MySQL 8.4+/MariaDB 10.11+ database driver.",
     "ext-redis": "Нужен для Redis cache/queue driver.",
     "ext-amqp": "Нужен для RabbitMQ queue driver.",
-    "ext-fileinfo": "Рекомендуется для строгой проверки MIME-типа media uploads."
+    "ext-curl": "Required for secure outbound webhooks and remote update metadata."
   }
 }

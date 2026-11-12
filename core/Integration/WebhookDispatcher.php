@@ -83,53 +83,6 @@ final readonly class WebhookDispatcher
     /** @param array<string,string> $headers @return array{0:int,1:string} */
     private function send(string $url, array $headers, string $body): array
     {
-        $headerLines = [];
-        foreach ($headers as $name => $value) {
-            $headerLines[] = $name . ': ' . $value;
-        }
-
-        if (function_exists('curl_init')) {
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_POST => true,
-                CURLOPT_HTTPHEADER => $headerLines,
-                CURLOPT_POSTFIELDS => $body,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HEADER => false,
-                CURLOPT_TIMEOUT => 10,
-                CURLOPT_FOLLOWLOCATION => false,
-            ]);
-            $response = curl_exec($ch);
-            if ($response === false) {
-                $error = curl_error($ch);
-                curl_close($ch);
-                throw new \RuntimeException($error ?: 'curl_exec failed');
-            }
-            $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-            curl_close($ch);
-            return [$status, (string) $response];
-        }
-
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'POST',
-                'header' => implode("\r\n", $headerLines),
-                'content' => $body,
-                'timeout' => 10,
-                'ignore_errors' => true,
-            ],
-        ]);
-        $response = file_get_contents($url, false, $context);
-        $status = 0;
-        foreach ($http_response_header ?? [] as $line) {
-            if (preg_match('/^HTTP\/\S+\s+(\d+)/', $line, $m)) {
-                $status = (int) $m[1];
-                break;
-            }
-        }
-        if ($response === false) {
-            throw new \RuntimeException('Не удалось отправить webhook через stream wrapper.');
-        }
-        return [$status, (string) $response];
+        return (new \CajeerEngine\Security\PublicHttpClient())->request($url, 'POST', $headers, $body, 1048576);
     }
 }

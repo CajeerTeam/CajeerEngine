@@ -86,7 +86,7 @@ final readonly class ApiTokenRepository
         if (!empty($row['revoked_at'])) {
             return null;
         }
-        if (!empty($row['expires_at']) && strtotime((string) $row['expires_at']) !== false && strtotime((string) $row['expires_at']) < time()) {
+        if (!empty($row['expires_at']) && (strtotime((string) $row['expires_at']) === false || strtotime((string) $row['expires_at']) <= time())) {
             return null;
         }
         return $this->normalize($row);

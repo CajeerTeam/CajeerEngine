@@ -49,6 +49,8 @@ if (is_file($lock)) {
 }
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
+    ini_set('session.use_strict_mode', '1');
+    session_set_cookie_params(['httponly' => true, 'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off', 'samesite' => 'Strict']);
     session_start();
 }
 if (empty($_SESSION['ce_install_csrf'])) {
@@ -69,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new RuntimeException('CSRF token устарел. Обновите страницу и повторите установку.');
         }
 
+        if (!\CajeerEngine\Installer\SetupToken::verify($root, (string) ($_POST['setup_token'] ?? ''))) { throw new RuntimeException('Требуется действующий setup token. Выполните php bin/cajeer install:web-token.'); }
         $driver = (string) ($_POST['db_driver'] ?? 'sqlite');
         $options = [
             'source' => 'web-installer',
@@ -93,6 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($options['db_port']);
         }
         $result = $service->install($options);
+        \CajeerEngine\Installer\SetupToken::consume($root);
         unset($_SESSION['ce_install_csrf']);
         $messages[] = 'Установка завершена. Installer заблокирован через storage/app/installed.lock.';
         if (isset($_POST['json'])) {
@@ -128,7 +132,7 @@ header('Content-Type: text/html; charset=utf-8');
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CajeerEngine Install UX 1.1.2</title>
+    <title>CajeerEngine Install UX 1.1.3</title>
     <style>
         :root{color-scheme:light;--bg:#f6f7fb;--card:#fff;--border:#d8dee9;--text:#111827;--muted:#64748b;--ok:#147a35;--fail:#b42318;--warn:#a15c00;--primary:#1f5eff}
         body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
@@ -138,7 +142,7 @@ header('Content-Type: text/html; charset=utf-8');
 </head>
 <body>
 <main>
-    <h1>CajeerEngine Install UX <span class="pill">1.1.2</span></h1>
+    <h1>CajeerEngine Install UX <span class="pill">1.1.3</span></h1>
     <p>Web Installer создаёт `.env`, проверяет окружение, подключается к БД, запускает миграции, создаёт первого администратора, генерирует секреты и блокирует `/install` после установки.</p>
 
     <?php if ($error !== null): ?><section class="card error"><h2>Ошибка установки</h2><p><?= ce_h($error) ?></p></section><?php endif; ?>
@@ -166,6 +170,7 @@ header('Content-Type: text/html; charset=utf-8');
 
     <form class="card" method="post" autocomplete="off">
         <input type="hidden" name="_csrf" value="<?= ce_h($csrf) ?>">
+        <label>Одноразовый setup token (php bin/cajeer install:web-token)<input name="setup_token" type="password" required autocomplete="off"></label>
         <h2>2. Параметры установки</h2>
         <label for="domain">Домен / URL</label>
         <input id="domain" name="domain" value="<?= ce_h($defaults['domain']) ?>" placeholder="site.ru" required>

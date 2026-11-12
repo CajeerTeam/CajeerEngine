@@ -34,6 +34,7 @@ final readonly class InstallerService
                 'fix' => 'Установите PHP 8.4+ и используйте нужный php-fpm/CLI binary.',
             ],
             'ext_json' => ['label' => 'PHP extension json', 'ok' => extension_loaded('json'), 'fix' => 'Установите php-json.'],
+            'ext_fileinfo' => ['label' => 'PHP extension fileinfo', 'ok' => extension_loaded('fileinfo'), 'fix' => 'Установите php-fileinfo.'],
             'ext_mbstring' => ['label' => 'PHP extension mbstring', 'ok' => extension_loaded('mbstring'), 'fix' => 'Установите php-mbstring.'],
             'ext_openssl' => ['label' => 'PHP extension openssl', 'ok' => extension_loaded('openssl'), 'fix' => 'Включите openssl extension.'],
             'ext_pdo' => ['label' => 'PHP extension pdo', 'ok' => extension_loaded('pdo'), 'fix' => 'Установите/включите PDO.'],
@@ -111,7 +112,7 @@ final readonly class InstallerService
         if (!class_exists(\Symfony\Component\HttpFoundation\Request::class) || !class_exists(\Symfony\Component\Dotenv\Dotenv::class)) throw new \RuntimeException('Production Composer dependencies are incomplete.');
         if (!$this->adminAssetsReady()) throw new \RuntimeException('Admin assets повреждены или отсутствуют. Восстановите dist или выполните publish-admin-assets.mjs.');
         if ($profile['write_lock'] && !$profile['create_admin']) throw new \RuntimeException('Для завершения установки требуется первый администратор.');
-        foreach (['json', 'mbstring', 'openssl', 'pdo'] as $requiredExtension) {
+        foreach (['json', 'mbstring', 'openssl', 'pdo', 'fileinfo'] as $requiredExtension) {
             if (!extension_loaded($requiredExtension)) {
                 throw new \RuntimeException('Не установлен обязательный PHP extension: ' . $requiredExtension);
             }
@@ -464,7 +465,7 @@ final readonly class InstallerService
             if ($users->count() > 0) throw new \RuntimeException('База уже содержит пользователей. Используйте существующую учётную запись администратора.');
             $userId = $users->createAdmin($email, $name, $password);
         }
-        $audit->record('installer.admin_created', $userId, ['email' => mb_strtolower($email), 'source' => 'install-1.1.2']);
+        $audit->record('installer.admin_created', $userId, ['email' => mb_strtolower($email), 'source' => 'install-1.1.3']);
 
         return [
             'roles_seeded' => $roleCount,
@@ -643,6 +644,6 @@ final readonly class InstallerService
 
     private function version(): string
     {
-        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.2';
+        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.3';
     }
 }

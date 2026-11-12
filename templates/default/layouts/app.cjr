@@ -47,7 +47,7 @@
       @if (!empty($navigation['primary']['items']) && is_array($navigation['primary']['items']))
         <nav class="ce-nav" aria-label="Основное меню">
           @foreach ($navigation['primary']['items'] as $item)
-            <a href="{{ $item['url'] ?? '#' }}" target="{{ $item['target'] ?? '_self' }}">{{ $item['label'] ?? 'Ссылка' }}</a>
+            <a href="{{ $item['url'] ?? '#' }}" target="{{ $item['target'] ?? '_self' }}" rel="noopener noreferrer">{{ $item['label'] ?? 'Ссылка' }}</a>
           @endforeach
         </nav>
       @endif

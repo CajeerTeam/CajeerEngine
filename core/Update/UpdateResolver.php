@@ -106,8 +106,10 @@ final readonly class UpdateResolver
     {
         $contents = null;
         if (str_starts_with($source, 'http://') || str_starts_with($source, 'https://')) {
-            $context = stream_context_create(['http' => ['timeout' => (int) ($this->config['core']['timeout'] ?? 5), 'header' => "Accept: application/json\r\n"]]);
-            $contents = @file_get_contents($source, false, $context);
+            try {
+                [$status, $body] = (new \CajeerEngine\Security\PublicHttpClient())->request($source, 'GET', ['Accept' => 'application/json']);
+                if ($status >= 200 && $status < 300) { $contents = $body; }
+            } catch (\Throwable) { /* Fall back to bundled metadata; never follow redirects. */ }
         } elseif (is_file($source)) {
             $contents = @file_get_contents($source);
         }

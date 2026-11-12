@@ -14,8 +14,13 @@ if ($installPath === '/install' || str_starts_with($installPath, '/install/')) {
     exit;
 }
 
+if ($installPath === '/upgrade' || str_starts_with($installPath, '/upgrade/')) {
+    require __DIR__ . '/upgrade/index.php';
+    exit;
+}
+
 $maintenancePath = $root . '/storage/app/maintenance.json';
-if (is_file($maintenancePath) && !str_starts_with($installPath, '/api/v1/health') && !str_starts_with($installPath, '/upgrade')) {
+if (is_file($maintenancePath) && !in_array($installPath, ['/api/v1/health', '/api/v1/auth/login', '/api/v1/auth/me', '/api/v1/auth/logout', '/api/v1/updates/maintenance', '/api/v1/updates/maintenance/off'], true)) {
     $payload = json_decode((string) file_get_contents($maintenancePath), true);
     $message = is_array($payload) ? (string) ($payload['message'] ?? 'Сайт временно недоступен из-за обслуживания.') : 'Сайт временно недоступен из-за обслуживания.';
     http_response_code(503);
@@ -54,7 +59,7 @@ try {
     $app = Application::boot($root);
     $response = $app->handle(Request::createFromGlobals());
 } catch (Throwable $e) {
-    $debug = filter_var(getenv('APP_DEBUG') ?: false, FILTER_VALIDATE_BOOLEAN);
+    $debug = in_array(getenv('APP_ENV'), ['local', 'dev', 'testing'], true) && filter_var(getenv('APP_DEBUG') ?: false, FILTER_VALIDATE_BOOLEAN);
     $payload = [
         'error' => [
             'code' => 'kernel_boot_failed',

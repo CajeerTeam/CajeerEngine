@@ -29,6 +29,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: php tools/security-regression.php
+      - run: php tools/generate-api-sdk.php --check
+      - run: php bin/cajeer api:lint --strict --json
       - run: php tools/release-regression.php
       - run: bash tools/release-pipeline.sh "$RUNNER_TEMP/release"
       - run: bash tools/release-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip" sqlite

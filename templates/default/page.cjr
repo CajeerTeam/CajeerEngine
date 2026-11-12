@@ -8,7 +8,7 @@
   @endif
 
   <div class="ce-content">
-    {!! $content !!}
+    {!! $content_html ?? '' !!}
   </div>
 
   @if (!empty($data['blocks']) && is_array($data['blocks']))

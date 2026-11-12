@@ -47,7 +47,7 @@ final readonly class ImportExportService
     public function createExport(array $sections = ['content', 'media', 'users', 'settings', 'themes', 'extensions'], ?string $filename = null): array
     {
         $sections = $sections === [] ? ['content', 'media', 'users', 'settings', 'themes', 'extensions'] : array_values(array_unique($sections));
-        $version = trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.2';
+        $version = trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: '1.1.3';
         $data = [];
         $config = new ConfigRepository($this->rootPath);
         $database = new DatabaseManager($config);
@@ -84,7 +84,7 @@ final readonly class ImportExportService
                 'policy' => [
                     'password_hashes_exported' => false,
                     'new_users_import_mode' => 'disabled-by-default',
-                    'note' => 'Экспорт пользователей не содержит password_hash. Импорт безопасно обновляет существующих пользователей и может создать disabled placeholders только при create_missing_users=true.',
+                    'note' => 'Экспорт пользователей не содержит password_hash. Импорт пользователей и ролей отключён: требуется ручное создание.',
                 ],
             ];
         }
@@ -132,6 +132,7 @@ final readonly class ImportExportService
     /** @param array<string, mixed> $options @return array<string, mixed> */
     public function diff(string $file, array $options = []): array
     {
+        if (filter_var($options['delete_missing_content'] ?? false, FILTER_VALIDATE_BOOLEAN) || filter_var($options['create_missing_users'] ?? false, FILTER_VALIDATE_BOOLEAN)) { throw new \InvalidArgumentException('Unsafe import option disabled.'); }
         $path = $this->resolveImportPath($file);
         $payload = $this->loadImportPayload($path);
         $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
@@ -199,8 +200,8 @@ final readonly class ImportExportService
             $diff['summary']['update']++;
         }
         if (isset($data['extensions']['registry'])) {
-            $diff['sections']['extensions.registry'] = ['action' => 'replace'];
-            $diff['summary']['update']++;
+            $diff['sections']['extensions.registry'] = ['action' => 'skip', 'reason' => 'manual-install-required'];
+            $diff['summary']['skip']++;
         }
 
         return $diff;
@@ -213,15 +214,16 @@ final readonly class ImportExportService
         $payload = $this->loadImportPayload($path);
         $dryRun = filter_var($options['dry_run'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $replaceSettings = ($options['settings'] ?? 'merge') === 'replace';
-        $createMissingUsers = filter_var($options['create_missing_users'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        $deleteMissingContent = filter_var($options['delete_missing_content'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        if (filter_var($options['create_missing_users'] ?? false, FILTER_VALIDATE_BOOLEAN)) { throw new \InvalidArgumentException('User provisioning via import is disabled.'); }
+        if (filter_var($options['delete_missing_content'] ?? false, FILTER_VALIDATE_BOOLEAN)) { throw new \InvalidArgumentException('Destructive import отключён до транзакционного импорта 1.1.5.'); }
+        $deleteMissingContent = false;
         $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
         $result = [
             'ok' => true,
             'dry_run' => $dryRun,
             'file' => basename($path),
             'manifest' => $payload['manifest'],
-            'diff' => $this->diff($path, $options),
+            'diff' => $this->diff($file, $options),
             'imported' => [],
             'skipped' => [],
             'errors' => [],
@@ -247,8 +249,7 @@ final readonly class ImportExportService
         }
 
         if (isset($data['users']) && is_array($data['users'])) {
-            $result['users'] = $this->importUsers($data['users'], $database, $createMissingUsers);
-            $result['imported'][] = 'users.safe';
+            $result['skipped'][] = 'users:manual-provisioning-required';
         }
 
         if (isset($data['settings'])) {
@@ -265,10 +266,13 @@ final readonly class ImportExportService
         }
 
         if (isset($data['extensions']['registry']) && is_array($data['extensions']['registry'])) {
-            (new JsonFile($this->rootPath . '/storage/app/extensions/registry.json'))->writeObject($data['extensions']['registry']);
-            $result['imported'][] = 'extensions.registry';
+            $result['skipped'][] = 'extensions.registry:manual-install-required';
         }
 
+        foreach (['content','media','users'] as $section) {
+            foreach ($result[$section]['errors'] ?? [] as $error) { $result['errors'][] = $error; }
+        }
+        $result['ok'] = $result['errors'] === [];
         $this->writeImportLog($result);
         return $result;
     }
@@ -371,6 +375,8 @@ final readonly class ImportExportService
                 continue;
             }
             try {
+                $decoded = base64_decode((string) $file['content_base64'], true);
+                if ($decoded === false || !hash_equals($checksum, hash('sha256', $decoded))) { throw new \InvalidArgumentException('Media checksum mismatch'); }
                 $media->createFromBase64([
                     'filename' => (string) ($item['filename'] ?? $file['filename'] ?? 'upload.bin'),
                     'mime_type' => (string) ($item['mime_type'] ?? $file['mime_type'] ?? 'application/octet-stream'),
@@ -463,6 +469,12 @@ final readonly class ImportExportService
         if (!in_array($format, ['cajeerengine.export.v1', 'cajeerengine.export.v2'], true)) {
             throw new \InvalidArgumentException('Файл импорта не является экспортом CajeerEngine v1/v2.');
         }
+        if (!is_array($payload['data'] ?? null)) throw new \InvalidArgumentException('Invalid import data');
+        if ($format === 'cajeerengine.export.v2') {
+            $expected = $payload['manifest']['checksum'] ?? '';
+            $actual = hash('sha256', json_encode($payload['data'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+            if (!is_string($expected) || !hash_equals($expected, $actual)) throw new \InvalidArgumentException('Import checksum mismatch');
+        }
         return $payload;
     }
 
@@ -516,11 +528,11 @@ final readonly class ImportExportService
 
     private function resolveImportPath(string $file): string
     {
-        if (is_file($file)) { return $file; }
+        if (PHP_SAPI === 'cli' && str_contains($file, DIRECTORY_SEPARATOR) && is_file($file)) { return $file; }
         $candidate = $this->importsDir() . '/' . basename($file);
-        if (is_file($candidate)) { return $candidate; }
+        if (is_file($candidate) && !is_link($candidate)) { return $candidate; }
         $candidate = $this->exportsDir() . '/' . basename($file);
-        if (is_file($candidate)) { return $candidate; }
+        if (is_file($candidate) && !is_link($candidate)) { return $candidate; }
         throw new \InvalidArgumentException('Файл импорта не найден: ' . $file);
     }
 

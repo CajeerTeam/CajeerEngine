@@ -122,7 +122,8 @@ final class Application
             new ErrorHandlerMiddleware($config, $logger),
             new JsonBodyMiddleware(),
             new RateLimitMiddleware($config, $container->get(RateLimiter::class)),
-            new AuthenticationMiddleware($config, $authService),
+            new AuthenticationMiddleware($config, $authService, $router),
+            new \CajeerEngine\Http\Middleware\ApiContractMiddleware(new \CajeerEngine\Api\ApiContract($rootPath)),
             new RuntimeLogMiddleware($logger),
         ];
         $pipeline = new MiddlewarePipeline($middleware);
@@ -142,7 +143,7 @@ final class Application
     public function handle(Request $request): Response
     {
         $response = $this->pipeline->handle($request, fn (Request $request): Response => $this->router->dispatch($request));
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.1.2'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.1.3'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -345,200 +346,76 @@ final class Application
         /** @var ContentEntryController $entries */
         $entries = $container->get('controller.content_entries');
 
-        $router->get('/api/v1/health', 'api.v1.health', [$health, 'show']);
-        $router->get('/api/v1/system', 'api.v1.system', [$system, 'show']);
-
-        $router->get('/api/v1/content-types', 'api.v1.content_types.index', [$contentTypes, 'index']);
-        $router->post('/api/v1/content-types', 'api.v1.content_types.store', [$contentTypes, 'store']);
-        $router->get('/api/v1/content-types/{handle}', 'api.v1.content_types.show', [$contentTypes, 'show']);
-        $router->get('/api/v1/content-types/{handle}/schema', 'api.v1.content_types.schema', [$contentTypes, 'schema']);
-        $router->put('/api/v1/content-types/{handle}', 'api.v1.content_types.update', [$contentTypes, 'update']);
-        $router->patch('/api/v1/content-types/{handle}', 'api.v1.content_types.patch', [$contentTypes, 'update']);
-        $router->delete('/api/v1/content-types/{handle}', 'api.v1.content_types.delete', [$contentTypes, 'delete']);
-
-        $router->get('/api/v1/content/{type}', 'api.v1.content.index', [$entries, 'index']);
-        $router->post('/api/v1/content/{type}', 'api.v1.content.store', [$entries, 'store']);
-        $router->get('/api/v1/content/{type}/{id}', 'api.v1.content.show', [$entries, 'show']);
-        $router->put('/api/v1/content/{type}/{id}', 'api.v1.content.update', [$entries, 'update']);
-        $router->patch('/api/v1/content/{type}/{id}', 'api.v1.content.patch', [$entries, 'update']);
-        $router->delete('/api/v1/content/{type}/{id}', 'api.v1.content.delete', [$entries, 'delete']);
-        $router->post('/api/v1/content/{type}/{id}/publish', 'api.v1.content.publish', [$entries, 'publish']);
-        $router->post('/api/v1/content/{type}/{id}/unpublish', 'api.v1.content.unpublish', [$entries, 'unpublish']);
-        $router->post('/api/v1/content/{type}/{id}/archive', 'api.v1.content.archive', [$entries, 'archive']);
-        $router->get('/api/v1/content/{type}/{id}/localizations', 'api.v1.content.localizations', [$entries, 'localizations']);
-        $router->post('/api/v1/content/{type}/{id}/localizations', 'api.v1.content.localizations.store', [$entries, 'storeLocalization']);
-        $router->get('/api/v1/content/{type}/{id}/revisions', 'api.v1.content.revisions', [$entries, 'revisions']);
-        $router->post('/api/v1/content/{type}/{id}/revisions/{revision}', 'api.v1.content.revisions.restore.short', [$entries, 'restoreRevision']);
-        $router->post('/api/v1/content/{type}/{id}/revisions/{revision}/restore', 'api.v1.content.revisions.restore', [$entries, 'restoreRevision']);
-
         /** @var RuntimeController $runtime */
         $runtime = $container->get('controller.runtime');
-        $router->get('/api/v1/runtime', 'api.v1.runtime', [$runtime, 'show']);
-
 
         /** @var SearchController $search */
         $search = $container->get('controller.search');
-        $router->get('/api/v1/search', 'api.v1.search.index', [$search, 'index']);
-        $router->post('/api/v1/search/reindex', 'api.v1.search.reindex', [$search, 'reindex']);
-        $router->get('/api/v1/search/diagnostics', 'api.v1.search.diagnostics', [$search, 'diagnostics']);
 
         /** @var QueueController $queue */
         $queue = $container->get('controller.queue');
-        $router->get('/api/v1/queue', 'api.v1.queue.diagnostics', [$queue, 'diagnostics']);
-        $router->post('/api/v1/queue/jobs', 'api.v1.queue.jobs.store', [$queue, 'push']);
-        $router->post('/api/v1/queue/work', 'api.v1.queue.work', [$queue, 'work']);
-        $router->get('/api/v1/queue/failed', 'api.v1.queue.failed', [$queue, 'failed']);
-        $router->post('/api/v1/queue/failed/{id}/retry', 'api.v1.queue.failed.retry', [$queue, 'retry']);
 
         /** @var SchedulerController $scheduler */
         $scheduler = $container->get('controller.scheduler');
-        $router->get('/api/v1/scheduler/tasks', 'api.v1.scheduler.tasks', [$scheduler, 'tasks']);
-        $router->post('/api/v1/scheduler/run', 'api.v1.scheduler.run', [$scheduler, 'run']);
 
         /** @var WebhookController $webhooks */
         $webhooks = $container->get('controller.webhooks');
-        $router->get('/api/v1/webhooks', 'api.v1.webhooks.index', [$webhooks, 'index']);
-        $router->post('/api/v1/webhooks', 'api.v1.webhooks.store', [$webhooks, 'store']);
-        $router->patch('/api/v1/webhooks/{id}', 'api.v1.webhooks.patch', [$webhooks, 'update']);
-        $router->delete('/api/v1/webhooks/{id}', 'api.v1.webhooks.delete', [$webhooks, 'delete']);
-        $router->post('/api/v1/webhooks/{id}/test', 'api.v1.webhooks.test', [$webhooks, 'test']);
-        $router->get('/api/v1/webhook-deliveries', 'api.v1.webhook_deliveries.index', [$webhooks, 'deliveries']);
-        $router->post('/api/v1/events/dispatch', 'api.v1.events.dispatch', [$webhooks, 'dispatch']);
 
         /** @var ExtensionController $extensions */
         $extensions = $container->get('controller.extensions');
-        $router->get('/api/v1/extensions', 'api.v1.extensions.index', [$extensions, 'index']);
-        $router->post('/api/v1/extensions/validate', 'api.v1.extensions.validate', [$extensions, 'validate']);
-        $router->post('/api/v1/extensions/install', 'api.v1.extensions.install', [$extensions, 'install']);
-        $router->post('/api/v1/extensions/enable', 'api.v1.extensions.enable', [$extensions, 'enable']);
-        $router->post('/api/v1/extensions/disable', 'api.v1.extensions.disable', [$extensions, 'disable']);
-        $router->post('/api/v1/extensions/uninstall', 'api.v1.extensions.uninstall', [$extensions, 'uninstall']);
-        $router->patch('/api/v1/extensions/config', 'api.v1.extensions.config', [$extensions, 'config']);
-        $router->get('/api/v1/extensions/diagnostics', 'api.v1.extensions.diagnostics', [$extensions, 'diagnostics']);
-        $router->get('/api/v1/extensions/runtime', 'api.v1.extensions.runtime', [$extensions, 'runtime']);
-        $router->get('/api/v1/extensions/permissions', 'api.v1.extensions.permissions', [$extensions, 'permissions']);
-        $router->get('/api/v1/extensions/events', 'api.v1.extensions.events', [$extensions, 'events']);
-        $router->post('/api/v1/extensions/events/dispatch', 'api.v1.extensions.events.dispatch', [$extensions, 'dispatchEvent']);
-        $router->post('/api/v1/extensions/assets/publish', 'api.v1.extensions.assets.publish', [$extensions, 'publishAssets']);
-        $router->post('/api/v1/extensions/migrate', 'api.v1.extensions.migrate', [$extensions, 'migrate']);
 
         /** @var InstallerController $installer */
         $installer = $container->get('controller.installer');
-        $router->get('/api/v1/installer/requirements', 'api.v1.installer.requirements', [$installer, 'requirements']);
-        $router->post('/api/v1/installer/run', 'api.v1.installer.run', [$installer, 'run']);
 
         /** @var ImportExportController $importExport */
         $importExport = $container->get('controller.import_export');
-        $router->get('/api/v1/import-export/exports', 'api.v1.import_export.exports', [$importExport, 'exports']);
-        $router->post('/api/v1/import-export/export', 'api.v1.import_export.export', [$importExport, 'export']);
-        $router->post('/api/v1/import-export/diff', 'api.v1.import_export.diff', [$importExport, 'diff']);
-        $router->post('/api/v1/import-export/import', 'api.v1.import_export.import', [$importExport, 'import']);
 
         /** @var UpdateController $updates */
         $updates = $container->get('controller.updates');
-        $router->get('/api/v1/updates', 'api.v1.updates.diagnostics', [$updates, 'diagnostics']);
-        $router->post('/api/v1/updates/check', 'api.v1.updates.check', [$updates, 'check']);
-        $router->post('/api/v1/updates/plan', 'api.v1.updates.plan', [$updates, 'plan']);
-        $router->post('/api/v1/updates/prepare', 'api.v1.updates.prepare', [$updates, 'prepare']);
-        $router->post('/api/v1/updates/apply', 'api.v1.updates.apply', [$updates, 'apply']);
-        $router->post('/api/v1/updates/rollback', 'api.v1.updates.rollback', [$updates, 'rollback']);
-        $router->get('/api/v1/updates/maintenance', 'api.v1.updates.maintenance', [$updates, 'maintenance']);
-        $router->post('/api/v1/updates/maintenance/on', 'api.v1.updates.maintenance.on', [$updates, 'maintenanceOn']);
-        $router->post('/api/v1/updates/maintenance/off', 'api.v1.updates.maintenance.off', [$updates, 'maintenanceOff']);
 
         /** @var ReleaseCandidateController $rc */
         $rc = $container->get('controller.rc');
-        $router->get('/api/v1/rc/readiness', 'api.v1.rc.readiness', [$rc, 'readiness']);
-        $router->get('/api/v1/rc/checks', 'api.v1.rc.checks', [$rc, 'checks']);
-        $router->post('/api/v1/rc/run', 'api.v1.rc.run', [$rc, 'run']);
 
         /** @var StableController $stable */
         $stable = $container->get('controller.stable');
-        $router->get('/api/v1/stable', 'api.v1.stable.status', [$stable, 'status']);
-        $router->post('/api/v1/stable/smoke-test', 'api.v1.stable.smoke_test', [$stable, 'smokeTest']);
-        $router->post('/api/v1/stable/release-lock', 'api.v1.stable.release_lock', [$stable, 'lock']);
-        $router->post('/api/v1/stable/backup', 'api.v1.stable.backup', [$stable, 'backup']);
-        $router->post('/api/v1/stable/support-bundle', 'api.v1.stable.support_bundle', [$stable, 'supportBundle']);
 
         /** @var AdminController $admin */
         $admin = $container->get('controller.admin');
-        $router->get('/api/v1/admin/bootstrap', 'api.v1.admin.bootstrap', [$admin, 'bootstrap']);
-        $router->get('/api/v1/admin/dashboard', 'api.v1.admin.dashboard', [$admin, 'dashboard']);
 
         /** @var MediaController $media */
         $media = $container->get('controller.media');
-        $router->get('/api/v1/media', 'api.v1.media.index', [$media, 'index']);
-        $router->post('/api/v1/media', 'api.v1.media.store', [$media, 'store']);
-        $router->get('/api/v1/media/diagnostics', 'api.v1.media.diagnostics', [$media, 'diagnostics']);
-        $router->get('/api/v1/media/{id}', 'api.v1.media.show', [$media, 'show']);
-        $router->delete('/api/v1/media/{id}', 'api.v1.media.delete', [$media, 'delete']);
 
         /** @var PublicController $public */
         $public = $container->get('controller.public');
-        $router->get('/api/v1/public/sitemap', 'api.v1.public.sitemap', [$public, 'sitemap']);
-        $router->get('/api/v1/public/preview/{type}/{id}', 'api.v1.public.preview', [$public, 'preview']);
 
         /** @var CmsController $cms */
         $cms = $container->get('controller.cms');
-        $router->get('/api/v1/cms', 'api.v1.cms.overview', [$cms, 'overview']);
-        $router->post('/api/v1/cms/bootstrap', 'api.v1.cms.bootstrap', [$cms, 'bootstrap']);
-        $router->get('/api/v1/cms/theme', 'api.v1.cms.theme.show', [$cms, 'theme']);
-        $router->patch('/api/v1/cms/theme', 'api.v1.cms.theme.patch', [$cms, 'updateTheme']);
-        $router->get('/api/v1/cms/navigation', 'api.v1.cms.navigation.index', [$cms, 'navigation']);
-        $router->get('/api/v1/cms/navigation/{handle}', 'api.v1.cms.navigation.show', [$cms, 'navigationShow']);
-        $router->put('/api/v1/cms/navigation/{handle}', 'api.v1.cms.navigation.put', [$cms, 'navigationSave']);
-        $router->delete('/api/v1/cms/navigation/{handle}', 'api.v1.cms.navigation.delete', [$cms, 'navigationDelete']);
-        $router->get('/api/v1/cms/redirects', 'api.v1.cms.redirects.index', [$cms, 'redirects']);
-        $router->post('/api/v1/cms/redirects', 'api.v1.cms.redirects.store', [$cms, 'redirectStore']);
-        $router->patch('/api/v1/cms/redirects/{id}', 'api.v1.cms.redirects.patch', [$cms, 'redirectUpdate']);
-        $router->delete('/api/v1/cms/redirects/{id}', 'api.v1.cms.redirects.delete', [$cms, 'redirectDelete']);
-        $router->post('/api/v1/cms/preview-token', 'api.v1.cms.preview_token', [$cms, 'previewToken']);
 
         /** @var DatabaseController $database */
         $database = $container->get('controller.database');
-        $router->get('/api/v1/database', 'api.v1.database.show', [$database, 'show']);
-        $router->get('/api/v1/database/migrations', 'api.v1.database.migrations', [$database, 'migrations']);
 
         /** @var AuthController $auth */
         $auth = $container->get('controller.auth');
-        $router->post('/api/v1/auth/login', 'api.v1.auth.login', [$auth, 'login']);
-        $router->post('/api/v1/auth/logout', 'api.v1.auth.logout', [$auth, 'logout']);
-        $router->get('/api/v1/auth/me', 'api.v1.auth.me', [$auth, 'me']);
-        $router->post('/api/v1/auth/2fa/enable', 'api.v1.auth.2fa.enable', [$auth, 'enableTwoFactor']);
-        $router->post('/api/v1/auth/2fa/disable', 'api.v1.auth.2fa.disable', [$auth, 'disableTwoFactor']);
 
         /** @var UserController $users */
         $users = $container->get('controller.users');
-        $router->get('/api/v1/users', 'api.v1.users.index', [$users, 'index']);
-        $router->post('/api/v1/users', 'api.v1.users.store', [$users, 'store']);
-        $router->get('/api/v1/users/{id}', 'api.v1.users.show', [$users, 'show']);
-        $router->patch('/api/v1/users/{id}', 'api.v1.users.patch', [$users, 'update']);
-        $router->delete('/api/v1/users/{id}', 'api.v1.users.disable', [$users, 'disable']);
 
         /** @var RoleController $roles */
         $roles = $container->get('controller.roles');
-        $router->get('/api/v1/roles', 'api.v1.roles.index', [$roles, 'index']);
-        $router->post('/api/v1/roles', 'api.v1.roles.store', [$roles, 'store']);
-        $router->get('/api/v1/roles/{id}', 'api.v1.roles.show', [$roles, 'show']);
 
         /** @var ApiTokenController $apiTokens */
         $apiTokens = $container->get('controller.api_tokens');
-        $router->get('/api/v1/api-tokens', 'api.v1.api_tokens.index', [$apiTokens, 'index']);
-        $router->post('/api/v1/api-tokens', 'api.v1.api_tokens.store', [$apiTokens, 'store']);
-        $router->delete('/api/v1/api-tokens/{id}', 'api.v1.api_tokens.revoke', [$apiTokens, 'revoke']);
 
         /** @var SecurityController $security */
         $security = $container->get('controller.security');
-        $router->get('/api/v1/security', 'api.v1.security.show', [$security, 'show']);
-
 
         /** @var PublicController $public */
         $public = $container->get('controller.public');
-        $router->get('/sitemap.xml', 'public.sitemap_xml', [$public, 'sitemapXml']);
-        $router->get('/robots.txt', 'public.robots_txt', [$public, 'robotsTxt']);
-        $router->get('/preview/{token}', 'public.preview_token', [$public, 'previewToken']);
-        $router->get('/', 'public.home', [$public, 'renderHome']);
-        $router->get('/{path}', 'public.page.path', [$public, 'renderByPath']);
+
+        $controllers = compact('health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
+        foreach (\CajeerEngine\Http\RouteRegistry::all() as [$method, $path, $name, $controller, $action, $scopes]) {
+            $router->add([$method], $path, $name, [$controllers[$controller], $action], $scopes);
+        }
     }
 
     private static function ensureRuntimeDirectories(string $rootPath): void

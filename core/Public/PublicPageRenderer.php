@@ -10,6 +10,7 @@ use CajeerEngine\Content\ContentEntryRepository;
 use CajeerEngine\Content\ContentTypeRepository;
 use CajeerEngine\Media\MediaRepository;
 use CajeerEngine\Template\CajeerTemplateEngine;
+use CajeerEngine\Security\SafeHtml;
 
 final readonly class PublicPageRenderer
 {
@@ -183,7 +184,12 @@ final readonly class PublicPageRenderer
         $data = is_array($entry['data'] ?? null) ? $entry['data'] : [];
         $template = $this->templateFor($type, $entry);
         $theme = $this->themeConfig();
+        $theme['accent_color'] = preg_match('/^#[0-9a-fA-F]{3,8}$/D', (string) ($theme['accent_color'] ?? '')) ? $theme['accent_color'] : '#2563eb';
+        $theme['layout']['container_width'] = preg_match('/^[0-9]{1,4}(?:px|rem|%)$/D', (string) ($theme['layout']['container_width'] ?? '')) ? $theme['layout']['container_width'] : '1040px';
+        $theme['favicon_url'] = SafeHtml::url((string) ($theme['favicon_url'] ?? ''));
         $navigation = $this->navigation();
+        foreach ($navigation['primary']['items'] ?? [] as $i => $item) { $navigation['primary']['items'][$i]['url'] = SafeHtml::url((string) ($item['url'] ?? '')) ?: '#'; }
+        if (is_array($data['blocks'] ?? null)) foreach ($data['blocks'] as $i => $block) { if (is_array($block)) $data['blocks'][$i]['content_html'] = SafeHtml::sanitize((string) ($block['content'] ?? '')); }
         $path = $this->entryPath($entry);
         $seo = $this->seo($entry, $theme, $path);
         $content = (string) ($data['body'] ?? $data['content'] ?? '');
@@ -193,6 +199,7 @@ final readonly class PublicPageRenderer
             'heading' => (string) ($data['heading'] ?? $title),
             'summary' => (string) ($data['summary'] ?? $data['excerpt'] ?? ''),
             'content' => $content,
+            'content_html' => SafeHtml::sanitize($content),
             'data' => $data,
             'entry' => $entry,
             'type' => $type,
@@ -232,10 +239,10 @@ final readonly class PublicPageRenderer
         return [
             'title' => $title,
             'description' => $description,
-            'canonical_url' => trim((string) ($data['canonical_url'] ?? $path)),
+            'canonical_url' => SafeHtml::url((string) ($data['canonical_url'] ?? $path)) ?: $path,
             'og_title' => trim((string) ($data['og_title'] ?? $title)),
             'og_description' => trim((string) ($data['og_description'] ?? $description)),
-            'og_image' => trim((string) ($data['og_image'] ?? $themeSeo['og_image'] ?? '')),
+            'og_image' => SafeHtml::url((string) ($data['og_image'] ?? $themeSeo['og_image'] ?? '')),
             'robots' => filter_var($data['seo_noindex'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 'noindex,nofollow' : 'index,follow',
         ];
     }

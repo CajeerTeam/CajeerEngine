@@ -1,6 +1,7 @@
-const ADMIN_VERSION = '1.1.2'
+const ADMIN_VERSION = '1.1.3'
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
+localStorage.removeItem(TOKEN_KEY) // remove legacy bearer credentials
 const app = document.getElementById('app')
 
 const nav = [
@@ -19,7 +20,8 @@ const nav = [
 
 const state = {
   route: location.hash.replace(/^#\/?/, '') || 'dashboard',
-  token: localStorage.getItem(TOKEN_KEY) || '',
+  token: '',
+  csrf: '',
   identity: null,
   loading: false,
   notice: null,
@@ -97,8 +99,9 @@ async function api(path, options = {}) {
   headers.set('Accept', 'application/json')
   const hasBody = options.body !== undefined && !(options.body instanceof FormData)
   if (hasBody && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-  if (state.token) headers.set('Authorization', `Bearer ${state.token}`)
-  const response = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  if (state.csrf) headers.set('X-CSRF-Token', state.csrf)
+  if (path === '/auth/login') headers.set('X-Cajeer-Browser', '1')
+  const response = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: 'same-origin', cache: 'no-store' })
   const text = await response.text()
   let payload = null
   if (text) {
@@ -108,6 +111,7 @@ async function api(path, options = {}) {
     state.identity = null
     localStorage.removeItem(TOKEN_KEY)
     state.token = ''
+    state.csrf = ''
     if (state.route !== 'login') {
       state.route = 'login'
       location.hash = '#/login'
@@ -144,6 +148,8 @@ async function bootstrap() {
   try {
     const payload = await api('/auth/me')
     state.identity = dataOf(payload)
+    state.csrf = state.identity?.csrf_token || ''
+    state.token = state.identity ? 'session' : ''
   } catch {}
   if (!state.identity && state.token) {
     try {
@@ -221,18 +227,17 @@ function render() {
 }
 
 function renderLogin() {
-  app.innerHTML = `<div class="login-shell"><form class="login-card" data-form="login"><div class="brand" style="color:var(--text)"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine Admin</div><div class="brand-sub" style="color:var(--muted)">Production static SPA ${ADMIN_VERSION}</div></div></div>${noticeHtml()}<div class="form"><div class="form-row"><label>Email</label><input class="input" name="email" type="email" autocomplete="username" required></div><div class="form-row"><label>Пароль</label><input class="input" name="password" type="password" autocomplete="current-password" required></div><div class="form-row"><label>2FA код, если включён</label><input class="input" name="two_factor_code" inputmode="numeric"></div><button class="btn" type="submit">Войти</button><p class="muted">После входа Bearer token хранится в localStorage текущего браузера.</p></div></form></div>`
+  app.innerHTML = `<div class="login-shell"><form class="login-card" data-form="login"><div class="brand" style="color:var(--text)"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine Admin</div><div class="brand-sub" style="color:var(--muted)">Production static SPA ${ADMIN_VERSION}</div></div></div>${noticeHtml()}<div class="form"><div class="form-row"><label>Email</label><input class="input" name="email" type="email" autocomplete="username" required></div><div class="form-row"><label>Пароль</label><input class="input" name="password" type="password" autocomplete="current-password" required></div><div class="form-row"><label>2FA код, если включён</label><input class="input" name="two_factor_code" inputmode="numeric"></div><button class="btn" type="submit">Войти</button><p class="muted">Вход использует защищённую HttpOnly-сессию.</p></div></form></div>`
   document.querySelector('[data-form="login"]').addEventListener('submit', async (event) => {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     try {
       const payload = await api('/auth/login', { method: 'POST', body: JSON.stringify(Object.fromEntries(form.entries())) })
       const session = dataOf(payload, {})
-      const token = session.token || session.access_token || session.plain_text_token || session.api_token
-      if (!token) throw new Error('API не вернул token.')
-      state.token = token
-      state.identity = session.user || session.identity || null
-      localStorage.setItem(TOKEN_KEY, token)
+      if (!session.csrf_token) throw new Error('API не вернул CSRF token.')
+      state.token = 'session'
+      state.csrf = session.csrf_token
+      state.identity = session.user || null
       state.route = 'dashboard'
       location.hash = '#/dashboard'
       await routeLoad('dashboard')
@@ -244,7 +249,7 @@ function renderLogin() {
 function bindCommon() {
   document.querySelectorAll('[data-route]').forEach((button) => button.addEventListener('click', () => go(button.dataset.route)))
   document.querySelectorAll('[data-action="refresh"]').forEach((button) => button.addEventListener('click', () => routeLoad(state.route).then(render)))
-  document.querySelectorAll('[data-action="logout"]').forEach((button) => button.addEventListener('click', async () => { try { await api('/auth/logout', { method: 'POST', body: '{}' }) } catch {} state.token = ''; state.identity = null; localStorage.removeItem(TOKEN_KEY); go('login') }))
+  document.querySelectorAll('[data-action="logout"]').forEach((button) => button.addEventListener('click', async () => { try { await api('/auth/logout', { method: 'POST', body: '{}' }) } catch (error) { setNotice('error', error.message); return } state.token = ''; state.csrf = ''; state.identity = null; localStorage.removeItem(TOKEN_KEY); go('login') }))
   document.querySelectorAll('[data-json]').forEach((el) => el.addEventListener('click', () => navigator.clipboard?.writeText(el.dataset.json || '')))
 }
 
@@ -269,7 +274,7 @@ function dashboardView() {
   const dashboard = dataOf(state.cache.dashboard, {})
   const cards = dashboard.cards || []
   const bootstrap = dataOf(state.cache.bootstrap, {})
-  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.1.2 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
+  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.1.3 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
 }
 
 function contentTypesView() {

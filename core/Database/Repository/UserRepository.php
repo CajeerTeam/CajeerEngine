@@ -108,19 +108,25 @@ final readonly class UserRepository
         if (!in_array($status, ['active', 'disabled'], true)) {
             throw new \InvalidArgumentException('Некорректный status пользователя.');
         }
-        $stmt = $this->database->connection()->prepare('UPDATE ce_users SET name = :name, status = :status, disabled_at = CASE WHEN :status_check = :disabled THEN CURRENT_TIMESTAMP ELSE NULL END, updated_at = CURRENT_TIMESTAMP WHERE id = :id');
-        $stmt->execute(['id' => $id, 'name' => $name, 'status' => $status, 'status_check' => $status, 'disabled' => 'disabled']);
-        if (isset($payload['roles']) && is_array($payload['roles'])) {
-            $this->syncRoles($id, array_values(array_map('strval', $payload['roles'])));
-        }
+        $this->database->transaction(function () use ($id, $name, $status, $payload): void {
+            $stmt = $this->database->connection()->prepare('UPDATE ce_users SET name = :name, status = :status, disabled_at = CASE WHEN :status_check = :disabled THEN CURRENT_TIMESTAMP ELSE NULL END, updated_at = CURRENT_TIMESTAMP WHERE id = :id');
+            $stmt->execute(['id' => $id, 'name' => $name, 'status' => $status, 'status_check' => $status, 'disabled' => 'disabled']);
+            if (isset($payload['roles']) && is_array($payload['roles'])) {
+                $this->syncRoles($id, array_values(array_map('strval', $payload['roles'])));
+            }
+            if ($status === 'disabled') (new ApiTokenRepository($this->database))->revokeForUser($id);
+        });
         return $this->findById($id);
     }
 
     public function disable(string $id): bool
     {
-        $stmt = $this->database->connection()->prepare("UPDATE ce_users SET status = 'disabled', disabled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id");
-        $stmt->execute(['id' => $id]);
-        return $stmt->rowCount() > 0;
+        return $this->database->transaction(function () use ($id): bool {
+            $stmt = $this->database->connection()->prepare("UPDATE ce_users SET status = 'disabled', disabled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id");
+            $stmt->execute(['id' => $id]);
+            (new ApiTokenRepository($this->database))->revokeForUser($id);
+            return $stmt->rowCount() > 0;
+        });
     }
 
     public function markLogin(string $id): void

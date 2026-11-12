@@ -29,11 +29,16 @@ final readonly class ApiTokenController
         $identity = $request->attributes->get('auth');
         $userId = is_array($identity) && !empty($identity['user_id']) ? (string) $identity['user_id'] : null;
         $scopes = isset($payload['scopes']) && is_array($payload['scopes']) ? array_values(array_map('strval', $payload['scopes'])) : ['content:read'];
+        $name = (string) ($payload['name'] ?? 'api-token');
+        if ($name === 'admin-session' || $userId === null || !is_array($identity)
+            || \CajeerEngine\Security\AuthService::intersectScopes($scopes, $identity['scopes'] ?? []) !== $scopes) {
+            return new JsonResponse(['error' => ['code' => 'forbidden', 'message' => 'Недопустимое имя или права токена.']], 403);
+        }
         $expiresAt = null;
         if (!empty($payload['expires_at'])) {
             $expiresAt = new \DateTimeImmutable((string) $payload['expires_at']);
         }
-        $token = $this->tokens->create($userId, (string) ($payload['name'] ?? 'api-token'), $scopes, $expiresAt);
+        $token = $this->tokens->create($userId, $name, $scopes, $expiresAt);
         return new JsonResponse(['data' => $token], Response::HTTP_CREATED);
     }
 

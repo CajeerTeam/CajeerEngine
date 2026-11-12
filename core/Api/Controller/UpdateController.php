@@ -20,7 +20,7 @@ final readonly class UpdateController
     public function diagnostics(Request $request, array $parameters): JsonResponse
     {
         $resolver = new UpdateResolver($this->config->get('updates', []), $this->config->rootPath());
-        return new JsonResponse(['data' => $resolver->diagnostics($this->config->string('app.version', '1.1.2'))]);
+        return new JsonResponse(['data' => $resolver->diagnostics($this->config->string('app.version', '1.1.3'))]);
     }
 
     /** @param array<string, mixed> $parameters */
@@ -45,16 +45,14 @@ final readonly class UpdateController
     /** @param array<string, mixed> $parameters */
     public function apply(Request $request, array $parameters): JsonResponse
     {
-        $result = $this->manager()->apply($this->json($request));
-        return new JsonResponse(['data' => $result]);
+        return new JsonResponse(['error' => ['code' => 'update_suspended', 'message' => 'Apply/rollback отключены до production updater 1.1.4.']], 503);
     }
 
     /** @param array<string, mixed> $parameters */
     public function rollback(Request $request, array $parameters): JsonResponse
     {
         $payload = $this->json($request);
-        $result = $this->manager()->rollback(isset($payload['backup']) ? (string) $payload['backup'] : null);
-        return new JsonResponse(['data' => $result]);
+        return new JsonResponse(['error' => ['code' => 'update_suspended', 'message' => 'Apply/rollback отключены до production updater 1.1.4.']], 503);
     }
 
     /** @param array<string, mixed> $parameters */

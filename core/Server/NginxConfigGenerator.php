@@ -19,6 +19,7 @@ final readonly class NginxConfigGenerator
         $phpSocket = (string) ($options['php_socket'] ?? $this->defaultPhpSocket($preset));
         $clientMaxBodySize = (string) ($options['client_max_body_size'] ?? '64m');
         $enableHttpsComment = (bool) ($options['https_comment'] ?? true);
+        if (!preg_match('~^/[a-zA-Z0-9_./-]+$~D', $root) || !preg_match('~^(?:unix:)?/[a-zA-Z0-9_./-]+$|^[a-zA-Z0-9.-]+:[0-9]+$~D', $phpSocket) || !preg_match('/^[1-9][0-9]*[kKmMgG]?$/D', $clientMaxBodySize)) { throw new \InvalidArgumentException('Invalid Nginx configuration value'); }
         $config = $this->render($domain, $root, $phpSocket, $clientMaxBodySize, $enableHttpsComment);
         $suggestedPath = $preset === 'aapanel'
             ? '/www/server/panel/vhost/nginx/' . $domain . '.conf'
@@ -79,11 +80,17 @@ server {
         try_files \$uri \$uri/ /install/index.php?\$query_string;
     }
 
-    location /uploads/ {
-        try_files \$uri =404;
+    location /admin/ {
+        try_files \$uri \$uri/ /admin/index.html;
     }
 
-    location ~ \.php$ {
+    location /uploads/ {
+        try_files \$uri =404;
+        add_header X-Content-Type-Options nosniff always;
+    }
+
+    location ~ ^/(?:index\.php|install/index\.php|upgrade/index\.php)$ {
+        try_files \$uri =404;
         include fastcgi_params;
         fastcgi_pass {$fastcgiPass};
         fastcgi_index index.php;
@@ -92,11 +99,13 @@ server {
         fastcgi_read_timeout 120;
     }
 
+    location ~* \.(?:php[0-9]*|phtml|phar)(?:/|$) { return 404; }
+
     location ~ /(?:\.env|composer\.(?:json|lock)|package(?:-lock)?\.json|pnpm-lock\.yaml|yarn\.lock|phpunit\.xml|release\.json|VERSION)$ {
         deny all;
     }
 
-    location ~ ^/(?:core|config|migrations|storage|bootstrap|vendor|admin|tests|tools|wiki|packages|plugins|themes)/ {
+    location ~ ^/(?:core|config|migrations|storage|bootstrap|vendor|tests|tools|wiki|packages|plugins|themes)/ {
         deny all;
     }
 

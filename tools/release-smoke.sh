@@ -47,4 +47,30 @@ id=$(php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ER
 [[ -n $id ]]
 curl -fsS "${auth[@]}" -X POST "$base/api/v1/content/pages/$id/publish" >/dev/null
 curl -fsS "$base/release-smoke" | grep -q 'Release smoke content'
+# Auth, RBAC and CSRF regression against actual HTTP/DB runtime.
+status() { curl -s -o "$root/response.json" -w '%{http_code}' "$@"; }
+[[ $(status "$base/api/v1/users") == 401 ]]
+[[ $(status --path-as-is "$base/api/v1/%75sers") == 401 ]]
+[[ $(status -I "$base/api/v1/users") == 401 ]]
+[[ $(status "${auth[@]}" -d '{"email":"bad"}' "$base/api/v1/auth/login") == 422 ]]
+[[ $(status "${auth[@]}" -d '{"force":true,"package":"test.zip"}' "$base/api/v1/updates/apply") == 503 ]]
+viewer=$(curl -fsS "${auth[@]}" -d '{"email":"viewer@example.invalid","name":"Viewer","password":"ReleaseSmokeOnly-9X!","roles":["viewer"]}' "$base/api/v1/users")
+viewerid=$(php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR); echo $j["data"]["id"];' <<< "$viewer")
+viewerlogin=$(curl -fsS -H 'Content-Type: application/json' -d '{"email":"viewer@example.invalid","password":"ReleaseSmokeOnly-9X!"}' "$base/api/v1/auth/login")
+viewertoken=$(php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR); echo $j["data"]["access_token"];' <<< "$viewerlogin")
+[[ $(status -H "Authorization: Bearer $viewertoken" -H 'Content-Type: application/json' -d '{"title":"denied","data":{}}' "$base/api/v1/content/pages") == 403 ]]
+[[ $(status "${auth[@]}" -X DELETE "$base/api/v1/users/$viewerid") == 200 ]]
+[[ $(status -H "Authorization: Bearer $viewertoken" "$base/api/v1/auth/me") == 401 ]]
+browser=$(curl -fsS -c "$root/cookies" -H 'X-Cajeer-Browser: 1' -H 'Content-Type: application/json' -d '{"email":"smoke@example.invalid","password":"ReleaseSmokeOnly-9X!"}' "$base/api/v1/auth/login")
+csrf=$(php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR); if(isset($j["data"]["access_token"]))exit(1); echo $j["data"]["csrf_token"];' <<< "$browser")
+[[ -n $csrf ]]
+[[ $(status -b "$root/cookies" "$base/api/v1/auth/me") == 200 ]]
+[[ $(status -b "$root/cookies" -X POST "$base/api/v1/auth/logout") == 403 ]]
+[[ $(status -b "$root/cookies" -H "X-CSRF-Token: $csrf" -X POST "$base/api/v1/auth/logout") == 200 ]]
+[[ $(status -b "$root/cookies" "$base/api/v1/auth/me") == 401 ]]
+[[ $(status "${auth[@]}" -d '{"filename":"fake.png","mime_type":"image/png","content_base64":"PGh0bWw+YmFkPC9odG1sPg=="}' "$base/api/v1/media") == 422 ]]
+[[ $(status "${auth[@]}" -X POST "$base/api/v1/updates/maintenance/on") == 201 ]]
+[[ $(status "$base/release-smoke") == 503 ]]
+[[ $(status "${auth[@]}" -X POST "$base/api/v1/updates/maintenance/off") == 200 ]]
+[[ $(status "$base/release-smoke") == 200 ]]
 echo "Dist smoke passed ($driver)"

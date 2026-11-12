@@ -19,7 +19,7 @@ final readonly class WebhookController
     /** @param array<string, mixed> $parameters */
     public function index(Request $request, array $parameters): JsonResponse
     {
-        return new JsonResponse(['data' => $this->webhooks->all(), 'meta' => $this->webhooks->diagnostics()]);
+        return new JsonResponse(['data' => array_map(static function (array $item): array { unset($item['secret']); return $item; }, $this->webhooks->all()), 'meta' => $this->webhooks->diagnostics()]);
     }
 
     /** @param array<string, mixed> $parameters */

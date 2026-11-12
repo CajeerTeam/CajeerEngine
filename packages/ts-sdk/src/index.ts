@@ -1,3 +1,6 @@
+import { operations, type OperationId, type OperationArguments } from './operations'
+export { operations, type OperationId, type OperationArguments } from './operations'
+
 export type CajeerEngineClientOptions = {
   baseUrl: string
   token?: string
@@ -261,14 +264,30 @@ export class CajeerEngineClient {
     return this.request(`/api-tokens/${encodeURIComponent(id)}`, { method: 'DELETE' })
   }
 
+  /** Invoke any operation in the generated OpenAPI catalog. */
+  async call(operation: OperationId, args: OperationArguments = {}): Promise<unknown> {
+    const spec = operations[operation]
+    if (!spec) throw new Error('Unknown operation')
+    const path = spec.path.replace(/\{([^}]+)\}/g, (_, name: string) => {
+      const value = args.path?.[name]
+      if (value === undefined || value === '') throw new Error(`Missing path parameter: ${name}`)
+      return encodeURIComponent(String(value))
+    })
+    const query = new URLSearchParams()
+    for (const [key, value] of Object.entries(args.query ?? {})) query.set(key, String(value))
+    if (spec.bodyRequired && args.body === undefined) throw new Error('Request body required')
+    const body = args.body instanceof FormData ? args.body : args.body === undefined ? undefined : JSON.stringify(args.body)
+    return this.request(path + (query.size ? `?${query}` : ''), { method: spec.method, body })
+  }
+
   private async request(path: string, init: RequestInit = {}): Promise<unknown> {
     const headers = new Headers(init.headers)
     headers.set('Accept', 'application/json')
-    if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+    if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
     if (this.options.token) headers.set('Authorization', `Bearer ${this.options.token}`)
 
     const base = this.options.baseUrl.replace(/\/$/, '')
-    const response = await fetch(`${base}${path}`, { ...init, headers })
+    const response = await fetch(`${base}${path}`, { ...init, headers, redirect: 'error' })
     const payload = await response.json().catch(() => null)
     if (!response.ok) {
       const message = payload && typeof payload === 'object' && 'error' in payload

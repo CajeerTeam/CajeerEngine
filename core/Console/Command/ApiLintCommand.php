@@ -15,6 +15,7 @@ final class ApiLintCommand extends BaseCommand
 {
     protected function configure(): void
     {
+        $this->addOption('strict', null, InputOption::VALUE_NONE, 'Проверить все маршруты, схемы и security (по умолчанию).');
         $this->addOption('json', null, InputOption::VALUE_NONE, 'Вывести JSON.');
     }
 

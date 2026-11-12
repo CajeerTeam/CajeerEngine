@@ -23,8 +23,7 @@ final readonly class InstallerController
     /** @param array<string, mixed> $parameters */
     public function run(Request $request, array $parameters): JsonResponse
     {
-        $payload = $this->json($request);
-        return new JsonResponse(['data' => $this->installer->install($payload)], 201);
+        return new JsonResponse(['error' => ['code' => 'installer_cli_or_web_required', 'message' => 'Используйте /install с setup token или CLI installer.']], 403);
     }
 
     /** @return array<string, mixed> */

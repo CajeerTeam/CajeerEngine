@@ -21,6 +21,8 @@ final class Router
     /** @var array<string, callable> */
     private array $controllers = [];
 
+    private array $policies = [];
+
     /** @var list<array{name:string,path:string,methods:list<string>}> */
     private array $routeList = [];
 
@@ -55,7 +57,7 @@ final class Router
     }
 
     /** @param list<string> $methods */
-    public function add(array $methods, string $path, string $name, callable $controller): void
+    public function add(array $methods, string $path, string $name, callable $controller, ?array $scopes = ['*']): void
     {
         $methods = array_values(array_unique(array_map('strtoupper', $methods)));
         $requirements = [];
@@ -64,11 +66,30 @@ final class Router
         }
         $this->routes->add($name, new Route($path, ['_cajeer_controller' => $name], $requirements, [], '', [], $methods));
         $this->controllers[$name] = $controller;
+        $this->policies[$name] = $scopes;
         $this->routeList[] = [
             'name' => $name,
             'path' => $path,
             'methods' => $methods,
         ];
+    }
+
+    /** Match with the same matcher as dispatch, including decoded paths and HEAD. */
+    public function accessPolicy(Request $request): ?array
+    {
+        $context = new RequestContext();
+        $context->fromRequest($request);
+        try {
+            $parameters = (new UrlMatcher($this->routes, $context))->match($request->getPathInfo());
+            $name = (string) $parameters['_cajeer_controller'];
+            $request->attributes->set('matched_route', $name);
+            if (str_starts_with(rawurldecode($request->getPathInfo()), '/api/') && $name === 'public.page.path') {
+                return null; // dispatch rejects API catch-all below
+            }
+            return $this->policies[$name];
+        } catch (ResourceNotFoundException|MethodNotAllowedException) {
+            return null; // no controller will execute
+        }
     }
 
     public function dispatch(Request $request): Response
@@ -80,6 +101,9 @@ final class Router
         try {
             $parameters = $matcher->match($request->getPathInfo());
             $controllerName = (string) $parameters['_cajeer_controller'];
+            if ($controllerName === 'public.page.path' && str_starts_with(rawurldecode($request->getPathInfo()), '/api/')) {
+                return $this->error($request, 'not_found', 'Маршрут API не найден.', 404);
+            }
             $controller = $this->controllers[$controllerName] ?? null;
 
             if (!is_callable($controller)) {

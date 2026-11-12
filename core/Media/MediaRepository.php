@@ -59,13 +59,14 @@ final readonly class MediaRepository
             $base64 = substr($base64, strpos($base64, ',') + 1);
         }
 
+        if (strlen($base64) > 4 * ceil($this->maxBytes() / 3) + 4) { throw new \InvalidArgumentException('Файл слишком большой.'); }
         $contents = base64_decode($base64, true);
         if ($contents === false) {
             throw new \InvalidArgumentException('content_base64 должен быть валидной base64-строкой.');
         }
 
         return $this->store($filename, $contents, [
-            'mime_type' => (string) ($payload['mime_type'] ?? $this->detectMime($filename, $contents)),
+            'mime_type' => $this->detectMime($filename, $contents),
             'title' => (string) ($payload['title'] ?? ''),
             'alt' => (string) ($payload['alt'] ?? ''),
         ]);
@@ -80,12 +81,13 @@ final readonly class MediaRepository
 
         $filename = $this->sanitizeFilename((string) $uploadedFile->getClientOriginalName());
         $path = (string) $uploadedFile->getPathname();
-        $contents = is_file($path) ? file_get_contents($path) : false;
+        if (!is_file($path) || filesize($path) > $this->maxBytes() || (method_exists($uploadedFile, 'isValid') && !$uploadedFile->isValid())) { throw new \InvalidArgumentException('Недопустимый upload.'); }
+        $contents = file_get_contents($path);
         if ($contents === false) {
             throw new \RuntimeException('Не удалось прочитать загруженный файл.');
         }
 
-        $mime = method_exists($uploadedFile, 'getClientMimeType') ? (string) $uploadedFile->getClientMimeType() : $this->detectMime($filename, $contents);
+        $mime = $this->detectMime($filename, $contents);
         return $this->store($filename, $contents, [
             'mime_type' => $mime,
             'title' => (string) ($payload['title'] ?? ''),
@@ -150,6 +152,10 @@ final readonly class MediaRepository
     private function store(string $filename, string $contents, array $meta): array
     {
         $this->assertAllowed($filename, (string) $meta['mime_type'], strlen($contents));
+        if (str_starts_with((string) $meta['mime_type'], 'image/')) {
+            $size = @getimagesizefromstring($contents);
+            if (!is_array($size) || ($size['mime'] ?? '') !== $meta['mime_type'] || $size[0] <= 0 || $size[1] <= 0 || $size[0] * $size[1] > 40000000) { throw new \InvalidArgumentException('Недопустимое изображение.'); }
+        }
         $relativePath = $this->storage->makeRelativeUploadPath($filename);
         $fullPath = $this->storage->writePublicUpload($relativePath, $contents);
         $now = $this->now();
@@ -186,67 +192,26 @@ final readonly class MediaRepository
         return $item;
     }
 
+    private function maxBytes(): int
+    {
+        return max(1, min(100, (int) (getenv('MEDIA_MAX_UPLOAD_MB') ?: 25))) * 1024 * 1024;
+    }
+
     private function assertAllowed(string $filename, string $mimeType, int $size): void
     {
         $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-        $allowSvg = filter_var(getenv('MEDIA_ALLOW_SVG') ?: false, FILTER_VALIDATE_BOOLEAN);
-        $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'txt', 'md', 'zip'];
-        if ($allowSvg) {
-            $allowedExtensions[] = 'svg';
-        }
-        if (!in_array($extension, $allowedExtensions, true)) {
-            throw new \InvalidArgumentException('Расширение файла не разрешено: .' . $extension);
-        }
-        if ($extension === 'svg' && !$allowSvg) {
-            throw new \InvalidArgumentException('SVG upload отключён по умолчанию из-за XSS-рисков. Включите MEDIA_ALLOW_SVG=true только после настройки sanitization/CSP.');
-        }
-
-        $allowedMimePrefixes = ['text/'];
-        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'application/zip', 'application/x-zip-compressed'];
-        if ($allowSvg) {
-            $allowedMimes[] = 'image/svg+xml';
-        }
-        $mimeAllowed = in_array($mimeType, $allowedMimes, true);
-        foreach ($allowedMimePrefixes as $prefix) {
-            if (str_starts_with($mimeType, $prefix)) {
-                $mimeAllowed = true;
-            }
-        }
-        if (!$mimeAllowed) {
-            throw new \InvalidArgumentException('MIME type не разрешён: ' . $mimeType);
-        }
-
-        $maxMb = max(1, (int) (getenv('MEDIA_MAX_UPLOAD_MB') ?: 25));
-        $max = $maxMb * 1024 * 1024;
-        if ($size <= 0 || $size > $max) {
-            throw new \InvalidArgumentException('Размер файла должен быть от 1 байта до ' . $maxMb . ' МБ.');
-        }
+        $allowed = ['jpg' => ['image/jpeg'], 'jpeg' => ['image/jpeg'], 'png' => ['image/png'], 'gif' => ['image/gif'], 'webp' => ['image/webp'],
+            'pdf' => ['application/pdf'], 'txt' => ['text/plain'], 'md' => ['text/plain','text/markdown'], 'zip' => ['application/zip','application/x-zip-compressed']];
+        if (!in_array($mimeType, $allowed[$extension] ?? [], true)) { throw new \InvalidArgumentException('Запрещённый формат или несовпадение MIME и расширения.'); }
+        if ($size <= 0 || $size > $this->maxBytes()) { throw new \InvalidArgumentException('Недопустимый размер файла.'); }
     }
 
     private function detectMime(string $filename, string $contents): string
     {
-        if (function_exists('finfo_open')) {
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            if ($finfo !== false) {
-                $mime = finfo_buffer($finfo, $contents) ?: '';
-                finfo_close($finfo);
-                if ($mime !== '') {
-                    return $mime;
-                }
-            }
-        }
-
-        return match (strtolower(pathinfo($filename, PATHINFO_EXTENSION))) {
-            'jpg', 'jpeg' => 'image/jpeg',
-            'png' => 'image/png',
-            'gif' => 'image/gif',
-            'webp' => 'image/webp',
-            'svg' => 'image/svg+xml',
-            'pdf' => 'application/pdf',
-            'zip' => 'application/zip',
-            'md' => 'text/markdown',
-            default => 'text/plain',
-        };
+        if (!class_exists(\finfo::class)) { throw new \RuntimeException('Для безопасной загрузки требуется ext-fileinfo.'); }
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($contents);
+        if (!is_string($mime) || $mime === '') { throw new \InvalidArgumentException('Не удалось определить MIME.'); }
+        return $mime;
     }
 
     private function sanitizeFilename(string $filename): string
@@ -255,7 +220,7 @@ final readonly class MediaRepository
         $filename = trim($filename) ?: 'upload.bin';
         $name = pathinfo($filename, PATHINFO_FILENAME) ?: 'upload';
         $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION) ?: 'bin');
-        $name = trim((string) preg_replace('/[^a-zA-Z0-9._-]+/', '-', $name), '-_.') ?: 'upload';
+        $name = trim((string) preg_replace('/[^a-zA-Z0-9_-]+/', '-', $name), '-_.') ?: 'upload';
         $ext = preg_replace('/[^a-z0-9]+/', '', $ext) ?: 'bin';
 
         return $name . '.' . $ext;

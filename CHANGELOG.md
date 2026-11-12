@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.3 — OpenAPI & Security (2026-11-12)
+
+- Single route registry and strict OpenAPI 3.1.1 parity for 119 core operations; runtime JSON input validation.
+- Correct middleware interface, mandatory authorization and current account/role restrictions; browser HttpOnly session with CSRF.
+- Web setup token, MIME validation, SSRF-resistant outbound HTTP, safe public rendering.
+- Production apply/rollback and destructive import suspended pending safe recovery and transactional import.
+- API/SDK regression checks and HTTP integration smoke cases.
+
 ## [1.1.2] - 2026-11-12
 
 - Clean source/dist packaging: allowlisted files, deterministic ZIP output, checksums and verified archive inventory.

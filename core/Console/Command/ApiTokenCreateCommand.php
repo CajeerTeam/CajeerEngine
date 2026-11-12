@@ -25,7 +25,15 @@ final class ApiTokenCreateCommand extends BaseCommand
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $tokens = new ApiTokenRepository(new DatabaseManager(new ConfigRepository($this->rootPath)));
+        $database = new DatabaseManager(new ConfigRepository($this->rootPath));
+        $userId = (string) $input->getOption('user-id');
+        $roles = new \CajeerEngine\Database\Repository\RoleRepository($database);
+        $user = (new \CajeerEngine\Database\Repository\UserRepository($database, $roles))->findById($userId);
+        $scopes = array_values(array_map('strval', (array) $input->getOption('scope')));
+        if (!$user || ($user['status'] ?? '') !== 'active' || $input->getOption('name') === 'admin-session' || \CajeerEngine\Security\AuthService::intersectScopes($scopes, $roles->permissionsForUser($userId)) !== $scopes) {
+            $output->writeln('<error>Active --user-id and authorized scopes required.</error>'); return self::FAILURE;
+        }
+        $tokens = new ApiTokenRepository($database);
         $expires = $input->getOption('expires') ? new \DateTimeImmutable((string) $input->getOption('expires')) : null;
         $token = $tokens->create($input->getOption('user-id') ? (string) $input->getOption('user-id') : null, (string) $input->getOption('name'), array_values(array_map('strval', (array) $input->getOption('scope'))), $expires);
         $output->writeln('[OK] Token ID: ' . $token['id']);

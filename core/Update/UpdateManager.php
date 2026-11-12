@@ -27,9 +27,8 @@ final class UpdateManager
             'current_version' => $current,
             'latest_version' => is_array($latest) ? ($latest['version'] ?? null) : null,
             'maintenance' => $this->maintenanceState(),
-            'safe_update_command' => $latest === null
-                ? null
-                : 'php bin/cajeer update --package=/path/to/cajeerengine-' . (string) ($latest['version'] ?? 'latest') . '-dist.zip --apply',
+            'safe_update_command' => null,
+            'production_apply_enabled' => false,
         ];
     }
 
@@ -60,17 +59,10 @@ final class UpdateManager
             'maintenance_mode_during_apply' => !($options['no_maintenance'] ?? false),
             'migrations_after_apply' => !($options['no_migrations'] ?? false),
             'post_update_doctor' => !($options['no_doctor'] ?? false),
-            'rollback_command' => 'php bin/cajeer update:rollback --backup=storage/app/updates/rollback/<snapshot>.zip',
-            'apply_command' => $package !== null
-                ? 'php bin/cajeer update --package=' . $package . ' --apply'
-                : ($artifactName !== null ? 'php bin/cajeer update --package=/path/to/' . $artifactName . ' --apply' : null),
-            'notes' => [
-                'Автоматическое обновление применяет только локальный ZIP или прямой URL на ZIP.',
-                'Перед применением создаётся runtime backup и code rollback snapshot.',
-                'Файлы .env, installed.lock, public/uploads, SQLite database и storage runtime не перезаписываются.',
-                'Downgrade запрещён без --force.',
-                'После apply можно выполнить rollback по snapshot, созданному перед копированием файлов.',
-            ],
+            'rollback_command' => null,
+            'apply_command' => null,
+            'production_apply_enabled' => false,
+            'notes' => ['Production apply/rollback suspended until signed releases and database recovery in 1.1.4. Planning only.'],
             'checked_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
         ];
     }
@@ -97,6 +89,7 @@ final class UpdateManager
             throw new \RuntimeException('Укажите --package=/path/to/cajeerengine-x.y.z-dist.zip или загрузите ZIP через /upgrade.');
         }
         $dryRun = (bool) ($options['dry_run'] ?? false);
+        if (!$dryRun) { $this->requireUnsafeDevUpdate(); }
         $noBackup = (bool) ($options['no_backup'] ?? false);
         $force = (bool) ($options['force'] ?? false);
         $noMaintenance = (bool) ($options['no_maintenance'] ?? false);
@@ -105,7 +98,7 @@ final class UpdateManager
         $expectedSha = $this->stringOption($options, 'sha256');
         $packagePath = $this->resolvePackage($package);
         $verify = $this->verifyPackage($packagePath, $expectedSha);
-        if (!$force && ($verify['ok'] ?? false) !== true) {
+        if (($verify['ok'] ?? false) !== true) {
             throw new \RuntimeException('Update package verification failed: ' . (string) ($verify['error'] ?? 'unknown error'));
         }
 
@@ -203,6 +196,7 @@ final class UpdateManager
     /** @return array<string, mixed> */
     public function rollback(?string $backup = null): array
     {
+        $this->requireUnsafeDevUpdate();
         $backup = $backup !== null && trim($backup) !== '' ? trim($backup) : $this->lastRollbackSnapshotPath();
         if ($backup === null || $backup === '') {
             throw new \RuntimeException('Rollback snapshot не найден. Укажите --backup=storage/app/updates/rollback/<snapshot>.zip.');
@@ -293,56 +287,33 @@ final class UpdateManager
     /** @return array<string, mixed> */
     public function verifyPackage(string $packagePath, ?string $expectedSha = null): array
     {
-        if (!is_file($packagePath)) { return ['ok' => false, 'error' => 'Package file not found.', 'package' => $packagePath]; }
-        if (!class_exists(\ZipArchive::class)) { return ['ok' => false, 'error' => 'PHP ZipArchive extension не установлен.', 'package' => $packagePath]; }
-        $sha = hash_file('sha256', $packagePath) ?: '';
-        if ($expectedSha !== null && $expectedSha !== '' && !hash_equals(strtolower($expectedSha), strtolower($sha))) {
-            return ['ok' => false, 'error' => 'SHA256 mismatch.', 'package' => $packagePath, 'sha256' => $sha, 'expected_sha256' => $expectedSha];
+        try {
+            if (!is_file($packagePath) || is_link($packagePath)) { throw new \RuntimeException('Package not found'); }
+            $sha = hash_file('sha256', $packagePath);
+            if (!is_string($expectedSha) || !preg_match('/^[a-f0-9]{64}$/iD', $expectedSha) || !hash_equals(strtolower($expectedSha), $sha)) { throw new \RuntimeException('Required SHA256 mismatch or missing'); }
+            $zip = new \PharData($packagePath);
+            $name = 'cajeerengine/release-manifest.json';
+            if (!isset($zip[$name]) || $zip[$name]->getSize() > 16 * 1024 * 1024) { throw new \RuntimeException('Missing manifest'); }
+            $manifest = json_decode($zip[$name]->getContent(), true, 512, JSON_THROW_ON_ERROR);
+            $mode = $manifest['mode'] ?? '';
+            $version = $manifest['version'] ?? '';
+            if (!in_array($mode, ['dist','source'], true) || !is_string($version) || !preg_match('/^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/D', $version)) { throw new \RuntimeException('Invalid release identity'); }
+            $manifest = (new \CajeerEngine\Release\ReleaseArtifactVerifier())->verify($packagePath, $mode, $version);
+            return ['ok' => true, 'package' => $packagePath, 'sha256' => $sha, 'manifest' => $manifest, 'version' => $version, 'mode' => $mode, 'file_count' => count($manifest['files']), 'warnings' => ['No trusted release signature; production apply is disabled.']];
+        } catch (\Throwable $e) { return ['ok' => false, 'error' => $e->getMessage(), 'package' => $packagePath]; }
+    }
+
+    private function requireUnsafeDevUpdate(): void
+    {
+        if (PHP_SAPI !== 'cli' || !in_array($this->config->string('app.env', 'production'), ['local','dev','testing'], true) || getenv('UPDATE_ALLOW_UNSAFE_DEV_APPLY') !== 'true') {
+            throw new \RuntimeException('Update apply/rollback отключены до 1.1.4: требуется подписанный релиз и восстановление БД.');
         }
-        $zip = new \ZipArchive();
-        if ($zip->open($packagePath) !== true) { return ['ok' => false, 'error' => 'Cannot open ZIP package.', 'package' => $packagePath]; }
-        $manifestRaw = $zip->getFromName('cajeerengine/release-manifest.json') ?: $zip->getFromName('release-manifest.json');
-        if (!is_string($manifestRaw) || trim($manifestRaw) === '') { $zip->close(); return ['ok' => false, 'error' => 'release-manifest.json not found in package.', 'package' => $packagePath, 'sha256' => $sha]; }
-        $manifest = json_decode($manifestRaw, true);
-        if (!is_array($manifest)) { $zip->close(); return ['ok' => false, 'error' => 'release-manifest.json is invalid JSON.', 'package' => $packagePath, 'sha256' => $sha]; }
-        $version = (string) ($manifest['version'] ?? '');
-        $project = (string) ($manifest['project'] ?? 'cajeerengine');
-        $files = is_array($manifest['files'] ?? null) ? $manifest['files'] : [];
-        $warnings = [];
-        foreach ((array) ($manifest['checksums'] ?? []) as $relative => $expectedFileSha) {
-            $zipName = $zip->locateName('cajeerengine/' . (string) $relative) !== false ? 'cajeerengine/' . (string) $relative : (string) $relative;
-            $content = $zip->getFromName($zipName);
-            if (is_string($content) && !hash_equals((string) $expectedFileSha, hash('sha256', $content))) {
-                $warnings[] = 'Checksum mismatch for ' . (string) $relative;
-                break;
-            }
-        }
-        if (!isset($manifest['signature'])) { $warnings[] = 'Release manifest не подписан. SHA256 проверен, но detached signature отсутствует.'; }
-        $zip->close();
-        if ($project !== 'cajeerengine' || $version === '' || $files === []) {
-            return ['ok' => false, 'error' => 'Package manifest is incomplete.', 'package' => $packagePath, 'sha256' => $sha, 'manifest' => $manifest];
-        }
-        return ['ok' => true, 'package' => $packagePath, 'sha256' => $sha, 'manifest' => $manifest, 'version' => $version, 'mode' => $manifest['mode'] ?? 'unknown', 'file_count' => count($files), 'warnings' => $warnings];
     }
 
     private function resolvePackage(string $package): string
     {
-        if (str_starts_with($package, 'http://') || str_starts_with($package, 'https://')) { return $this->downloadPackage($package); }
+        if (str_contains($package, '://')) { throw new \InvalidArgumentException('Скачайте ZIP локально и проверьте доверенный SHA256.'); }
         return str_starts_with($package, '/') ? $package : $this->rootPath . '/' . $package;
-    }
-
-    private function downloadPackage(string $url): string
-    {
-        $dir = $this->rootPath . '/storage/app/updates/downloads';
-        if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) { throw new \RuntimeException('Не удалось создать downloads directory: ' . $dir); }
-        $name = basename(parse_url($url, PHP_URL_PATH) ?: 'update.zip');
-        if (!str_ends_with(strtolower($name), '.zip')) { $name .= '.zip'; }
-        $target = $dir . '/' . preg_replace('/[^a-zA-Z0-9._-]/', '-', $name);
-        $context = stream_context_create(['http' => ['timeout' => 30, 'header' => "Accept: application/zip, application/octet-stream\r\n"]]);
-        $contents = @file_get_contents($url, false, $context);
-        if (!is_string($contents) || $contents === '') { throw new \RuntimeException('Не удалось скачать update package: ' . $url); }
-        file_put_contents($target, $contents, LOCK_EX);
-        return $target;
     }
 
     /** @param array<string,mixed> $manifest @return array{files:list<string>,skipped:list<string>,removed_files:list<string>} */
@@ -506,7 +477,7 @@ final class UpdateManager
 
     private function currentVersion(): string
     {
-        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: $this->config->string('app.version', '1.1.2');
+        return trim((string) @file_get_contents($this->rootPath . '/VERSION')) ?: $this->config->string('app.version', '1.1.3');
     }
 
     private function maintenancePath(): string

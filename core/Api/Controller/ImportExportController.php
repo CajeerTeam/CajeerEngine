@@ -34,6 +34,7 @@ final readonly class ImportExportController
     {
         $payload = $this->json($request);
         $file = (string) ($payload['file'] ?? '');
+        if ($file !== basename($file) || !preg_match('/^[a-zA-Z0-9][a-zA-Z0-9._-]*\.json$/D', $file)) { return new JsonResponse(['error' => ['code' => 'invalid_import_file', 'message' => 'Укажите имя JSON в imports/exports.']], 422); }
         if ($file === '') {
             return new JsonResponse(['error' => ['code' => 'import_file_required', 'message' => 'Поле file обязательно.']], 422);
         }
@@ -45,10 +46,12 @@ final readonly class ImportExportController
     {
         $payload = $this->json($request);
         $file = (string) ($payload['file'] ?? '');
+        if ($file !== basename($file) || !preg_match('/^[a-zA-Z0-9][a-zA-Z0-9._-]*\.json$/D', $file)) { return new JsonResponse(['error' => ['code' => 'invalid_import_file', 'message' => 'Укажите имя JSON в imports/exports.']], 422); }
         if ($file === '') {
             return new JsonResponse(['error' => ['code' => 'import_file_required', 'message' => 'Поле file обязательно.']], 422);
         }
-        return new JsonResponse(['data' => $this->service->import($file, $payload)]);
+        $result = $this->service->import($file, $payload);
+        return $result['ok'] ? new JsonResponse(['data' => $result]) : new JsonResponse(['error' => ['code' => 'import_partial_failure', 'message' => 'Import partially failed.', 'details' => $result]], 422);
     }
 
     /** @return array<string, mixed> */

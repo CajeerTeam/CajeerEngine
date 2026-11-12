@@ -24,13 +24,13 @@ final readonly class RateLimiter
         $now = time();
         $state = ['hits' => 0, 'reset_at' => $now + $windowSeconds];
 
-        $handle = fopen($file, 'c+');
+        $handle = @fopen($file, 'c+');
         if ($handle === false) {
-            return ['allowed' => true, 'limit' => $limit, 'remaining' => $limit - 1, 'reset_at' => $now + $windowSeconds, 'retry_after' => 0, 'key' => $bucket . ':' . $identityHash];
+            return ['allowed' => false, 'limit' => $limit, 'remaining' => 0, 'reset_at' => $now + $windowSeconds, 'retry_after' => $windowSeconds, 'key' => $bucket . ':' . $identityHash];
         }
 
         try {
-            flock($handle, LOCK_EX);
+            if (!flock($handle, LOCK_EX)) { throw new \RuntimeException('Rate limit lock failed'); }
             $raw = stream_get_contents($handle);
             if (is_string($raw) && trim($raw) !== '') {
                 $decoded = json_decode($raw, true);
@@ -49,10 +49,8 @@ final readonly class RateLimiter
             $remaining = max(0, $limit - $state['hits']);
             $retryAfter = $allowed ? 0 : max(1, $state['reset_at'] - $now);
 
-            ftruncate($handle, 0);
-            rewind($handle);
-            fwrite($handle, json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            fflush($handle);
+            $encoded = json_encode($state, JSON_THROW_ON_ERROR);
+            if (!ftruncate($handle, 0) || !rewind($handle) || fwrite($handle, $encoded) !== strlen($encoded) || !fflush($handle)) throw new \RuntimeException('Rate limit persistence failed');
             flock($handle, LOCK_UN);
             fclose($handle);
 
@@ -67,7 +65,7 @@ final readonly class RateLimiter
         } catch (\Throwable) {
             @flock($handle, LOCK_UN);
             @fclose($handle);
-            return ['allowed' => true, 'limit' => $limit, 'remaining' => $limit - 1, 'reset_at' => $now + $windowSeconds, 'retry_after' => 0, 'key' => $bucket . ':' . $identityHash];
+            return ['allowed' => false, 'limit' => $limit, 'remaining' => 0, 'reset_at' => $now + $windowSeconds, 'retry_after' => $windowSeconds, 'key' => $bucket . ':' . $identityHash];
         }
     }
 }

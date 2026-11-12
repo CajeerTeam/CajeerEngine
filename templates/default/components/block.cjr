@@ -4,7 +4,7 @@
   @endif
 
   @if (!empty($block['content']))
-    <div>{!! $block['content'] !!}</div>
+    <div>{!! $block['content_html'] ?? '' !!}</div>
   @else
     <pre>{{ json_encode($block, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) }}</pre>
   @endif

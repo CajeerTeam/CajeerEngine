@@ -61,6 +61,7 @@ final class NativeCli
             $config = new ConfigRepository($rootPath);
             $result = match ($command) {
                 'list' => self::commands(),
+                'api:lint' => self::apiLint($rootPath),
                 'rc:doctor' => (new ReleaseCandidateAuditor($rootPath))->run(),
                 'system:report' => (new SystemReport($rootPath))->toArray(),
                 'stable:status' => (new StableReleaseService($rootPath, $config))->status(),
@@ -127,12 +128,19 @@ final class NativeCli
     }
 
     /** @return array<string, mixed> */
+    private static function apiLint(string $rootPath): array
+    {
+        $checks = array_map(static fn ($c) => $c->toArray(), (new \CajeerEngine\Rc\OpenApiLinter($rootPath))->lint());
+        $fail = count(array_filter($checks, static fn ($c) => $c['status'] === 'fail'));
+        return ['ok' => $fail === 0, 'fail' => $fail, 'checks' => $checks];
+    }
+
     private static function commands(): array
     {
         return [
             'ok' => true,
             'mode' => 'native-no-vendor',
-            'commands' => ['doctor','fix','fix:permissions','fix:env','fix:security','fix:admin-assets','fix:storage','nginx:config','scheduler:install','worker:install','post-install:report','backup:create','install','install:check','rc:doctor','system:report','stable:status','stable:smoke-test','stable:lock','security:doctor','security:harden','migrate','migrate:status','migrate:repair','release:build','release:artifacts','release:checksums','release:verify','update','update:prepare','update:apply','update:check','update:rollback','maintenance:on','maintenance:off','maintenance:status','export:create','export:list','import:diff','import:run','admin:assets','cms:bootstrap','cms:sitemap','make:extension','extension:list','extension:doctor','extension:runtime','extension:runtime:boot','extension:install','extension:enable','extension:disable','extension:uninstall','extension:assets','extension:migrate','extension:event:dispatch'],
+            'commands' => ['doctor','fix','fix:permissions','fix:env','fix:security','fix:admin-assets','fix:storage','nginx:config','scheduler:install','worker:install','post-install:report','backup:create','install','install:check','rc:doctor','api:lint','install:web-token','system:report','stable:status','stable:smoke-test','stable:lock','security:doctor','security:harden','migrate','migrate:status','migrate:repair','release:build','release:artifacts','release:checksums','release:verify','update','update:prepare','update:apply','update:check','update:rollback','maintenance:on','maintenance:off','maintenance:status','export:create','export:list','import:diff','import:run','admin:assets','cms:bootstrap','cms:sitemap','make:extension','extension:list','extension:doctor','extension:runtime','extension:runtime:boot','extension:install','extension:enable','extension:disable','extension:uninstall','extension:assets','extension:migrate','extension:event:dispatch'],
             'message' => 'Symfony Console не найден, включён native fallback для эксплуатационных команд.',
         ];
     }
@@ -625,6 +633,6 @@ PHP_STUB;
 
     private static function version(string $rootPath): string
     {
-        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.1.2';
+        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.1.3';
     }
 }
