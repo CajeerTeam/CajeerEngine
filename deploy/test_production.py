@@ -21,6 +21,28 @@ import production as p
 SITE={'domain':'deploy.example.invalid','db_host':'127.0.0.1','db_port':5432,'db_name':'cms','db_user':'cms','db_sslmode':'disable','admin_email':'admin@example.invalid'}
 
 class Safety(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('php'),'PHP CLI unavailable')
+    def test_php_preflight(self):
+        # Exercise the actual PHP probe, including Phar's mixed-case module name.
+        required=('pdo_pgsql','sodium','mbstring','fileinfo','openssl','phar','gd')
+        for options in ([],['-n']):
+            with self.subTest(options=options):
+                command=['php',*options,'-r']
+                info=json.loads(subprocess.check_output(command+[
+                    'echo json_encode([PHP_VERSION_ID, PHP_VERSION, get_loaded_extensions()]);'
+                ],text=True))
+                version_id,version,modules=info
+                loaded={name.lower() for name in modules}
+                missing=[name for name in required if name not in loaded]
+                errors=[]
+                if not 80401<=version_id<90000:
+                    errors.append(f'Unsupported PHP version: {version} (required >=8.4.1 <9.0)')
+                if missing:
+                    errors.append('Missing PHP extensions: '+', '.join(missing))
+                result=subprocess.run(command+[p.PHP_PREFLIGHT],text=True,capture_output=True)
+                self.assertEqual(result.returncode,1 if errors else 0,result.stderr)
+                self.assertEqual(result.stderr.strip().splitlines(),errors)
+
     def test_config_and_journal(self):
         with tempfile.TemporaryDirectory() as d, patch.object(p,'ETC',Path(d)), patch.object(p,'JOURNAL',Path(d)/'journal'):
             path=Path(d)/'site.json'; path.write_text(json.dumps(SITE))
