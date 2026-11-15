@@ -87,6 +87,21 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'delete_IntegrationsDelete' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/integrations/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
   'delete_MediaDelete' => 
   array (
     'method' => 'DELETE',
@@ -574,6 +589,15 @@ final class Operations {
   array (
     'method' => 'GET',
     'path' => '/installer/requirements',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_IntegrationsIndex' => 
+  array (
+    'method' => 'GET',
+    'path' => '/integrations',
     'parameters' => 
     array (
     ),
@@ -1164,6 +1188,21 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'patch_IntegrationsUpdate' => 
+  array (
+    'method' => 'PATCH',
+    'path' => '/integrations/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
   'patch_Update' => 
   array (
     'method' => 'PATCH',
@@ -1587,6 +1626,45 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'post_IntegrationsSend' => 
+  array (
+    'method' => 'POST',
+    'path' => '/integrations/{id}/send',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'post_IntegrationsStore' => 
+  array (
+    'method' => 'POST',
+    'path' => '/integrations',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'post_IntegrationsTest' => 
+  array (
+    'method' => 'POST',
+    'path' => '/integrations/{id}/test',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
   'post_MediaStore' => 
   array (
     'method' => 'POST',
@@ -1883,6 +1961,21 @@ final class Operations {
       ),
     ),
     'bodyRequired' => false,
+  ),
+  'put_IntegrationsSecret' => 
+  array (
+    'method' => 'PUT',
+    'path' => '/integrations/{id}/secret',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
   ),
 );
 }

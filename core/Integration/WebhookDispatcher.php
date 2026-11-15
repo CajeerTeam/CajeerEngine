@@ -15,8 +15,8 @@ final readonly class WebhookDispatcher
     ) {
     }
 
-    /** @param array<string, mixed> $payload @return array{headers:array<string,string>,body:string} */
-    public function buildSignedRequest(string $event, array $payload, string $secret, ?string $eventId = null): array
+    /** @param array<string, mixed>|\stdClass $payload @return array{headers:array<string,string>,body:string} */
+    public function buildSignedRequest(string $event, array|\stdClass $payload, #[\SensitiveParameter] string $secret, ?string $eventId = null): array
     {
         $eventId ??= Uuid::v4();
         $body = json_encode([

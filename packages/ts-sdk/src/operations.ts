@@ -65,6 +65,18 @@ export const operations = {
         ],
         "bodyRequired": false
     },
+    "delete_IntegrationsDelete": {
+        "method": "DELETE",
+        "path": "/integrations/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
     "delete_MediaDelete": {
         "method": "DELETE",
         "path": "/media/{id}",
@@ -438,6 +450,12 @@ export const operations = {
     "get_InstallerRequirements": {
         "method": "GET",
         "path": "/installer/requirements",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "get_IntegrationsIndex": {
+        "method": "GET",
+        "path": "/integrations",
         "parameters": [],
         "bodyRequired": false
     },
@@ -893,6 +911,18 @@ export const operations = {
         "parameters": [],
         "bodyRequired": true
     },
+    "patch_IntegrationsUpdate": {
+        "method": "PATCH",
+        "path": "/integrations/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
     "patch_Update": {
         "method": "PATCH",
         "path": "/media/{id}",
@@ -1208,6 +1238,36 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "post_IntegrationsSend": {
+        "method": "POST",
+        "path": "/integrations/{id}/send",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "post_IntegrationsStore": {
+        "method": "POST",
+        "path": "/integrations",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "post_IntegrationsTest": {
+        "method": "POST",
+        "path": "/integrations/{id}/test",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
     "post_MediaStore": {
         "method": "POST",
         "path": "/media",
@@ -1421,6 +1481,18 @@ export const operations = {
             }
         ],
         "bodyRequired": false
+    },
+    "put_IntegrationsSecret": {
+        "method": "PUT",
+        "path": "/integrations/{id}/secret",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
     }
 } as const
 export type OperationId = keyof typeof operations

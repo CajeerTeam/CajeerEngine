@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1 — Integration Center
+
+- Реальный runtime провайдеров HTTP JSON и HMAC webhook, управление соединениями и тестовые отправки.
+- Зашифрованные credentials, отдельные RBAC scopes, аудит и optimistic concurrency.
+- Production Admin UI, OpenAPI и SDK синхронизированы.
+
 ## 1.3.0 — Integration Certification / Production Stable
 
 - Real TLS production HTTP security, CMS lifecycle and concurrent mixed workload acceptance with per-route latency and throughput budgets.

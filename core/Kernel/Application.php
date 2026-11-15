@@ -25,6 +25,11 @@ use CajeerEngine\Api\Controller\SchedulerController;
 use CajeerEngine\Api\Controller\SearchController;
 use CajeerEngine\Api\Controller\WebhookController;
 use CajeerEngine\Integration\WebhookDispatcher;
+use CajeerEngine\Integration\IntegrationCenter;
+use CajeerEngine\Integration\IntegrationStore;
+use CajeerEngine\Integration\SecretVault;
+use CajeerEngine\Integration\Provider\ProviderRegistry;
+use CajeerEngine\Api\Controller\IntegrationController;
 use CajeerEngine\Integration\WebhookRepository;
 use CajeerEngine\Api\Controller\ExtensionController;
 use CajeerEngine\Extension\ExtensionRegistry;
@@ -154,7 +159,7 @@ final class Application
         $response->headers->set('traceparent',$trace->header());
         $response->headers->set('X-Runtime-Ms',(string)round($duration*1000));
         $this->container->get(RuntimeLogger::class)->info('HTTP request handled',$trace->fields()+['request_id'=>(string)$request->attributes->get('request_id',''),'method'=>$request->getMethod(),'route'=>$route,'status'=>$response->getStatusCode(),'duration_ms'=>round($duration*1000,3)]);
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.3.0'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.3.1'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -258,6 +263,11 @@ final class Application
             $c->get(SearchEngineInterface::class),
             $c->get(SearchIndexer::class),
         ));
+        $container->set(ProviderRegistry::class, fn (): ProviderRegistry => ProviderRegistry::defaults());
+        $container->set(IntegrationCenter::class, fn (ServiceContainer $c): IntegrationCenter => new IntegrationCenter(
+            new IntegrationStore($rootPath), $c->get(ProviderRegistry::class),
+            new SecretVault((string)(getenv('INTEGRATIONS_KEY') ?: getenv('APP_KEY') ?: '')), $c->get(ConfigRepository::class),
+        ));
         $container->set(WebhookRepository::class, fn (): WebhookRepository => new WebhookRepository($rootPath));
         $container->set(SignedPayload::class, fn (): SignedPayload => new SignedPayload());
         $container->set(WebhookDispatcher::class, fn (ServiceContainer $c): WebhookDispatcher => new WebhookDispatcher(
@@ -334,6 +344,7 @@ final class Application
         ));
 
         $container->set('controller.search', fn (ServiceContainer $c): SearchController => new SearchController($c->get(SearchService::class)));
+        $container->set('controller.integrations', fn (ServiceContainer $c): IntegrationController => new IntegrationController($c->get(IntegrationCenter::class), $c->get(AuditLogger::class)));
         $container->set('controller.webhooks', fn (ServiceContainer $c): WebhookController => new WebhookController($c->get(WebhookRepository::class), $c->get(WebhookDispatcher::class)));
         $container->set('controller.extensions', fn (ServiceContainer $c): ExtensionController => new ExtensionController($c->get(ExtensionRegistry::class), $c->get(ExtensionRuntime::class)));
         $container->set('controller.installer', fn (ServiceContainer $c): InstallerController => new InstallerController($c->get(InstallerService::class)));
@@ -436,7 +447,8 @@ final class Application
         /** @var PublicController $public */
         $public = $container->get('controller.public');
 
-        $controllers = compact('health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
+        $integrations = $container->get('controller.integrations');
+        $controllers = compact('integrations', 'health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
         foreach (\CajeerEngine\Http\RouteRegistry::all() as [$method, $path, $name, $controller, $action, $scopes]) {
             $router->add([$method], $path, $name, [$controllers[$controller], $action], $scopes);
         }

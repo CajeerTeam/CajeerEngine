@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace CajeerEngine\Security;
 
 /** Public-only outbound transport. DNS is validated and the selected address is pinned to the connection. */
-final class PublicHttpClient
+final class PublicHttpClient implements OutboundHttpTransport
 {
     public static function isPublicIp(string $ip): bool
     {
@@ -41,7 +41,7 @@ final class PublicHttpClient
         return [$host, $port, $addresses[0]];
     }
 
-    public function request(string $url, string $method, array $headers = [], string $body = '', int $maxBytes = 1048576): array
+    public function request(string $url, string $method, #[\SensitiveParameter] array $headers = [], #[\SensitiveParameter] string $body = '', int $maxBytes = 1048576): array
     {
         if (!function_exists('curl_init')) { throw new \RuntimeException('Secure outbound HTTP requires ext-curl'); }
         [$host, $port, $ip] = self::target($url);

@@ -46,6 +46,7 @@ jobs:
           php tools/rate-limit-concurrency.php
           python3 tools/certification-regression.py
       - run: php tools/security-regression.php
+      - run: php tools/integration-regression.php
       - run: php tools/generate-api-sdk.php --check
       - run: php bin/cajeer api:lint --strict --json
       - run: php tools/github-release-regression.php
