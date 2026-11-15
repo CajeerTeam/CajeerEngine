@@ -48,6 +48,8 @@ final class RouteRegistry
             ['GET', '/api/v1/scheduler/tasks', 'api.v1.scheduler.tasks', 'scheduler', 'tasks', ['system:read']],
             ['POST', '/api/v1/scheduler/run', 'api.v1.scheduler.run', 'scheduler', 'run', ['*']],
             ['GET', '/api/v1/public/consent', 'api.v1.public.consent', 'consent', 'publicConfig', null],
+            ['GET', '/api/v1/tracking/counters', 'api.v1.tracking.counters.index', 'tracking', 'index', ['tracking:read']],
+            ['PUT', '/api/v1/tracking/counters', 'api.v1.tracking.counters.update', 'tracking', 'update', ['tracking:write']],
             ['GET', '/api/v1/privacy/consent', 'api.v1.privacy.consent.index', 'consent', 'index', ['privacy:read']],
             ['PUT', '/api/v1/privacy/consent', 'api.v1.privacy.consent.update', 'consent', 'update', ['privacy:write']],
             ['GET', '/api/v1/integrations', 'api.v1.integrations.index', 'integrations', 'index', ['integrations:read']],

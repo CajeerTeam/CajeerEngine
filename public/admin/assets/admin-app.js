@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.3.2'
+const ADMIN_VERSION = '1.3.3'
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
 localStorage.removeItem(TOKEN_KEY) // remove legacy bearer credentials
@@ -11,6 +11,7 @@ const nav = [
   ['media', '🖼️', 'Media', 'Загрузка и управление файлами'],
   ['cms', '🌐', 'CMS', 'Тема, меню, редиректы, preview'],
   ['users', '👥', 'Доступ', 'Пользователи, роли, tokens'],
+  ['tracking', '📈', 'Счётчики', 'Яндекс Метрика, GA4 и GTM'],
   ['privacy', '🔒', 'Приватность', 'Согласия, политика и категории'],
   ['integrations', '🔗', 'Интеграции', 'Провайдеры, подключения и секреты'],
   ['extensions', '🔌', 'Extensions', 'Runtime, lifecycle, events'],
@@ -166,6 +167,7 @@ async function routeLoad(route) {
     if (route === 'media') await loadSilent('media', mediaQuery())
     if (route === 'cms') await Promise.allSettled([loadSilent('cmsOverview', '/cms'), loadSilent('theme', '/cms/theme'), loadSilent('navigation', '/cms/navigation'), loadSilent('redirects', '/cms/redirects'), loadSilent('publicRoutes', `/cms/routes?limit=100&offset=${state.forms.routeOffset || 0}`)])
     if (route === 'users') await Promise.allSettled([loadSilent('users', '/users'), loadSilent('roles', '/roles'), loadSilent('tokens', '/api-tokens')])
+    if (route === 'tracking') await loadSilent('tracking', '/tracking/counters')
     if (route === 'privacy') await loadSilent('privacy', '/privacy/consent')
     if (route === 'integrations') await loadSilent('integrations', '/integrations')
     if (route === 'extensions') await Promise.allSettled([loadSilent('extensions', '/extensions'), loadSilent('extensionsRuntime', '/extensions/runtime'), loadSilent('extensionsDiagnostics', '/extensions/diagnostics')])
@@ -192,7 +194,7 @@ window.addEventListener('hashchange', () => {
 })
 
 function shell(title, subtitle, body, toolbar = '') {
-  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine</div><div class="brand-sub">Admin UI ${ADMIN_VERSION}</div></div></div><nav class="nav">${nav.filter(([id]) => (id !== 'integrations' || integrationScope('integrations:read')) && (id !== 'privacy' || integrationScope('privacy:read'))).map(([id, icon, label]) => `<button class="${state.route === id ? 'active' : ''}" data-route="${id}"><span class="emoji">${icon}</span><span>${label}</span></button>`).join('')}</nav><div class="footer-note">API: <span class="code-inline">${API_BASE}</span><br>${state.identity ? `User: ${escapeHtml(state.identity.email || state.identity.name || state.identity.user_id || 'auth')}` : 'Без активной сессии'}</div></aside><main class="main"><div class="topbar"><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle || '')}</p></div><div class="toolbar">${toolbar}<button class="btn secondary" data-action="refresh">Обновить</button>${state.token ? '<button class="btn ghost" data-action="logout">Выйти</button>' : '<button class="btn" data-route="login">Войти</button>'}</div></div>${noticeHtml()}${state.loading ? '<div class="notice">Загрузка...</div>' : ''}${body}</main></div>`
+  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine</div><div class="brand-sub">Admin UI ${ADMIN_VERSION}</div></div></div><nav class="nav">${nav.filter(([id]) => (id !== 'integrations' || integrationScope('integrations:read')) && (id !== 'privacy' || integrationScope('privacy:read')) && (id !== 'tracking' || integrationScope('tracking:read'))).map(([id, icon, label]) => `<button class="${state.route === id ? 'active' : ''}" data-route="${id}"><span class="emoji">${icon}</span><span>${label}</span></button>`).join('')}</nav><div class="footer-note">API: <span class="code-inline">${API_BASE}</span><br>${state.identity ? `User: ${escapeHtml(state.identity.email || state.identity.name || state.identity.user_id || 'auth')}` : 'Без активной сессии'}</div></aside><main class="main"><div class="topbar"><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle || '')}</p></div><div class="toolbar">${toolbar}<button class="btn secondary" data-action="refresh">Обновить</button>${state.token ? '<button class="btn ghost" data-action="logout">Выйти</button>' : '<button class="btn" data-route="login">Войти</button>'}</div></div>${noticeHtml()}${state.loading ? '<div class="notice">Загрузка...</div>' : ''}${body}</main></div>`
 }
 
 function noticeHtml() {
@@ -212,6 +214,7 @@ function render() {
   else if (state.route === 'media') body = mediaView()
   else if (state.route === 'cms') body = cmsView()
   else if (state.route === 'users') body = usersView()
+  else if (state.route === 'tracking') body = trackingView()
   else if (state.route === 'privacy') body = privacyView()
   else if (state.route === 'integrations') body = integrationsView()
   else if (state.route === 'extensions') body = extensionsView()
@@ -258,6 +261,23 @@ function integrationScope(scope) {
   return scopes.includes('*') || scopes.includes(scope)
 }
 
+function trackingView() {
+  if (!integrationScope('tracking:read')) return '<div class="notice error">Недостаточно прав.</div>'
+  const cached=state.cache.tracking
+  if(cached?.error)return `<div class="notice error">${escapeHtml(cached.error.message)}</div>`
+  const c=dataOf(cached);if(!c)return '<div class="card">Загрузка счётчиков…</div>'
+  const writable=integrationScope('tracking:write'),disabled=writable?'':'disabled'
+  const input=(name,label,placeholder,value=c[name])=>`<div class="form-row"><label for="tracking-${name}">${label}</label><input class="input" id="tracking-${name}" name="${name}" value="${escapeHtml(value)}" placeholder="${placeholder}" ${disabled}></div>`
+  return `<div class="card"><h2>Tracking & Counters · редакция ${escapeHtml(c.revision)}</h2><p class="muted">Счётчики загружаются только на публичных страницах разрешённых доменов после согласия. Изменение настроек требует повторного согласия. Для статического сайта выполните повторный экспорт.</p><form class="form" data-tracking-form><label><input type="checkbox" name="enabled" ${c.enabled?'checked':''} ${disabled}> Включить счётчики</label>${input('hosts','Разрешённые домены (через запятую)','example.com, www.example.com',c.hosts.join(', '))}${input('metrika_id','Яндекс Метрика — номер счётчика','12345678')}${input('ga4_id','GA4 — Measurement ID','G-XXXXXXXXXX')}${input('gtm_id','GTM — Container ID','GTM-XXXXXXX')}<label><input type="checkbox" name="ga4_debug" ${c.ga4_debug?'checked':''} ${disabled}> GA4 DebugView</label><p>GTM используется отдельно от прямых счётчиков и требует согласия на все необязательные категории. Удалите дублирующие теги из темы. Вебвизор и рекламные функции прямых счётчиков отключены.</p>${writable?'<button type="submit" class="btn">Опубликовать</button>':'<p>Только чтение</p>'}</form></div><div class="card"><h2>Проверка подключения</h2><p>Откройте публичный сайт на разрешённом домене, примите согласие и проверьте Network / DebugView. В консоли <code>CajeerTracking.getStatus()</code> показывает состояние загрузки библиотек, не подтверждение приёма события сервисом.</p><a href="/" target="_blank" rel="noopener noreferrer">Открыть публичный сайт</a></div>`
+}
+function bindTracking(){
+  const form=document.querySelector('[data-tracking-form]');if(!form||!integrationScope('tracking:write'))return
+  form.addEventListener('submit',async e=>{e.preventDefault();const c=dataOf(state.cache.tracking),f=new FormData(form),button=form.querySelector('button[type=submit]');button.disabled=true
+    const body={revision:c.revision,enabled:f.has('enabled'),hosts:[...new Set(String(f.get('hosts')).split(',').map(v=>v.trim().toLowerCase()).filter(Boolean))],metrika_id:String(f.get('metrika_id')).trim(),ga4_id:String(f.get('ga4_id')).trim().toUpperCase(),gtm_id:String(f.get('gtm_id')).trim().toUpperCase(),ga4_debug:f.has('ga4_debug')}
+    try{state.cache.tracking=await api('/tracking/counters',{method:'PUT',body:JSON.stringify(body)});setNotice('ok','Настройки счётчиков опубликованы.');render()}catch(err){setNotice('error',err.message,err.payload);button.disabled=false}
+  })
+}
+
 function privacyView() {
   if (!integrationScope('privacy:read')) return '<div class="notice error">Недостаточно прав.</div>'
   const cached=state.cache.privacy
@@ -290,7 +310,7 @@ function integrationsView() {
   const secrets = write && integrationScope('integrations:secrets')
   const run = integrationScope('integrations:run') && center.enabled
   const create = secrets ? `<div class="card"><h2>Новое подключение</h2><form class="form" data-integration-create><label>Провайдер</label><select class="input" name="provider">${providers.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('')}</select><label>Название</label><input class="input" name="name" maxlength="200" required><label>HTTPS URL (без query и credentials)</label><input class="input" name="url" type="url" required><label>Bearer token или HMAC secret (для HMAC минимум 16 символов)</label><input class="input" name="secret" type="password" autocomplete="new-password"><label><input type="checkbox" name="enabled"> Включить отправку</label><button class="btn" type="submit">Создать</button></form></div>` : ''
-  return `<div class="card"><h2>Центр интеграций</h2><p>${center.enabled ? 'Отправка разрешена' : 'Отправка отключена серверной конфигурацией'}. Тест отправляет реальный POST. Секреты не возвращаются API.</p><p>Провайдеры: ${providers.map(p=>escapeHtml(p.name)).join(', ')}</p></div>${create}<div class="grid two">${items.map(item=>`<div class="card"><h2>${escapeHtml(item.name)}</h2><p>${escapeHtml(item.provider)} · ${item.enabled?'Включено':'Выключено'} · ${item.secret_configured?'Секрет сохранён':'Без секрета'}</p><p class="code-inline">${escapeHtml(item.config.url)}</p>${item.last_run ? `<p>Последний запуск: ${escapeHtml(item.last_run.created_at)} · ${item.last_run.ok?'Успешно':'Ошибка'} · HTTP ${escapeHtml(item.last_run.status_code)}</p>` : '<p>Запусков пока нет.</p>'}${write?`<form class="form" data-integration-edit="${escapeHtml(item.id)}"><label>Название</label><input class="input" name="name" value="${escapeHtml(item.name)}" required maxlength="200"><label>HTTPS URL</label><input class="input" name="url" type="url" value="${escapeHtml(item.config.url)}" ${item.secret_configured?'readonly':''} required><label><input type="checkbox" name="enabled" ${item.enabled?'checked':''}> Включено</label><button class="btn small" type="submit">Сохранить</button><button class="btn small danger" type="button" data-integration-delete="${escapeHtml(item.id)}">Удалить</button></form>`:''}${secrets?`<form class="form" data-integration-secret="${escapeHtml(item.id)}"><label>Новый секрет (пустой — удалить токен HTTP JSON)</label><input class="input" name="secret" type="password" autocomplete="new-password"><button class="btn small" type="submit">Обновить секрет</button></form>`:''}${run?`<button class="btn small secondary" data-integration-test="${escapeHtml(item.id)}">Тест подключения</button>${item.enabled?`<form class="form" data-integration-send="${escapeHtml(item.id)}"><label>Событие</label><input class="input" name="event" value="manual.dispatch" required><label>JSON payload</label><textarea class="input" name="payload" required>{}</textarea><button class="btn small" type="submit">Отправить</button></form>`:''}`:''}</div>`).join('') || '<div class="card">Подключений пока нет.</div>'}</div>`
+  return `<div class="card"><h2>Центр интеграций</h2><p>${center.enabled ? 'Отправка разрешена' : 'Отправка отключена серверной конфигурацией'}. Тест отправляет реальный POST. Секреты не возвращаются API.</p><p>Провайдеры: ${providers.map(p=>escapeHtml(p.name)).join(', ')}</p>${integrationScope('tracking:read')?'<button class="btn secondary" data-route="tracking">Настроить Метрику, GA4 и GTM</button>':''}</div>${create}<div class="grid two">${items.map(item=>`<div class="card"><h2>${escapeHtml(item.name)}</h2><p>${escapeHtml(item.provider)} · ${item.enabled?'Включено':'Выключено'} · ${item.secret_configured?'Секрет сохранён':'Без секрета'}</p><p class="code-inline">${escapeHtml(item.config.url)}</p>${item.last_run ? `<p>Последний запуск: ${escapeHtml(item.last_run.created_at)} · ${item.last_run.ok?'Успешно':'Ошибка'} · HTTP ${escapeHtml(item.last_run.status_code)}</p>` : '<p>Запусков пока нет.</p>'}${write?`<form class="form" data-integration-edit="${escapeHtml(item.id)}"><label>Название</label><input class="input" name="name" value="${escapeHtml(item.name)}" required maxlength="200"><label>HTTPS URL</label><input class="input" name="url" type="url" value="${escapeHtml(item.config.url)}" ${item.secret_configured?'readonly':''} required><label><input type="checkbox" name="enabled" ${item.enabled?'checked':''}> Включено</label><button class="btn small" type="submit">Сохранить</button><button class="btn small danger" type="button" data-integration-delete="${escapeHtml(item.id)}">Удалить</button></form>`:''}${secrets?`<form class="form" data-integration-secret="${escapeHtml(item.id)}"><label>Новый секрет (пустой — удалить токен HTTP JSON)</label><input class="input" name="secret" type="password" autocomplete="new-password"><button class="btn small" type="submit">Обновить секрет</button></form>`:''}${run?`<button class="btn small secondary" data-integration-test="${escapeHtml(item.id)}">Тест подключения</button>${item.enabled?`<form class="form" data-integration-send="${escapeHtml(item.id)}"><label>Событие</label><input class="input" name="event" value="manual.dispatch" required><label>JSON payload</label><textarea class="input" name="payload" required>{}</textarea><button class="btn small" type="submit">Отправить</button></form>`:''}`:''}</div>`).join('') || '<div class="card">Подключений пока нет.</div>'}</div>`
 }
 
 function bindIntegrations() {
@@ -327,6 +347,7 @@ function bindForms() {
   bindCms()
   bindUsers()
   bindPrivacy()
+  bindTracking()
   bindIntegrations()
   bindExtensions()
   bindUpdates()
@@ -343,7 +364,7 @@ function dashboardView() {
   const dashboard = dataOf(state.cache.dashboard, {})
   const cards = dashboard.cards || []
   const bootstrap = dataOf(state.cache.bootstrap, {})
-  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.3.2 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
+  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.3.3 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
 }
 
 function contentTypesView() {

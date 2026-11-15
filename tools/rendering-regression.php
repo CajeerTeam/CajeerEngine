@@ -45,6 +45,8 @@ try{
     check(str_contains($html,'data-ce-consent-dynamic="1"')&&!str_contains($before,'data-ce-consent-config'),'consent runtime appended outside shared HTML cache');
     $policy=new \CajeerEngine\Privacy\ConsentPolicy($site);$old=$policy->get();$old['title_ru']='Updated privacy policy';$policy->update($old);
     check(str_contains($renderer->renderHome()['html'],'Updated privacy policy')&&file_get_contents($cache)===$before,'new consent policy visible with cached content');
+    $tracking=new \CajeerEngine\Privacy\TrackingConfig($site);$tracking->update(array_replace($tracking->get(),['enabled'=>true,'hosts'=>['site.example'],'ga4_id'=>'G-ABC1234567']));
+    check(str_contains($renderer->renderHome()['html'],'G-ABC1234567')&&file_get_contents($cache)===$before&&!str_contains($renderer->renderHome()['html'],'src="https://www.googletagmanager.com'),'tracking config added after shared cache without live vendor script');
     $entry=$entries->update('pages',$home['id'],['title'=>'Changed homepage','expected_revision'=>$home['revision']]);
     check(str_contains($renderer->renderHome()['html'],'Changed homepage'),'revision invalidates HTML cache');
     try{$entries->update('pages',$home['id'],['title'=>'Lost update','expected_revision'=>$home['revision']]);throw new RuntimeException('stale write accepted');}catch(RevisionConflict){}check($entries->findById('pages',$home['id'])['title']==='Changed homepage','stale edit rejected');
@@ -62,6 +64,7 @@ try{
     $export=(new CajeerEngine\StaticExport\SiteExport($site))->run();$target=$export['path'];
     check(str_contains(file_get_contents($target.'/index.html'),'Actual homepage'),'static export preserves actual homepage');
     check(str_contains(file_get_contents($target.'/index.html'),'data-ce-consent-dynamic="0"')&&is_file($target.'/assets/ce-consent/consent.js')&&is_file($target.'/assets/ce-consent/consent.css'),'static export ships standalone consent runtime and policy snapshot');
+    check(str_contains(file_get_contents($target.'/index.html'),'G-ABC1234567')&&str_contains(file_get_contents($target.'/assets/ce-consent/consent.js'),'https://www.googletagmanager.com/gtag/js'),'static export includes real tracking config and loader');
     check(is_file($target.'/secret-seo/index.html')&&!is_file($target.'/draft/index.html'),'static export includes published noindex, excludes draft');
     check(is_file($target.'/uploads/'.$image['path'])&&!is_file($target.'/uploads/'.$private['path']),'static export only public media');
     // Public/private same bytes are distinct paths; check no private directory.

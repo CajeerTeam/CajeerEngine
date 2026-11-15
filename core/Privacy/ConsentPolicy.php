@@ -61,7 +61,8 @@ final readonly class ConsentPolicy
     public function publicConfig(): array
     {
         $policy=$this->get(); $origins=self::origins();
-        return $policy+['script_origins'=>$origins,'version'=>hash('sha256',json_encode([$policy,$origins],JSON_THROW_ON_ERROR))];
+        $tracking=(new TrackingConfig($this->root))->get();
+        return $policy+['script_origins'=>$origins,'tracking'=>$tracking,'version'=>hash('sha256',json_encode([$policy,$origins,$tracking],JSON_THROW_ON_ERROR))];
     }
     /** Neutral HTML after render-cache lookup. No user-specific data and no tracker src attributes. */
     public function decorate(string $html): string

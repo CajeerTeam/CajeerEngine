@@ -27,6 +27,8 @@ composer install --no-dev --prefer-dist --no-interaction --no-progress --optimiz
 composer check-platform-reqs --no-dev
 php tools/integration-http-regression.php
 php tools/consent-regression.php
+php tools/tracking-regression.php
+php tools/tracking-http-regression.php
 node admin/scripts/publish-admin-assets.mjs
 node admin/scripts/publish-admin-assets.mjs --check
 php bin/cajeer admin:assets --check

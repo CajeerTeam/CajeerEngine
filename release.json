@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.3.2-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.3.2-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.3.3-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.3.3-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.3.2-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.3.3-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,7 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
-    "Consent Management: browser preferences, versioned privacy policy, consent-gated scripts, consent mode v2 and static export."
+    "Tracking & Counters: real vendor script loading after consent, counter settings, diagnostics, page views and manual goals."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -62,7 +62,8 @@
     "1.2.5": "Production Deployment",
     "1.3.1": "Integration Center: provider runtime, encrypted credentials, RBAC and operational configuration",
     "1.3.0": "Integration Certification, Security & Load Testing",
-    "1.3.2": "Consent Management — versioned privacy policy, browser consent and optional script gate"
+    "1.3.2": "Consent Management — versioned privacy policy, browser consent and optional script gate",
+    "1.3.3": "Tracking & Counters — consent-gated Metrica, GA4 and GTM, public host scope, page views and goals"
   },
   "stability": "stable"
 }

@@ -123,7 +123,7 @@ final class Application
         $authService = $container->get(AuthService::class);
         $middleware = [
             new RequestIdMiddleware(),
-            new SecurityHeadersMiddleware(),
+            new SecurityHeadersMiddleware($rootPath),
             new ErrorHandlerMiddleware($config, $logger),
             new RateLimitMiddleware($config, $container->get(RateLimiter::class)),
             new JsonBodyMiddleware(),
@@ -159,7 +159,7 @@ final class Application
         $response->headers->set('traceparent',$trace->header());
         $response->headers->set('X-Runtime-Ms',(string)round($duration*1000));
         $this->container->get(RuntimeLogger::class)->info('HTTP request handled',$trace->fields()+['request_id'=>(string)$request->attributes->get('request_id',''),'method'=>$request->getMethod(),'route'=>$route,'status'=>$response->getStatusCode(),'duration_ms'=>round($duration*1000,3)]);
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.3.2'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.3.3'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -344,6 +344,7 @@ final class Application
         ));
 
         $container->set('controller.search', fn (ServiceContainer $c): SearchController => new SearchController($c->get(SearchService::class),new \CajeerEngine\Privacy\ConsentPolicy($rootPath)));
+        $container->set('controller.tracking', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\TrackingController => new \CajeerEngine\Api\Controller\TrackingController(new \CajeerEngine\Privacy\TrackingConfig($rootPath), $c->get(AuditLogger::class)));
         $container->set('controller.consent', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\ConsentController => new \CajeerEngine\Api\Controller\ConsentController(new \CajeerEngine\Privacy\ConsentPolicy($rootPath), $c->get(AuditLogger::class)));
         $container->set('controller.integrations', fn (ServiceContainer $c): IntegrationController => new IntegrationController($c->get(IntegrationCenter::class), $c->get(AuditLogger::class)));
         $container->set('controller.webhooks', fn (ServiceContainer $c): WebhookController => new WebhookController($c->get(WebhookRepository::class), $c->get(WebhookDispatcher::class)));

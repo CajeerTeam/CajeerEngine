@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.3 — Tracking & Counters
+
+- Consent-gated Yandex Metrica, GA4 and exclusive GTM runtime, explicit host scope and page views.
+- Durable revision-controlled counter configuration, audit, RBAC, production admin and synchronized SDK.
+- Browser event/goal calls, provider load diagnostics, revocation and static export support.
+
 ## 1.3.2 — Consent Management
 
 - Versioned privacy policy with scoped administration, audit and optimistic locking.

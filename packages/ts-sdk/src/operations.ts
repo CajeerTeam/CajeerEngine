@@ -810,6 +810,12 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "get_TrackingConfig": {
+        "method": "GET",
+        "path": "/tracking/counters",
+        "parameters": [],
+        "bodyRequired": false
+    },
     "get_UpdatesDiagnostics": {
         "method": "GET",
         "path": "/updates",
@@ -1510,6 +1516,12 @@ export const operations = {
                 "required": true
             }
         ],
+        "bodyRequired": true
+    },
+    "put_TrackingConfig": {
+        "method": "PUT",
+        "path": "/tracking/counters",
+        "parameters": [],
         "bodyRequired": true
     }
 } as const

@@ -1056,6 +1056,15 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'get_TrackingConfig' => 
+  array (
+    'method' => 'GET',
+    'path' => '/tracking/counters',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
   'get_UpdatesDiagnostics' => 
   array (
     'method' => 'GET',
@@ -2001,6 +2010,15 @@ final class Operations {
         'in' => 'path',
         'required' => true,
       ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'put_TrackingConfig' => 
+  array (
+    'method' => 'PUT',
+    'path' => '/tracking/counters',
+    'parameters' => 
+    array (
     ),
     'bodyRequired' => true,
   ),

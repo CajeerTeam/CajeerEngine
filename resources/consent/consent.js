@@ -27,6 +27,102 @@
   const publicState = () => ({ready,version:policy?.version||null,revision:policy?.revision||null,decided:valid(record),categories:{...current},at:record?.at||null,expires:record?.expires||null});
   window.CajeerConsent = Object.freeze({allows:k=>k==='necessary'||(ready&&valid(record)&&categories.includes(k)&&current[k]===true),getState:publicState,open:()=>openPanel(true),withdraw:()=>{if(ready)save(denied());else clearStored();}});
   const emit = () => document.dispatchEvent(new CustomEvent('cajeer:consent-change',{detail:publicState()}));
+  // Counter libraries are never inserted until the current, versioned consent permits them.
+  // Only this runtime owns these tags; GTM is exclusive and requires all optional categories.
+  const counters = new Map();
+  let stopping = false;
+  const trackingAllowed = name => !stopping && ready && valid(record) && current.analytics && (name!=='gtm'||(current.marketing&&current.functional));
+  function trackingConfig() {
+    const c=policy?.tracking;
+    if(!c || c.enabled!==true || !Array.isArray(c.hosts) || !c.hosts.includes(location.hostname.toLowerCase()))return null;
+    if(!['http:','https:'].includes(location.protocol)||/^\/(?:admin|api|preview|install|upgrade|assets|uploads|extensions)(?:\/|$)/i.test(location.pathname))return null;
+    if(typeof c.metrika_id!=='string'||typeof c.ga4_id!=='string'||typeof c.gtm_id!=='string'||typeof c.ga4_debug!=='boolean')return null;
+    if((c.metrika_id&&!/^[1-9][0-9]{0,11}$/.test(c.metrika_id))||(c.ga4_id&&!/^G-[A-Z0-9]{4,20}$/.test(c.ga4_id))||(c.gtm_id&&!/^GTM-[A-Z0-9]{4,20}$/.test(c.gtm_id))||(c.gtm_id&&(c.ga4_id||c.metrika_id)))return null;
+    return c;
+  }
+  const trackingStatus = () => Object.fromEntries([...counters].map(([name,c])=>[name,{id:c.id,status:c.status,reason:c.reason||null}]));
+  function publishTracking(){document.dispatchEvent(new CustomEvent('cajeer:tracking-status',{detail:trackingStatus()}));}
+  function locationData(value=location.origin+location.pathname) {
+    try {const url=new URL(value,location.origin);if(url.origin!==location.origin||url.username||url.password||/^\/(?:admin|api|preview|install|upgrade|assets|uploads|extensions)(?:\/|$)/i.test(url.pathname))return null;
+      const data={page_location:url.origin+url.pathname,page_referrer:''};
+      // Do not forward query strings, fragments, titles or external referrer paths explicitly.
+      if(document.referrer){const r=new URL(document.referrer);if(['https:','http:'].includes(r.protocol))data.page_referrer=r.origin+(r.origin===location.origin?r.pathname:'/');}
+      return data;
+    }catch{return null;}
+  }
+  function view(value) {
+    const data=locationData(value);if(!data)return false;
+    let sent=false;
+    for(const [name,c] of counters){
+      if(!trackingAllowed(name)||c.status==='error'||c.last===data.page_location)continue;
+      c.last=data.page_location;
+      if(name==='ga4')window.gtag('event','page_view',{...data,send_to:c.id});
+      if(name==='metrika')window.ym(Number(c.id),'hit',data.page_location,{referer:data.page_referrer||''});
+      if(name==='gtm')window.dataLayer.push({event:'ce_page_view',...data});
+      sent=true;
+    }
+    return sent;
+  }
+  function counterEvent(name,params={}) {
+    if(typeof name!=='string'||! /^[a-zA-Z][a-zA-Z0-9_]{0,39}$/.test(name)||/^(?:page_view|ce_|google_|ga_|firebase_|gtm_)/i.test(name)||!params||typeof params!=='object'||Array.isArray(params))return false;
+    const safe={};
+    for(const [k,v] of Object.entries(params)){
+      if(k==='value'&&typeof v==='number'&&Number.isFinite(v))safe.value=v;
+      else if(k==='currency'&&typeof v==='string'&&/^[A-Z]{3}$/.test(v))safe.currency=v;
+      else return false;
+    }
+    let sent=false;
+    for(const [provider,c] of counters){
+      if(!trackingAllowed(provider)||c.status==='error')continue;
+      if(provider==='ga4')window.gtag('event',name,{...safe,send_to:c.id});
+      if(provider==='metrika')window.ym(Number(c.id),'reachGoal',name,safe);
+      if(provider==='gtm')window.dataLayer.push({event:'ce_'+name,...safe});
+      sent=true;
+    }
+    return sent;
+  }
+  function startCounter(name,id,src,initialize) {
+    if(counters.has(name)||!trackingAllowed(name))return;
+    const script=document.createElement('script');script.async=true;script.src=src;script.referrerPolicy='strict-origin-when-cross-origin';script.dataset.ceTracking=name;
+    const c={id,script,status:'loading',last:null};counters.set(name,c);
+    // Existing tags installed by themes are not owned by this runtime; fail rather than duplicate.
+    const conflict=[...document.querySelectorAll('script[src]')].some(s=>{try{const u=new URL(s.src);return name==='metrika'?u.hostname==='mc.yandex.ru'&&u.pathname.startsWith('/metrika/'):u.hostname==='www.googletagmanager.com'&&/\/(gtag\/js|gtm\.js)$/.test(u.pathname);}catch{return false;}});
+    if(conflict){c.status='error';c.reason='existing-tag';publishTracking();return;}
+    script.addEventListener('load',()=>{if(!trackingAllowed(name))return;c.status='loaded';publishTracking();},{once:true});
+    script.addEventListener('error',()=>{c.status='error';c.reason='load-failed';publishTracking();},{once:true});
+    try {initialize();document.head.append(script);}catch{c.status='error';c.reason='initialization-failed';}
+    publishTracking();
+  }
+  function activateTracking(){
+    const c=trackingConfig();if(!c||!trackingAllowed('metrika'))return;
+    if(c.gtm_id){
+      startCounter('gtm',c.gtm_id,'https://www.googletagmanager.com/gtm.js?id='+encodeURIComponent(c.gtm_id),()=>{
+        window.dataLayer.push({'gtm.start':Date.now(),event:'gtm.js'});
+      });
+    }else{
+      if(c.metrika_id)startCounter('metrika',c.metrika_id,'https://mc.yandex.ru/metrika/tag.js',()=>{
+        if(typeof window.ym!=='function'){window.ym=function(){(window.ym.a=window.ym.a||[]).push(arguments);};window.ym.l=Date.now();}
+        window.ym(Number(c.metrika_id),'init',{defer:true,clickmap:false,trackLinks:false,accurateTrackBounce:false,webvisor:false});
+      });
+      if(c.ga4_id)startCounter('ga4',c.ga4_id,'https://www.googletagmanager.com/gtag/js?id='+encodeURIComponent(c.ga4_id),()=>{
+        window['ga-disable-'+c.ga4_id]=false;
+        window.gtag('js',new Date());window.gtag('config',c.ga4_id,{send_page_view:false,allow_google_signals:false,allow_ad_personalization_signals:false,...(c.ga4_debug?{debug_mode:true}:{}),...(locationData()||{})});
+      });
+    }
+    view();
+  }
+  function stopTracking(next){
+    const revoke=[...counters].some(([name])=>!next.analytics||(name==='gtm'&&(!next.marketing||!next.functional)));
+    if(!revoke)return false;
+    stopping=true;
+    for(const [name,c] of counters){
+      if(name==='ga4')window['ga-disable-'+c.id]=true;
+      if(name==='metrika'&&c.status==='loaded'&&typeof window.ym==='function')try{window.ym(Number(c.id),'destruct');}catch{}
+      c.script.remove();c.status='stopped';
+    }
+    publishTracking();return true;
+  }
+  window.CajeerTracking=Object.freeze({pageView:view,event:counterEvent,getStatus:trackingStatus});
   const cookiePatterns = {analytics:/^(?:_ga(?:_|$)|_gid$|_gat(?:_|$)|_ym_|_pk_|_clck$|_clsk$)/,marketing:/^(?:_fbp$|_fbc$|_gcl_|_ttp$|ttcsid(?:_|$))/,functional:/^ce_optional_/};
   function clean(category) {
     const names = document.cookie.split(';').map(v=>v.split('=')[0].trim()).filter(v=>cookiePatterns[category].test(v));
@@ -53,15 +149,16 @@
     }
   }
   function apply(next, reload=true) {
-    const before=current; current=next; google('update',current);
+    const before=current; current=next; const trackingStopped=stopTracking(next); google('update',current);
     const revoked=categories.filter(k=>before[k]&&!current[k]);
     let loaded=false;
     for(const [node,item] of active)if(revoked.includes(item.category)){item.script.remove();active.delete(node);loaded=true;}
     for(const k of categories)if(!current[k])clean(k);
     emit();
     // Removing a script cannot undo executed JavaScript. Reload into a denied document.
-    if(loaded&&reload){location.reload();return;}
+    if((loaded||trackingStopped)&&reload){location.reload();return;}
     activate();
+    activateTracking();
   }
   function clearStored(){
     record=null;try{localStorage.removeItem(key);}catch{}
@@ -108,7 +205,7 @@
         let p=JSON.parse(boot.dataset.ceConsentConfig);
         if(dynamic){const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),8000);try{const r=await fetch('/api/v1/public/consent',{cache:'no-store',credentials:'same-origin',headers:{Accept:'application/json'},signal:controller.signal});if(!r.ok)throw Error('policy unavailable');p=(await r.json()).data;}finally{clearTimeout(timeout);}}
         if(!safePolicy(p))throw Error('invalid policy');
-        const changed=policy?.version!==p.version;const mustReload=changed&&active.size>0;policy=p;ready=true;build();manage.disabled=false;updateText();panel.querySelectorAll('[data-grant]').forEach(b=>b.disabled=false);status.textContent='';
+        const changed=policy?.version!==p.version;const mustReload=changed&&(active.size>0||counters.size>0);policy=p;ready=true;build();manage.disabled=false;updateText();panel.querySelectorAll('[data-grant]').forEach(b=>b.disabled=false);status.textContent='';
         if(mustReload){record=null;apply(denied());return;}
         if(changed||!valid(record)){const stored=read();record=valid(stored)?stored:null;apply(record?{...record.categories}:denied());if(!record)openPanel(false);else closePanel();}
       }catch{ready=false;record=null;apply(denied());
