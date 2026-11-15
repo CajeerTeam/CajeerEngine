@@ -62,7 +62,8 @@ final readonly class ConsentPolicy
     {
         $policy=$this->get(); $origins=self::origins();
         $tracking=(new TrackingConfig($this->root))->get();
-        return $policy+['script_origins'=>$origins,'tracking'=>$tracking,'version'=>hash('sha256',json_encode([$policy,$origins,$tracking],JSON_THROW_ON_ERROR))];
+        $events=(new \CajeerEngine\Analytics\EventConfig($this->root))->get();
+        return $policy+['script_origins'=>$origins,'tracking'=>$tracking,'events'=>$events,'version'=>hash('sha256',json_encode([$policy,$origins,$tracking,$events],JSON_THROW_ON_ERROR))];
     }
     /** Neutral HTML after render-cache lookup. No user-specific data and no tracker src attributes. */
     public function decorate(string $html): string

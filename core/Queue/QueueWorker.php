@@ -10,9 +10,10 @@ final class QueueWorker
 {
     private JobHandlerRegistry $handlers;
     private bool $stopping=false;
-    public function __construct(private readonly ManagedQueueDriverInterface $queue,private readonly SearchIndexer $searchIndexer,private readonly WebhookRepository $webhooks,private readonly WebhookDispatcher $dispatcher,private readonly ?\CajeerEngine\Extension\Runtime\PlatformServices $platform=null)
+    public function __construct(private readonly ManagedQueueDriverInterface $queue,private readonly SearchIndexer $searchIndexer,private readonly WebhookRepository $webhooks,private readonly WebhookDispatcher $dispatcher,private readonly ?\CajeerEngine\Extension\Runtime\PlatformServices $platform=null,private readonly ?\CajeerEngine\Analytics\ServerEvents $analytics=null)
     {
         $this->handlers=new JobHandlerRegistry();
+        $this->handlers->register('analytics.deliver',fn($p,$c)=>($this->analytics??\CajeerEngine\Analytics\ServerEvents::fromRoot($this->webhooks->rootPath(),$this->queue))->deliver($p));
         $this->handlers->register('log.message',fn($p,$c)=>$this->logMessage($p,$c));
         $this->handlers->register('search.index_all',fn()=> $this->searchIndexer->indexAll());
         $this->handlers->register('webhooks.dispatch_pending',function(){if(!$this->webhooks->enqueuePending($this->queue,50)['ok'])throw new \RuntimeException('Outbox handoff failed; events retained for retry');});

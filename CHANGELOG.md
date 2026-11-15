@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.4 — Analytics Events
+
+- Consent-aware event routing, provider mappings, automatic CMS search/download/outbound/scroll tracking, browser journal and optional first-party diagnostics.
+- Fix tracking controller registration in the application router.
+
 ## 1.3.3 — Tracking & Counters
 
 - Consent-gated Yandex Metrica, GA4 and exclusive GTM runtime, explicit host scope and page views.

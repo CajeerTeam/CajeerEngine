@@ -113,7 +113,7 @@ final readonly class IntegrationCenter
         },true);
     }
 
-    public function run(string $id, int $revision, string $event, array|\stdClass $payload, string $actor, bool $test=false): array
+    public function run(string $id, int $revision, string $event, array|\stdClass $payload, string $actor, bool $test=false, ?string $eventId=null): array
     {
         if (!$this->config->bool('integrations.enabled',true)) throw new \RuntimeException('Integration execution disabled by configuration.');
         if (!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,199}$/D',$event) || strlen(json_encode($payload,JSON_THROW_ON_ERROR))>$this->config->int('integrations.max_payload_bytes',65536)) throw new \InvalidArgumentException('Invalid integration event or payload size.');
@@ -123,7 +123,8 @@ final readonly class IntegrationCenter
         $this->policy($item['config']);
         $provider=$this->providers->get($item['provider']);
         $secret=isset($item['credential']) ? $this->vault->open($this->context($item),$item['credential']) : '';
-        $eventId=Uuid::v4(); $start=microtime(true); $status=0;
+        if($eventId!==null&&!preg_match('/^[a-f0-9]{32}$/D',$eventId))throw new \InvalidArgumentException('Invalid event id');
+        $eventId??=Uuid::v4(); $start=microtime(true); $status=0;
         try { $status=$provider->execute($item['config'],$secret,$event,$payload,$eventId); }
         catch (\Throwable) { /* Never expose provider errors, remote bodies or credentials. */ }
         finally { if ($secret!=='') sodium_memzero($secret); }

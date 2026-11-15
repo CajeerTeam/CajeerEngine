@@ -1,5 +1,23 @@
 // Generated from api/openapi.yaml. Do not edit.
 export const operations = {
+    "delete_AnalyticsEventJournal": {
+        "method": "DELETE",
+        "path": "/tracking/events/journal",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "delete_AnalyticsServerGrant": {
+        "method": "DELETE",
+        "path": "/tracking/events/server/grants/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
     "delete_ApiTokensRevoke": {
         "method": "DELETE",
         "path": "/api-tokens/{id}",
@@ -157,6 +175,30 @@ export const operations = {
         "method": "GET",
         "path": "/admin/dashboard",
         "parameters": [],
+        "bodyRequired": false
+    },
+    "get_AnalyticsEventConfig": {
+        "method": "GET",
+        "path": "/tracking/events",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "get_AnalyticsEventJournal": {
+        "method": "GET",
+        "path": "/tracking/events/journal",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "get_AnalyticsServerStatus": {
+        "method": "GET",
+        "path": "/tracking/events/server/grants/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": false
     },
     "get_ApiTokensIndex": {
@@ -977,6 +1019,24 @@ export const operations = {
         ],
         "bodyRequired": false
     },
+    "post_AnalyticsEventDiagnostic": {
+        "method": "POST",
+        "path": "/public/analytics/events",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "post_AnalyticsServerEvent": {
+        "method": "POST",
+        "path": "/tracking/events/server",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "post_AnalyticsServerGrant": {
+        "method": "POST",
+        "path": "/tracking/events/server/grants",
+        "parameters": [],
+        "bodyRequired": true
+    },
     "post_ApiTokensStore": {
         "method": "POST",
         "path": "/api-tokens",
@@ -1458,6 +1518,12 @@ export const operations = {
             }
         ],
         "bodyRequired": false
+    },
+    "put_AnalyticsEventConfig": {
+        "method": "PUT",
+        "path": "/tracking/events",
+        "parameters": [],
+        "bodyRequired": true
     },
     "put_CmsNavigationMenu": {
         "method": "PUT",

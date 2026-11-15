@@ -3,7 +3,11 @@
 declare(strict_types=1);
 
 use CajeerEngine\Api\ApiContract;
-use CajeerEngine\Api\Controller\{ConsentController,TrackingController};
+use CajeerEngine\Api\Controller\{ConsentController,TrackingController,AnalyticsEventController};
+use CajeerEngine\Analytics\{EventConfig,EventJournal,ServerEvents};
+use CajeerEngine\Integration\{IntegrationCenter,IntegrationStore,SecretVault};
+use CajeerEngine\Integration\Provider\ProviderRegistry;
+use CajeerEngine\Queue\FileQueueDriver;
 use CajeerEngine\Audit\AuditLogger;
 use CajeerEngine\Backup\RecoveryBundle;
 use CajeerEngine\Database\{DatabaseManager,MigrationRunner};
@@ -22,18 +26,20 @@ try {
     $config=new ConfigRepository($work);$config->set('database',['default'=>'sqlite','connections'=>['sqlite'=>['database'=>$work.'/test.sqlite']]]);
     $db=new DatabaseManager($config);(new MigrationRunner($db->connection(),$root.'/migrations'))->run('sqlite');
     $roles=new RoleRepository($db);$passwords=new PasswordHasher($config);$users=new UserRepository($db,$roles,$passwords);$tokens=new ApiTokenRepository($db);
-    $roles->upsert('tracking-admin','Tracking admin',['tracking:read','tracking:write']);
+    $roles->upsert('tracking-admin','Tracking admin',['tracking:read','tracking:write','integrations:run']);
     $uid=$users->create('tracking@example.org','Tracking admin',password_hash('Strong-password123',PASSWORD_DEFAULT),['tracking-admin']);
     $read=$tokens->create($uid,'reader',['tracking:read'])['plain_token'];$write=$tokens->create($uid,'writer',['tracking:read','tracking:write'])['plain_token'];
+    $serverToken=$tokens->create($uid,'server',['tracking:read','tracking:write','integrations:run'])['plain_token'];
     $auth=new AuthService($config,$users,$tokens,new AuditLogRepository($db),$passwords,new TwoFactorTotp());
     $tracking=new TrackingConfig($work);$policy=new ConsentPolicy($work);$audit=new AuditLogger($work);
-    $controllers=['tracking'=>new TrackingController($tracking,$audit),'consent'=>new ConsentController($policy,$audit)];$router=new Router();
+    $eventConfig=new EventConfig($work);$journal=new EventJournal($work);$center=new IntegrationCenter(new IntegrationStore($work),ProviderRegistry::defaults(),new SecretVault('base64:'.base64_encode(random_bytes(32))),$config);$server=new ServerEvents($work,$center,new FileQueueDriver($work));
+    $controllers=['tracking'=>new TrackingController($tracking,$audit),'consent'=>new ConsentController($policy,$audit),'analyticsEvents'=>new AnalyticsEventController($eventConfig,$journal,$audit,$server)];$router=new Router();
     foreach(RouteRegistry::api() as [$method,$path,$name,$service,$action,$scopes])if(isset($controllers[$service]))$router->add([$method],$path,$name,[$controllers[$service],$action],$scopes);
     $router->add(['GET'],'/','public.home',fn()=>new Response('<html></html>',200,['Content-Type'=>'text/html']),null);
     $router->add(['GET'],'/admin/','admin.fixture',fn()=>new Response('<html></html>',200,['Content-Type'=>'text/html']),null);
     $pipeline=new MiddlewarePipeline([new SecurityHeadersMiddleware($work),new ErrorHandlerMiddleware($config,new RuntimeLogger($work)),new JsonBodyMiddleware(),new AuthenticationMiddleware($config,$auth,$router),new ApiContractMiddleware(new ApiContract($root))]);
-    $call=static function(string $method,string $path,?string $token=null,?array $body=null,?string $cookie=null,?string $csrf=null,string $host='site.example')use($router,$pipeline){
-        $headers=['CONTENT_TYPE'=>'application/json'];if($token!==null)$headers['HTTP_AUTHORIZATION']='Bearer '.$token;if($csrf!==null)$headers['HTTP_X_CSRF_TOKEN']=$csrf;
+    $call=static function(string $method,string $path,?string $token=null,?array $body=null,?string $cookie=null,?string $csrf=null,string $host='site.example',?string $origin=null)use($router,$pipeline){
+        $headers=['CONTENT_TYPE'=>'application/json'];if($origin!==null)$headers['HTTP_ORIGIN']=$origin;if($token!==null)$headers['HTTP_AUTHORIZATION']='Bearer '.$token;if($csrf!==null)$headers['HTTP_X_CSRF_TOKEN']=$csrf;
         $request=Request::create('https://'.$host.$path,$method,[],$cookie===null?[]:['ce_session'=>$cookie],[],$headers,$body===null?null:json_encode($body,JSON_THROW_ON_ERROR));
         return $pipeline->handle($request,$router->dispatch(...));
     };
@@ -54,6 +60,21 @@ try {
     assertHttp(!str_contains((string)$call('GET','/',host:'staging.example')->headers->get('Content-Security-Policy'),'googletagmanager.com'),'unapproved domain CSP unchanged');
     assertHttp(!str_contains((string)$call('GET','/admin/')->headers->get('Content-Security-Policy'),'googletagmanager.com'),'admin CSP unchanged');
     assertHttp(str_contains((string)file_get_contents($work.'/storage/logs/audit.jsonl'),'tracking.config_updated'),'publication audited');
+    $events='/api/v1/tracking/events';$eventSettings=array_replace(EventConfig::defaults(),['collect_diagnostics'=>true]);
+    assertHttp($call('GET',$events)->getStatusCode()===401&&$call('PUT',$events,$read,$eventSettings)->getStatusCode()===403,'event settings RBAC');
+    assertHttp($call('PUT',$events,$write,$eventSettings)->getStatusCode()===200,'event settings publication');
+    $row=['id'=>str_repeat('a',32),'name'=>'page_view','version'=>$policy->publicConfig()['version'],'outcomes'=>['ga4'=>'submitted']];$collector='/api/v1/public/analytics/events';
+    assertHttp($call('POST',$collector,body:$row,origin:'https://evil.example')->getStatusCode()===422,'cross-origin diagnostics rejected');
+    assertHttp($call('POST',$collector,body:$row,origin:'https://site.example')->getStatusCode()===200,'public first-party collector');
+    assertHttp(count(json_decode($call('GET',$events.'/journal',$read)->getContent(),true)['data']['items'])===1,'authorized journal read');
+    assertHttp($call('DELETE',$events.'/journal',$read)->getStatusCode()===403&&$call('DELETE',$events.'/journal',$write)->getStatusCode()===200,'journal clear permission');
+    $target=$center->create(['name'=>'server','provider'=>'http-json','config'=>['url'=>'https://example.com/events'],'secret'=>'','enabled'=>true],'actor');putenv('ANALYTICS_SERVER_TARGETS='.$target['id']);
+    $grantBody=['version'=>$policy->publicConfig()['version'],'ttl_seconds'=>60];$grantPath=$events.'/server/grants';
+    assertHttp($call('POST',$grantPath,$write,$grantBody)->getStatusCode()===403,'server scopes both required');
+    $grantResponse=$call('POST',$grantPath,$serverToken,$grantBody);assertHttp($grantResponse->getStatusCode()===200,'server API token can issue lease');$grant=json_decode($grantResponse->getContent(),true)['data']['grant_id'];
+    $serverBody=['grant_id'=>$grant,'id'=>str_repeat('b',32),'name'=>'purchase','integration_id'=>$target['id'],'revision'=>1,'value'=>10,'currency'=>'USD'];
+    assertHttp($call('POST',$events.'/server',$serverToken,$serverBody)->getStatusCode()===200,'server event enqueued over HTTP');
+    assertHttp($call('GET',$grantPath.'/'.$grant,$serverToken)->getStatusCode()===200&&$call('DELETE',$grantPath.'/'.$grant,$serverToken)->getStatusCode()===200,'server lease status and revoke');
     assertHttp($call('PUT',$path,$write,array_replace($input,['revision'=>2,'enabled'=>false]))->getStatusCode()===200,'disable counters');
     assertHttp(!str_contains((string)$call('GET','/')->headers->get('Content-Security-Policy'),'googletagmanager.com'),'disabled CSP does not permit vendor scripts');
-} finally { RecoveryBundle::cleanup($work); }
+} finally { putenv('ANALYTICS_SERVER_TARGETS'); RecoveryBundle::cleanup($work); }

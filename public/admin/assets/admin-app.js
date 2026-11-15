@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.3.3'
+const ADMIN_VERSION = '1.3.4'
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
 localStorage.removeItem(TOKEN_KEY) // remove legacy bearer credentials
@@ -12,6 +12,7 @@ const nav = [
   ['cms', '🌐', 'CMS', 'Тема, меню, редиректы, preview'],
   ['users', '👥', 'Доступ', 'Пользователи, роли, tokens'],
   ['tracking', '📈', 'Счётчики', 'Яндекс Метрика, GA4 и GTM'],
+  ['analytics-events', '📊', 'События', 'Правила, цели и диагностика аналитики'],
   ['privacy', '🔒', 'Приватность', 'Согласия, политика и категории'],
   ['integrations', '🔗', 'Интеграции', 'Провайдеры, подключения и секреты'],
   ['extensions', '🔌', 'Extensions', 'Runtime, lifecycle, events'],
@@ -168,6 +169,7 @@ async function routeLoad(route) {
     if (route === 'cms') await Promise.allSettled([loadSilent('cmsOverview', '/cms'), loadSilent('theme', '/cms/theme'), loadSilent('navigation', '/cms/navigation'), loadSilent('redirects', '/cms/redirects'), loadSilent('publicRoutes', `/cms/routes?limit=100&offset=${state.forms.routeOffset || 0}`)])
     if (route === 'users') await Promise.allSettled([loadSilent('users', '/users'), loadSilent('roles', '/roles'), loadSilent('tokens', '/api-tokens')])
     if (route === 'tracking') await loadSilent('tracking', '/tracking/counters')
+    if (route === 'analytics-events') await Promise.allSettled([loadSilent('analyticsEvents','/tracking/events'),loadSilent('analyticsJournal','/tracking/events/journal')])
     if (route === 'privacy') await loadSilent('privacy', '/privacy/consent')
     if (route === 'integrations') await loadSilent('integrations', '/integrations')
     if (route === 'extensions') await Promise.allSettled([loadSilent('extensions', '/extensions'), loadSilent('extensionsRuntime', '/extensions/runtime'), loadSilent('extensionsDiagnostics', '/extensions/diagnostics')])
@@ -194,7 +196,7 @@ window.addEventListener('hashchange', () => {
 })
 
 function shell(title, subtitle, body, toolbar = '') {
-  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine</div><div class="brand-sub">Admin UI ${ADMIN_VERSION}</div></div></div><nav class="nav">${nav.filter(([id]) => (id !== 'integrations' || integrationScope('integrations:read')) && (id !== 'privacy' || integrationScope('privacy:read')) && (id !== 'tracking' || integrationScope('tracking:read'))).map(([id, icon, label]) => `<button class="${state.route === id ? 'active' : ''}" data-route="${id}"><span class="emoji">${icon}</span><span>${label}</span></button>`).join('')}</nav><div class="footer-note">API: <span class="code-inline">${API_BASE}</span><br>${state.identity ? `User: ${escapeHtml(state.identity.email || state.identity.name || state.identity.user_id || 'auth')}` : 'Без активной сессии'}</div></aside><main class="main"><div class="topbar"><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle || '')}</p></div><div class="toolbar">${toolbar}<button class="btn secondary" data-action="refresh">Обновить</button>${state.token ? '<button class="btn ghost" data-action="logout">Выйти</button>' : '<button class="btn" data-route="login">Войти</button>'}</div></div>${noticeHtml()}${state.loading ? '<div class="notice">Загрузка...</div>' : ''}${body}</main></div>`
+  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine</div><div class="brand-sub">Admin UI ${ADMIN_VERSION}</div></div></div><nav class="nav">${nav.filter(([id]) => (id !== 'integrations' || integrationScope('integrations:read')) && (id !== 'privacy' || integrationScope('privacy:read')) && (!['tracking','analytics-events'].includes(id) || integrationScope('tracking:read'))).map(([id, icon, label]) => `<button class="${state.route === id ? 'active' : ''}" data-route="${id}"><span class="emoji">${icon}</span><span>${label}</span></button>`).join('')}</nav><div class="footer-note">API: <span class="code-inline">${API_BASE}</span><br>${state.identity ? `User: ${escapeHtml(state.identity.email || state.identity.name || state.identity.user_id || 'auth')}` : 'Без активной сессии'}</div></aside><main class="main"><div class="topbar"><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle || '')}</p></div><div class="toolbar">${toolbar}<button class="btn secondary" data-action="refresh">Обновить</button>${state.token ? '<button class="btn ghost" data-action="logout">Выйти</button>' : '<button class="btn" data-route="login">Войти</button>'}</div></div>${noticeHtml()}${state.loading ? '<div class="notice">Загрузка...</div>' : ''}${body}</main></div>`
 }
 
 function noticeHtml() {
@@ -215,6 +217,7 @@ function render() {
   else if (state.route === 'cms') body = cmsView()
   else if (state.route === 'users') body = usersView()
   else if (state.route === 'tracking') body = trackingView()
+  else if (state.route === 'analytics-events') body = analyticsEventsView()
   else if (state.route === 'privacy') body = privacyView()
   else if (state.route === 'integrations') body = integrationsView()
   else if (state.route === 'extensions') body = extensionsView()
@@ -276,6 +279,31 @@ function bindTracking(){
     const body={revision:c.revision,enabled:f.has('enabled'),hosts:[...new Set(String(f.get('hosts')).split(',').map(v=>v.trim().toLowerCase()).filter(Boolean))],metrika_id:String(f.get('metrika_id')).trim(),ga4_id:String(f.get('ga4_id')).trim().toUpperCase(),gtm_id:String(f.get('gtm_id')).trim().toUpperCase(),ga4_debug:f.has('ga4_debug')}
     try{state.cache.tracking=await api('/tracking/counters',{method:'PUT',body:JSON.stringify(body)});setNotice('ok','Настройки счётчиков опубликованы.');render()}catch(err){setNotice('error',err.message,err.payload);button.disabled=false}
   })
+}
+
+function eventRuleRow(r,disabled='') {
+  const input=k=>`<input class="input" name="${k}" aria-label="${k}" value="${escapeHtml(r[k])}" maxlength="40" ${disabled}>`
+  return `<tr data-event-rule><td>${input('name')}</td><td><input type="checkbox" name="enabled" aria-label="Включено" ${r.enabled?'checked':''} ${disabled}></td><td><input type="checkbox" name="automatic" aria-label="Автоматически" ${r.automatic?'checked':''} ${disabled}></td><td>${input('ga4')}</td><td>${input('metrika')}</td><td>${input('gtm')}</td><td>${disabled?'':`<button type="button" class="btn ghost" data-rule-remove>Удалить</button>`}</td></tr>`
+}
+function analyticsEventsView(){
+  if(!integrationScope('tracking:read'))return '<div class="notice error">Недостаточно прав.</div>'
+  const cached=state.cache.analyticsEvents;if(cached?.error)return `<div class="notice error">${escapeHtml(cached.error.message)}</div>`
+  const c=dataOf(cached);if(!c)return '<div class="card">Загрузка событий…</div>'
+  const writable=integrationScope('tracking:write'),disabled=writable?'':'disabled',journal=dataOf(state.cache.analyticsJournal,{items:[]})
+  return `<div class="card"><h2>Правила событий · редакция ${escapeHtml(c.revision)}</h2><p>Пустое имя провайдера отключает маршрут. Автоматические события: search, file_download, outbound_click, scroll. page_view имеет фиксированный маппинг. Для отправки необходимо согласие и активный счётчик.</p><form class="form" data-event-form><label><input type="checkbox" name="eventsEnabled" ${c.enabled?'checked':''} ${disabled}> Включить события</label><label><input type="checkbox" name="allowCustom" ${c.allow_custom?'checked':''} ${disabled}> Разрешить произвольные имена ручных событий</label><label><input type="checkbox" name="collectDiagnostics" ${c.collect_diagnostics?'checked':''} ${disabled}> Сохранять обезличенную диагностику на сервере (до 2000 записей, 7 дней)</label><div style="overflow-x:auto"><table class="table"><thead><tr><th>Событие</th><th>Вкл.</th><th>Авто</th><th>GA4</th><th>Метрика</th><th>GTM</th><th></th></tr></thead><tbody data-event-rows>${c.rules.map(r=>eventRuleRow(r,disabled)).join('')}</tbody></table></div>${writable?'<div><button type="button" class="btn secondary" data-rule-add>Добавить правило</button> <button type="submit" class="btn">Опубликовать</button></div>':'<p>Только чтение</p>'}</form></div><div class="card"><h2>Проверка маршрутизации</h2><p>Предпросмотр сохранённых правил не отправляет событие. Для реальной проверки откройте публичную страницу, примите согласие и используйте <code>CajeerAnalytics.emit('generate_lead')</code> / <code>CajeerAnalytics.getJournal()</code>.</p><form data-event-preview class="form"><label>Имя события <input class="input" name="name" required value="generate_lead" maxlength="40"></label><button class="btn secondary" type="submit">Проверить правило</button></form><pre class="json" data-event-preview-result></pre><a href="/" target="_blank" rel="noopener noreferrer">Открыть сайт</a></div><div class="card"><h2>Журнал отправки</h2><p>queued — команда в очереди SDK; submitted — передана загруженной библиотеке; failed — ошибка. Это не подтверждение приёма события внешним сервисом. Диагностика не содержит параметров и URL.</p>${state.cache.analyticsJournal?.error?`<div class="notice error">${escapeHtml(state.cache.analyticsJournal.error.message)}</div>`:''}<div style="overflow-x:auto"><table class="table"><thead><tr><th>Время</th><th>Событие</th><th>Провайдеры</th><th>ID</th></tr></thead><tbody>${(journal?.items||[]).map(r=>`<tr><td>${escapeHtml(new Date(r.at*1000).toLocaleString())}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(Object.entries(r.outcomes).map(([k,v])=>k+': '+v).join(', '))}</td><td><code>${escapeHtml(r.id)}</code></td></tr>`).join('')||'<tr><td colspan="4">Нет записей</td></tr>'}</tbody></table></div>${writable?'<button class="btn secondary" data-event-clear>Очистить журнал</button>':''}</div>`
+}
+function bindAnalyticsEvents(){
+  const form=document.querySelector('[data-event-form]');if(!form)return
+  const config=dataOf(state.cache.analyticsEvents),rows=form.querySelector('[data-event-rows]')
+  form.querySelector('[data-rule-add]')?.addEventListener('click',()=>{if(rows.children.length<100)rows.insertAdjacentHTML('beforeend',eventRuleRow({name:'',enabled:true,automatic:false,ga4:'',metrika:'',gtm:''}))})
+  rows.addEventListener('click',e=>{const b=e.target.closest('[data-rule-remove]');if(b)b.closest('tr').remove()})
+  form.addEventListener('submit',async e=>{e.preventDefault();if(!integrationScope('tracking:write'))return
+    const field=(row,k)=>row.querySelector(`[name="${k}"]`),btn=form.querySelector('[type=submit]');btn.disabled=true
+    const rules=[...rows.querySelectorAll('[data-event-rule]')].map(r=>({name:field(r,'name').value.trim(),enabled:field(r,'enabled').checked,automatic:field(r,'automatic').checked,ga4:field(r,'ga4').value.trim(),metrika:field(r,'metrika').value.trim(),gtm:field(r,'gtm').value.trim()}))
+    try{state.cache.analyticsEvents=await api('/tracking/events',{method:'PUT',body:JSON.stringify({revision:config.revision,enabled:field(form,'eventsEnabled').checked,allow_custom:field(form,'allowCustom').checked,collect_diagnostics:field(form,'collectDiagnostics').checked,rules})});setNotice('ok','Правила опубликованы. Статический сайт необходимо экспортировать повторно.');render()}catch(err){setNotice('error',err.message,err.payload)}finally{btn.disabled=false}
+  })
+  document.querySelector('[data-event-preview]')?.addEventListener('submit',e=>{e.preventDefault();const name=new FormData(e.target).get('name'),r=config.rules.find(r=>r.name===name);const valid=/^[a-z][a-z0-9_]{0,39}$/.test(name)&&! /^(ce_|google_|ga_|firebase_|gtm_|session_|first_)/.test(name)&&!['purchase','refund','add_to_cart','begin_checkout','view_item'].includes(name);document.querySelector('[data-event-preview-result]').textContent=JSON.stringify(config.enabled&&valid?(r?(r.enabled?r:null):config.allow_custom?{ga4:name,metrika:name,gtm:name}:null):null,null,2)})
+  document.querySelector('[data-event-clear]')?.addEventListener('click',async()=>{if(!confirm('Очистить журнал событий?'))return;try{state.cache.analyticsJournal=await api('/tracking/events/journal',{method:'DELETE'});setNotice('ok','Журнал очищен.')}catch(err){setNotice('error',err.message,err.payload)}})
 }
 
 function privacyView() {
@@ -348,6 +376,7 @@ function bindForms() {
   bindUsers()
   bindPrivacy()
   bindTracking()
+  bindAnalyticsEvents()
   bindIntegrations()
   bindExtensions()
   bindUpdates()
@@ -364,7 +393,7 @@ function dashboardView() {
   const dashboard = dataOf(state.cache.dashboard, {})
   const cards = dashboard.cards || []
   const bootstrap = dataOf(state.cache.bootstrap, {})
-  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.3.3 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
+  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.3.4 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
 }
 
 function contentTypesView() {

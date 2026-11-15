@@ -6,6 +6,30 @@ namespace CajeerEngine\ExtensionSdk;
 /** Generated from api/openapi.yaml. */
 final class Operations {
     public const ALL = array (
+  'delete_AnalyticsEventJournal' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/tracking/events/journal',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'delete_AnalyticsServerGrant' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/tracking/events/server/grants/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'delete_ApiTokensRevoke' => 
   array (
     'method' => 'DELETE',
@@ -204,6 +228,39 @@ final class Operations {
     'path' => '/admin/dashboard',
     'parameters' => 
     array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_AnalyticsEventConfig' => 
+  array (
+    'method' => 'GET',
+    'path' => '/tracking/events',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_AnalyticsEventJournal' => 
+  array (
+    'method' => 'GET',
+    'path' => '/tracking/events/journal',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_AnalyticsServerStatus' => 
+  array (
+    'method' => 'GET',
+    'path' => '/tracking/events/server/grants/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => false,
   ),
@@ -1275,6 +1332,33 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'post_AnalyticsEventDiagnostic' => 
+  array (
+    'method' => 'POST',
+    'path' => '/public/analytics/events',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'post_AnalyticsServerEvent' => 
+  array (
+    'method' => 'POST',
+    'path' => '/tracking/events/server',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'post_AnalyticsServerGrant' => 
+  array (
+    'method' => 'POST',
+    'path' => '/tracking/events/server/grants',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
   'post_ApiTokensStore' => 
   array (
     'method' => 'POST',
@@ -1937,6 +2021,15 @@ final class Operations {
       ),
     ),
     'bodyRequired' => false,
+  ),
+  'put_AnalyticsEventConfig' => 
+  array (
+    'method' => 'PUT',
+    'path' => '/tracking/events',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
   ),
   'put_CmsNavigationMenu' => 
   array (
