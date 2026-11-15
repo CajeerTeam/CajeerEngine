@@ -297,6 +297,15 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'get_ConsentPolicy' => 
+  array (
+    'method' => 'GET',
+    'path' => '/privacy/consent',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
   'get_ContentIndex' => 
   array (
     'method' => 'GET',
@@ -780,6 +789,15 @@ final class Operations {
         'in' => 'query',
         'required' => true,
       ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_PublicConsent' => 
+  array (
+    'method' => 'GET',
+    'path' => '/public/consent',
+    'parameters' => 
+    array (
     ),
     'bodyRequired' => false,
   ),
@@ -1925,6 +1943,15 @@ final class Operations {
       ),
     ),
     'bodyRequired' => false,
+  ),
+  'put_ConsentPolicy' => 
+  array (
+    'method' => 'PUT',
+    'path' => '/privacy/consent',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
   ),
   'put_ContentTypesUpdate' => 
   array (

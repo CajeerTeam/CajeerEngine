@@ -43,6 +43,8 @@ return [
         'system:write',
         'scheduler:run',
         'search:write',
+        'privacy:read',
+        'privacy:write',
         'integrations:read',
         'integrations:write',
         'integrations:secrets',

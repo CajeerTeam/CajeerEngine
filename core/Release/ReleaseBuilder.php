@@ -241,6 +241,7 @@ final readonly class ReleaseBuilder
     private function releaseRequirements(string $mode): array
     {
         $required = array_merge(['VERSION', 'release.json', 'README.md', 'CHANGELOG.md', 'composer.json', '.env.example', 'bin/cajeer', 'public/index.php', 'public/install/index.php', 'public/upgrade/index.php', 'public/upgrade/upgrade.js', 'tools/update-postcheck.php', 'tools/update-recovery.php', 'core/Backup/BackupManager.php', 'core/Update/UpdateManager.php', 'core/Console/NativeCli.php', 'public/admin/index.html', 'public/admin/assets/admin-app.js', 'public/admin/assets/admin-app.css', 'public/admin/assets/admin-manifest.json'], ReleaseFilePolicy::KEEP);
+        if (version_compare($this->version(), '1.3.2', '>=')) $required = array_merge($required, ['resources/consent/consent.js','resources/consent/consent.css']);
         if ($mode === 'dist') $required = array_merge($required, ['vendor/autoload.php', 'vendor/composer/installed.json', 'composer.lock']);
         else $required = array_merge($required, ['deploy/production.py', 'deploy/install.php', 'deploy/verify.php', 'deploy/host-smoke.sh', 'deploy/test_production.py', 'deploy/site.example.json', 'docs/production-deployment.md']);
         if ($mode === 'source' && version_compare($this->version(), '1.3.0', '>=')) $required = array_merge($required, ['tools/production-acceptance.py','tools/certification-evidence.py','tools/certification-regression.py','tools/rate-limit-concurrency.php','docs/production-certification.md']);

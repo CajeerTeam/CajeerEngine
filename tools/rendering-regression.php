@@ -17,7 +17,7 @@ $site=sys_get_temp_dir().'/ce-render-'.bin2hex(random_bytes(8));mkdir($site,0700
 $dbMode=in_array('--database',$argv,true);
 try{
     foreach(['APP_ENV=testing','APP_URL=https://site.example','CONTENT_STORAGE='.($dbMode?'database':'file'),'CMS_STORAGE='.($dbMode?'database':'file'),'MEDIA_STORAGE='.($dbMode?'database':'file'),'DB_DRIVER=sqlite','STORAGE_DRIVER=local','PUBLIC_RENDER_CACHE_TTL=60','MEDIA_REQUIRE_IMAGE_PROCESSOR=false'] as $e)putenv($e);
-    foreach(['config','templates'] as $dir)foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root.'/'.$dir,FilesystemIterator::SKIP_DOTS))as $f)if($f->isFile())F::copy($f->getPathname(),$site.'/'.substr($f->getPathname(),strlen($root)+1),0644);
+    foreach(['config','templates','resources/consent'] as $dir)foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root.'/'.$dir,FilesystemIterator::SKIP_DOTS))as $f)if($f->isFile())F::copy($f->getPathname(),$site.'/'.substr($f->getPathname(),strlen($root)+1),0644);
     if($dbMode){F::dir($site.'/storage/database');$cfg=require $site.'/config/database.php';$cfg['connections']['sqlite']['database']=$site.'/storage/database/cajeer.sqlite';F::write($site.'/config/database.php','<?php return '.var_export($cfg,true).';');}
     $cfg=new ConfigRepository($site);$db=new DatabaseManager($cfg);if($dbMode)(new MigrationRunner($db->connection(),$root.'/migrations'))->run('sqlite');
     $types=new ContentTypeRepository($site,$db);$entries=new ContentEntryRepository($site,$db);$theme=new ThemeConfigRepository($site,$db);$nav=new NavigationRepository($site,$db);
@@ -42,6 +42,9 @@ try{
     check(str_contains($html,'href="/about"'),'CTA renders valid link');
     $cache=$site.'/storage/cache/public/'.hash('sha256','/').'.json';check(is_file($cache),'public cache written');
     $before=file_get_contents($cache);$renderer->renderHome();check(file_get_contents($cache)===$before,'unchanged render cache reused');
+    check(str_contains($html,'data-ce-consent-dynamic="1"')&&!str_contains($before,'data-ce-consent-config'),'consent runtime appended outside shared HTML cache');
+    $policy=new \CajeerEngine\Privacy\ConsentPolicy($site);$old=$policy->get();$old['title_ru']='Updated privacy policy';$policy->update($old);
+    check(str_contains($renderer->renderHome()['html'],'Updated privacy policy')&&file_get_contents($cache)===$before,'new consent policy visible with cached content');
     $entry=$entries->update('pages',$home['id'],['title'=>'Changed homepage','expected_revision'=>$home['revision']]);
     check(str_contains($renderer->renderHome()['html'],'Changed homepage'),'revision invalidates HTML cache');
     try{$entries->update('pages',$home['id'],['title'=>'Lost update','expected_revision'=>$home['revision']]);throw new RuntimeException('stale write accepted');}catch(RevisionConflict){}check($entries->findById('pages',$home['id'])['title']==='Changed homepage','stale edit rejected');
@@ -52,11 +55,13 @@ try{
     $draft=$entries->create('pages',['title'=>'Private draft','slug'=>'draft','status'=>'draft','data'=>['path'=>'/draft']]);
     check($renderer->renderByPath('/draft')===null&&str_contains($renderer->renderPreviewId('pages',$draft['id'])['html'],'ce-preview'),'preview only by ID');
     check(!is_file($site.'/storage/cache/public/'.hash('sha256','/draft').'.json'),'preview never cached');
+    check(!str_contains($renderer->renderPreviewId('pages',$draft['id'])['html'],'data-ce-consent-config'),'consent runtime excluded from preview');
     $rev=$entries->restoreRevision('pages',$home['id'],1);check($rev['title']==='Actual homepage','revision restore real repository');$entries->publish('pages',$home['id']);
     $translation=$entries->createLocalization('pages',$home['id'],['title'=>'English','slug'=>'home','locale'=>'en','status'=>'draft','data'=>[]]);check($translation['translation_group']===$home['translation_group'],'translation group preserved');
     $noindex=$entries->create('pages',['title'=>'Noindex page','slug'=>'secret-seo','status'=>'published','data'=>['seo_noindex'=>true]]);
     $export=(new CajeerEngine\StaticExport\SiteExport($site))->run();$target=$export['path'];
     check(str_contains(file_get_contents($target.'/index.html'),'Actual homepage'),'static export preserves actual homepage');
+    check(str_contains(file_get_contents($target.'/index.html'),'data-ce-consent-dynamic="0"')&&is_file($target.'/assets/ce-consent/consent.js')&&is_file($target.'/assets/ce-consent/consent.css'),'static export ships standalone consent runtime and policy snapshot');
     check(is_file($target.'/secret-seo/index.html')&&!is_file($target.'/draft/index.html'),'static export includes published noindex, excludes draft');
     check(is_file($target.'/uploads/'.$image['path'])&&!is_file($target.'/uploads/'.$private['path']),'static export only public media');
     // Public/private same bytes are distinct paths; check no private directory.

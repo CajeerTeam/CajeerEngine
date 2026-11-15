@@ -11,6 +11,11 @@ $root = dirname(__DIR__);
 $installPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 require_once $root . '/core/Console/NativeCli.php';
 require_once $root . '/core/Console/OperationsCli.php';
+if (CajeerEngine\Privacy\ConsentAssets::matches($installPath)) {
+    [$code,$headers,$body]=CajeerEngine\Privacy\ConsentAssets::response($root,$installPath,$_SERVER['REQUEST_METHOD']??'GET',$_SERVER['HTTP_IF_NONE_MATCH']??null);
+    http_response_code($code);foreach($headers as $key=>$value)header($key.': '.$value);
+    if(($_SERVER['REQUEST_METHOD']??'GET')!=='HEAD')echo $body;exit;
+}
 if (in_array($installPath,['/health/live','/health/ready','/metrics'],true)) {
     try { if($installPath!=='/health/live') { if(is_file($root.'/vendor/autoload.php'))require_once $root.'/vendor/autoload.php'; CajeerEngine\Console\OperationsCli::loadEnv($root); } }
     catch (Throwable) { http_response_code(503); header('Cache-Control: no-store'); exit; }

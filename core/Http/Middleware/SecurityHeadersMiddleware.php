@@ -16,7 +16,13 @@ final readonly class SecurityHeadersMiddleware implements MiddlewareInterface
         $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-        if (str_contains((string) $response->headers->get('Content-Type'), 'text/html')) { $response->headers->set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'"); }
+        if (str_contains((string) $response->headers->get('Content-Type'), 'text/html')) {
+            $route=(string)$request->attributes->get('matched_route','');
+            $public=in_array($route,['public.home','public.page.path','public.search','public.search.trailing'],true);
+            $origins=$public?implode(' ',\CajeerEngine\Privacy\ConsentPolicy::origins()):'';
+            $sources="'self'".($origins!==''?' '.$origins:'');
+            $response->headers->set('Content-Security-Policy', "default-src 'self'; script-src $sources; connect-src $sources; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'");
+        }
         if ($request->isSecure()) { $response->headers->set('Strict-Transport-Security', 'max-age=31536000'); }
         if (str_starts_with(rawurldecode($request->getPathInfo()), '/api/') || str_starts_with($request->getPathInfo(), '/preview/')) {
             $response->headers->set('Cache-Control', 'private, no-store');

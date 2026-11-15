@@ -224,6 +224,12 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "get_ConsentPolicy": {
+        "method": "GET",
+        "path": "/privacy/consent",
+        "parameters": [],
+        "bodyRequired": false
+    },
     "get_ContentIndex": {
         "method": "GET",
         "path": "/content/{type}",
@@ -604,6 +610,12 @@ export const operations = {
                 "required": true
             }
         ],
+        "bodyRequired": false
+    },
+    "get_PublicConsent": {
+        "method": "GET",
+        "path": "/public/consent",
+        "parameters": [],
         "bodyRequired": false
     },
     "get_PublicPreview": {
@@ -1452,6 +1464,12 @@ export const operations = {
             }
         ],
         "bodyRequired": false
+    },
+    "put_ConsentPolicy": {
+        "method": "PUT",
+        "path": "/privacy/consent",
+        "parameters": [],
+        "bodyRequired": true
     },
     "put_ContentTypesUpdate": {
         "method": "PUT",

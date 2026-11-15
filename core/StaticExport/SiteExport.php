@@ -34,13 +34,14 @@ final readonly class SiteExport
                 if($r['kind']!=='page')continue;
                 $path=PublicPath::normalize($r['path']);$page=$renderer->renderByPath($path);if($page===null)continue;
                 $relative=($path==='/'?'':rawurldecode(ltrim($path,'/')).'/').'index.html';
-                F::write(F::path($stage,$relative),str_replace('<a href="/search" data-ce-dynamic-search>Поиск</a>','',$page['html']),0644);$manifest[]=['path'=>$path,'file'=>$relative,'id'=>$r['id']];
+                F::write(F::path($stage,$relative),str_replace(['<a href="/search" data-ce-dynamic-search>Поиск</a>','data-ce-consent-dynamic="1"'],['','data-ce-consent-dynamic="0"'],$page['html']),0644);$manifest[]=['path'=>$path,'file'=>$relative,'id'=>$r['id']];
             }
             if(!is_file($stage.'/index.html'))throw new \RuntimeException('Publish a homepage before exporting');
             foreach($media->publicItems() as $row){
                 $relative='uploads/'.$row['path'];F::copy($media->sourcePath($row),F::path($stage,$relative),0644);
                 foreach($row['variants']??[] as $v)F::copy(F::path($this->root,'public/uploads/'.$v['path']),F::path($stage,'uploads/'.$v['path']),0644);
             }
+            foreach(['consent.js','consent.css'] as $asset) F::copy(F::path($this->root,'resources/consent/'.$asset),F::path($stage,'assets/ce-consent/'.$asset),0644);
             // Only enabled theme assets, not arbitrary public files or administrative code.
             $registry=new \CajeerEngine\Extension\ExtensionRegistry($this->root,$config);
             foreach(\CajeerEngine\Extension\DependencyGraph::order($registry->all()) as $ext){

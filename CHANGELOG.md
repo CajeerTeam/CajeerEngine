@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.2 — Consent Management
+
+- Versioned privacy policy with scoped administration, audit and optimistic locking.
+- Public consent preferences, granular categories, expiry, revocation, local history and Google Consent Mode v2 defaults.
+- Consent-gated optional script loading with public CSP allowlist, render-cache isolation and static export support.
+
 ## 1.3.1 — Integration Center
 
 - Реальный runtime провайдеров HTTP JSON и HMAC webhook, управление соединениями и тестовые отправки.

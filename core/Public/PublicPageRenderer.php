@@ -26,6 +26,8 @@ final readonly class PublicPageRenderer
     ) {
     }
 
+    public function decoratePrivacy(string $html): string { return (new \CajeerEngine\Privacy\ConsentPolicy($this->rootPath))->decorate($html); }
+
     public function routeIndex(): RouteIndex { return $this->routes ?? new RouteIndex($this->rootPath); }
 
     public function baseUrl(): string
@@ -175,6 +177,7 @@ final readonly class PublicPageRenderer
          $active = $this->renderActiveTheme($context);
         $render = fn() => $this->templates->render($template, $context);
         $html = $active ?? ($preview ? $render() : (new RenderCache($this->rootPath))->render($path,$context,$render));
+        if (!$preview) $html = $this->decoratePrivacy($html);
         return [
             'type' => $type,
             'entry' => $entry,

@@ -115,7 +115,7 @@ final readonly class PublicController
     {
         $page=$this->renderer->errorPage($status);
         $message=$status===410?'Страница удалена':'Страница не найдена';
-        $html=$page['html']??('<!doctype html><html lang="ru"><meta charset="utf-8"><title>'.$status.' '.$message.'</title><h1>'.$status.' — '.$message.'</h1><p><a href="/">Главная</a></p></html>');
+        $html=$page['html']??$this->renderer->decoratePrivacy('<!doctype html><html lang="ru"><meta charset="utf-8"><title>'.$status.' '.$message.'</title><h1>'.$status.' — '.$message.'</h1><p><a href="/">Главная</a></p></html>');
         return new Response($html,$status,['Content-Type'=>'text/html; charset=UTF-8','X-Robots-Tag'=>'noindex, nofollow','Cache-Control'=>'no-store']);
     }
 

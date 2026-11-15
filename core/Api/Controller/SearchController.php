@@ -12,7 +12,7 @@ use CajeerEngine\Search\PublicSearchPage;
 
 final readonly class SearchController
 {
-    public function __construct(private SearchService $search)
+    public function __construct(private SearchService $search, private ?\CajeerEngine\Privacy\ConsentPolicy $consent = null)
     {
     }
 
@@ -30,7 +30,8 @@ final readonly class SearchController
     public function publicPage(Request $request,array $parameters): Response
     {
         $result=$this->results($request);
-        return new Response(PublicSearchPage::render($result),200,['Content-Type'=>'text/html; charset=UTF-8','Cache-Control'=>'no-store','X-Robots-Tag'=>'noindex, follow']);
+        $html=PublicSearchPage::render($result);
+        return new Response($this->consent?->decorate($html)??$html,200,['Content-Type'=>'text/html; charset=UTF-8','Cache-Control'=>'no-store','X-Robots-Tag'=>'noindex, follow']);
     }
 
     private function results(Request $request): array
