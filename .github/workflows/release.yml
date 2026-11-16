@@ -66,6 +66,7 @@ jobs:
           MIGRATION_TEST_MYSQL: '1'
           MIGRATION_TEST_MYSQL_PASSWORD: migration-fixture
         run: php tools/migration-discovery-regression.php --require-xml --require-mysql
+      - run: php tools/migration-planning-regression.php --require-xml
       - run: python3 tools/analytics-ga-upgrade-regression.py
       - run: php tools/search-webmaster-regression.php --require-db
       - run: php tools/alternative-analytics-regression.php --require-db
@@ -84,6 +85,7 @@ jobs:
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/advertising-browser-regression.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/analytics-ga-browser-regression.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/migration-browser-regression.py
+          CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/migration-planning-browser-regression.py
       - run: php tools/generate-api-sdk.php --check
       - run: php bin/cajeer api:lint --strict --json
       - run: php tools/github-release-regression.php

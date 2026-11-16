@@ -10,7 +10,7 @@ use CajeerEngine\Update\OperationLock;
 /** Small, durable discovery projects. Network I/O is outside the registry lock; CAS prevents stale reports. */
 final readonly class MigrationCenter
 {
-    public function __construct(private string $root,private SecretVault $vault,private SourceDiscovery $discovery=new SourceDiscovery(),private WxrDiscovery $wxr=new WxrDiscovery()) {}
+    public function __construct(private string $root,private SecretVault $vault,private SourceDiscovery $discovery=new SourceDiscovery(),private WxrDiscovery $wxr=new WxrDiscovery(),private ?MigrationPlanner $planner=null) {}
     private function path(string $id):string {if(!preg_match('/^[a-f0-9]{32}$/D',$id))throw new \InvalidArgumentException('Invalid migration project ID.');return F::path($this->root,'storage/app/migration/'.$id.'.json');}
     private function locked(callable $fn):mixed {
         $lease=OperationLock::acquire($this->root,false);
@@ -43,6 +43,28 @@ final readonly class MigrationCenter
         if(!is_string($u)||!is_string($p)||strlen($u)>190||strlen($p)>4096||preg_match('/[\x00-\x1f\x7f]/',$u.$p)||str_contains($u,':')||($required&&($u===''||$p===''))||(($u==='')!==($p==='')))throw new \InvalidArgumentException('Invalid source credentials.');
         return ['username'=>$u,'password'=>$p];
     }
+    private function planning():MigrationPlanner {return $this->planner??throw new \RuntimeException('Migration planning is unavailable.');}
+    public function catalog():array{return $this->planning()->catalog();}
+    public function saveMapping(string $id,int $revision,array $mapping):array {
+        $mapping=MigrationPlanner::mapping($mapping);
+        return $this->locked(function()use($id,$revision,$mapping){$p=$this->get($id);$this->revision($p,$revision);if(!$p['report']||$p['error']!==null)throw new \InvalidArgumentException('A successful discovery is required.');$p['mapping']=$mapping;unset($p['plan']);$p['status']='mapped';$p['revision']++;$p['updated_at']=gmdate(DATE_ATOM);F::json($this->path($id),$p);return $this->public($p);});
+    }
+    private function planningSnapshot(string $id,int $revision):array {
+        return $this->locked(function()use($id,$revision){$p=$this->get($id);$this->revision($p,$revision);if(!$p['report']||$p['error']!==null||!isset($p['mapping']))throw new \InvalidArgumentException('Save a mapping after successful discovery.');if($p['source']==='wordpress-wxr'){$p['wxr']=file_get_contents($this->wxrPath($id,$p['wxr_ref']??''));if($p['wxr']===false)throw new \RuntimeException('Stored WXR is unavailable.');}return $p;});
+    }
+    private function calculate(array $p):array {
+        $id=$p['id'];if($p['source']==='wordpress-wxr'){$xml=$this->vault->open('migration:wxr:v1:'.$id,$p['wxr']);$inventory=(new PlanningSource())->wxr($xml);}else{$secret=json_decode($this->vault->open('migration:v1:'.$id.':'.$p['source'],$p['credential']),true,16,JSON_THROW_ON_ERROR);$inventory=$this->discovery->inventory($p['source'],$p['config'],$secret);}
+        return $this->planning()->plan($inventory,$p['mapping']);
+    }
+    public function dryRun(string $id,int $revision):array {
+        $p=$this->planningSnapshot($id,$revision);$plan=$this->calculate($p);
+        return $this->locked(function()use($id,$revision,$plan){$p=$this->get($id);$this->revision($p,$revision);$p['plan']=$plan+['created_at'=>gmdate(DATE_ATOM),'approved_at'=>null];$p['status']='planned';$p['revision']++;$p['updated_at']=gmdate(DATE_ATOM);F::json($this->path($id),$p);return $this->public($p);});
+    }
+    public function approve(string $id,int $revision,string $sha256):array {
+        $p=$this->planningSnapshot($id,$revision);if(!isset($p['plan'])||!$p['plan']['approvable']||!hash_equals($p['plan']['sha256'],$sha256))throw new \InvalidArgumentException('Plan is missing, has unresolved issues or hash does not match.');
+        $fresh=$this->calculate($p);if(!hash_equals($sha256,$fresh['sha256']))throw new RevisionConflict('Source or target changed; run Dry Run again.');
+        return $this->locked(function()use($id,$revision,$sha256){$p=$this->get($id);$this->revision($p,$revision);if(!hash_equals($p['plan']['sha256'],$sha256))throw new RevisionConflict('Plan has changed.');$p['plan']['approved_at']=gmdate(DATE_ATOM);$p['status']='approved';$p['revision']++;$p['updated_at']=gmdate(DATE_ATOM);F::json($this->path($id),$p);return $this->public($p);});
+    }
     public function scan(string $id,int $revision,#[\SensitiveParameter] ?string $xml=null):array {
         $p=$this->locked(function()use($id,$revision,$xml){$p=$this->get($id);$this->revision($p,$revision);if($xml===null&&isset($p['wxr_ref'])&&$p['source']==='wordpress-wxr'){$path=$this->wxrPath($id,$p['wxr_ref']);$p['wxr']=file_get_contents($path);if($p['wxr']===false)throw new \RuntimeException('Stored WXR is unavailable.');}return $p;});
         if($xml!==null&&$p['source']!=='wordpress-wxr')throw new \InvalidArgumentException('WXR upload requires a WordPress WXR project.');
@@ -54,6 +76,6 @@ final readonly class MigrationCenter
             }else{$secret=json_decode($this->vault->open('migration:v1:'.$id.':'.$p['source'],$p['credential']),true,16,JSON_THROW_ON_ERROR);$report=$this->discovery->scan($p['source'],$p['config'],$secret);}
             $error=null;
         }catch(\Throwable $e){$report=null;$error=$e instanceof \InvalidArgumentException||($e instanceof \RuntimeException&&!$e instanceof \PDOException)?$e->getMessage():'Source discovery failed.';}
-        return $this->locked(function()use($id,$revision,$report,$sealed,$error){$p=$this->get($id);$this->revision($p,$revision);$p['revision']++;$p['updated_at']=gmdate(DATE_ATOM);$p['status']=$error===null?'discovered':'failed';$p['error']=$error;if($report!==null){$p['report']=$report;if($sealed!==null){$ref=bin2hex(random_bytes(16));F::write($this->wxrPath($id,$ref),$sealed);$p['wxr_ref']=$ref;}}F::json($this->path($id),$p);$this->cleanupWxr($id,$p['wxr_ref']??null);return $this->public($p);});
+        return $this->locked(function()use($id,$revision,$report,$sealed,$error){$p=$this->get($id);$this->revision($p,$revision);$p['revision']++;$p['updated_at']=gmdate(DATE_ATOM);$p['status']=$error===null?'discovered':'failed';$p['error']=$error;unset($p['plan']);if($report!==null){$p['report']=$report;if($sealed!==null){$ref=bin2hex(random_bytes(16));F::write($this->wxrPath($id,$ref),$sealed);$p['wxr_ref']=$ref;}}F::json($this->path($id),$p);$this->cleanupWxr($id,$p['wxr_ref']??null);return $this->public($p);});
     }
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.2 — Mapping & Migration Planning
+
+- Real bounded DLE/WordPress DB, REST and WXR content inventory, persistent mapping rules and typed field transformations.
+- Read-only target validation, locale-aware slug conflict resolution, explicit user links/new viewer plans, and plan hashes checked again on approval.
+- Production admin mapping editor, dry-run report and JSON export; no target writes or SQL migration.
+
 ## 1.4.1 — Migration Center & Discovery
 
 - Persistent migration projects and a production admin wizard for DLE MySQL/MariaDB, WordPress database, REST and WXR.

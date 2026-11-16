@@ -706,6 +706,12 @@ export const operations = {
         ],
         "bodyRequired": false
     },
+    "get_MigrationCatalog": {
+        "method": "GET",
+        "path": "/migration/catalog",
+        "parameters": [],
+        "bodyRequired": false
+    },
     "get_MigrationProjectIndex": {
         "method": "GET",
         "path": "/migration/projects",
@@ -1452,10 +1458,34 @@ export const operations = {
         "parameters": [],
         "bodyRequired": true
     },
+    "post_MigrationProjectApprove": {
+        "method": "POST",
+        "path": "/migration/projects/{id}/approve",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
     "post_MigrationProjectCreate": {
         "method": "POST",
         "path": "/migration/projects",
         "parameters": [],
+        "bodyRequired": true
+    },
+    "post_MigrationProjectPlan": {
+        "method": "POST",
+        "path": "/migration/projects/{id}/plan",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": true
     },
     "post_MigrationProjectScan": {
@@ -1717,6 +1747,18 @@ export const operations = {
     "put_IntegrationsSecret": {
         "method": "PUT",
         "path": "/integrations/{id}/secret",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "put_MigrationProjectMapping": {
+        "method": "PUT",
+        "path": "/migration/projects/{id}/mapping",
         "parameters": [
             {
                 "name": "id",

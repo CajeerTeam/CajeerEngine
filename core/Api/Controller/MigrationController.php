@@ -17,6 +17,10 @@ final readonly class MigrationController
     public function update(Request $r,array $p):JsonResponse{$v=$this->center->update($p['id'],$r->attributes->get('json',[]));$this->record($r,'updated',$p['id']);return $this->response($v);}
     public function delete(Request $r,array $p):JsonResponse{$this->center->delete($p['id'],$r->attributes->get('json',[])['revision']);$this->record($r,'deleted',$p['id']);return $this->response(['deleted'=>true]);}
     public function scan(Request $r,array $p):JsonResponse{$v=$this->center->scan($p['id'],$r->attributes->get('json',[])['revision']);$this->record($r,$v['status'],$p['id']);return $this->response($v);}
+    public function catalog(Request $r):JsonResponse{return $this->response($this->center->catalog());}
+    public function mapping(Request $r,array $p):JsonResponse{$b=$r->attributes->get('json',[]);$v=$this->center->saveMapping($p['id'],$b['revision'],$b['mapping']);$this->record($r,'mapped',$p['id']);return $this->response($v);}
+    public function plan(Request $r,array $p):JsonResponse{$v=$this->center->dryRun($p['id'],$r->attributes->get('json',[])['revision']);$this->record($r,'planned',$p['id']);return $this->response($v);}
+    public function approve(Request $r,array $p):JsonResponse{$b=$r->attributes->get('json',[]);$v=$this->center->approve($p['id'],$b['revision'],$b['sha256']);$this->record($r,'approved',$p['id']);return $this->response($v);}
     public function upload(Request $r,array $p):JsonResponse{
         $file=$r->files->get('file');$rev=$r->request->get('revision');
         if(!$file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile||!$file->isValid()||$file->getSize()>WxrDiscovery::MAX_BYTES||!is_string($rev)||!ctype_digit($rev)||strlen($rev)>10)throw new \InvalidArgumentException('Valid WXR file (max 8 MiB) and revision required.');

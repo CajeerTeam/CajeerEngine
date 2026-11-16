@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.4.1",
+    "version": "1.4.2",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -24782,6 +24782,645 @@
           }
         }
       }
+    },
+    "/migration/projects/{id}/mapping": {
+      "put": {
+        "tags": [
+          "Migration"
+        ],
+        "operationId": "put_MigrationProjectMapping",
+        "summary": "PUT /migration/projects/{id}/mapping",
+        "x-cajeer-route": "api.v1.migration.projects.mapping",
+        "x-cajeer-required-scopes": [
+          "migration:write"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Требуется авторизация",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Недостаточно прав или CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Слишком большой запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Неподдерживаемый Content-Type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Сервис недоступен / maintenance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/MigrationProject"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MigrationMappingRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/migration/projects/{id}/plan": {
+      "post": {
+        "tags": [
+          "Migration"
+        ],
+        "operationId": "post_MigrationProjectPlan",
+        "summary": "POST /migration/projects/{id}/plan",
+        "x-cajeer-route": "api.v1.migration.projects.plan",
+        "x-cajeer-required-scopes": [
+          "migration:run",
+          "users:read"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Требуется авторизация",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Недостаточно прав или CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Слишком большой запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Неподдерживаемый Content-Type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Сервис недоступен / maintenance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/MigrationProject"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MigrationRevision"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/migration/projects/{id}/approve": {
+      "post": {
+        "tags": [
+          "Migration"
+        ],
+        "operationId": "post_MigrationProjectApprove",
+        "summary": "POST /migration/projects/{id}/approve",
+        "x-cajeer-route": "api.v1.migration.projects.approve",
+        "x-cajeer-required-scopes": [
+          "migration:run",
+          "migration:write",
+          "users:read"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Требуется авторизация",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Недостаточно прав или CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Слишком большой запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Неподдерживаемый Content-Type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Сервис недоступен / maintenance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/MigrationProject"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MigrationApprovalRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/migration/catalog": {
+      "get": {
+        "tags": [
+          "Migration"
+        ],
+        "operationId": "get_MigrationCatalog",
+        "summary": "GET /migration/catalog",
+        "x-cajeer-route": "api.v1.migration.catalog",
+        "x-cajeer-required-scopes": [
+          "migration:read"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Требуется авторизация",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Недостаточно прав или CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Слишком большой запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Неподдерживаемый Content-Type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Сервис недоступен / maintenance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/MigrationCatalog"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -28108,7 +28747,10 @@
             "enum": [
               "draft",
               "discovered",
-              "failed"
+              "failed",
+              "mapped",
+              "planned",
+              "approved"
             ]
           },
           "report": {
@@ -28126,6 +28768,12 @@
               "string",
               "null"
             ]
+          },
+          "mapping": {
+            "$ref": "#/components/schemas/MigrationMapping"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/MigrationPlan"
           }
         },
         "required": [
@@ -28166,6 +28814,205 @@
         },
         "required": [
           "deleted"
+        ],
+        "additionalProperties": false
+      },
+      "MigrationMapping": {
+        "type": "object",
+        "properties": {
+          "types": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "statuses": {
+            "type": [
+              "object",
+              "array"
+            ],
+            "additionalProperties": true
+          },
+          "users": {
+            "type": [
+              "object",
+              "array"
+            ],
+            "additionalProperties": true
+          },
+          "locale": {
+            "type": "string"
+          },
+          "conflict": {
+            "type": "string",
+            "enum": [
+              "fail",
+              "skip",
+              "update",
+              "create"
+            ]
+          }
+        },
+        "required": [
+          "types",
+          "statuses"
+        ],
+        "additionalProperties": false
+      },
+      "MigrationMappingRequest": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "mapping": {
+            "$ref": "#/components/schemas/MigrationMapping"
+          }
+        },
+        "required": [
+          "revision",
+          "mapping"
+        ],
+        "additionalProperties": false
+      },
+      "MigrationApprovalRequest": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "revision",
+          "sha256"
+        ],
+        "additionalProperties": false
+      },
+      "MigrationPlan": {
+        "type": "object",
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "source_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "target_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "mapping_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "counts": {
+            "type": "object"
+          },
+          "user_counts": {
+            "type": "object"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "target_modified": {
+            "type": "boolean"
+          },
+          "approvable": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "approved_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "sha256",
+          "source_sha256",
+          "target_sha256",
+          "mapping_sha256",
+          "counts",
+          "user_counts",
+          "records",
+          "users",
+          "warnings",
+          "target_modified",
+          "approvable",
+          "created_at",
+          "approved_at"
+        ]
+      },
+      "MigrationCatalog": {
+        "type": "object",
+        "properties": {
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "handle": {
+                  "type": "string"
+                },
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "handle": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "handle",
+                      "type",
+                      "required"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "handle",
+                "fields"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "types"
         ],
         "additionalProperties": false
       }

@@ -50,7 +50,7 @@ final readonly class SourceDiscovery
         };
     }
 
-    private function database(string $source,array $c, #[\SensitiveParameter] array $secret): array
+    private function database(string $source,array $c, #[\SensitiveParameter] array $secret, ?callable $reader=null): array
     {
         if (!in_array('mysql',\PDO::getAvailableDrivers(),true)) throw new \RuntimeException('Discovery requires pdo_mysql.');
         try {
@@ -64,7 +64,7 @@ final readonly class SourceDiscovery
             if(stripos($engine,'mariadb')!==false)$pdo->exec('SET SESSION max_statement_time=5');else $pdo->exec('SET SESSION max_execution_time=5000');
             $pdo->exec('SET SESSION TRANSACTION READ ONLY');
             $pdo->beginTransaction();
-            try { return $this->inspectDatabase($source,$pdo,$c['prefix'],$c['charset']); }
+            try { $report=$this->inspectDatabase($source,$pdo,$c['prefix'],$c['charset']); return $reader ? $reader($pdo,$report) : $report; }
             finally { if ($pdo->inTransaction()) $pdo->rollBack(); }
         } catch (\PDOException) { throw new \RuntimeException('Source database connection or read failed. Verify read-only grants, schema and connectivity.'); }
     }
@@ -102,7 +102,18 @@ final readonly class SourceDiscovery
             if($has('post','xfields')){foreach($pdo->query('SELECT LEFT(xfields,16384) FROM '.$table('post')." WHERE xfields IS NOT NULL AND xfields <> '' LIMIT 1000")->fetchAll(\PDO::FETCH_COLUMN) as $v){foreach(explode('||',(string)$v) as $pair){$name=explode('|',$pair,2)[0];if(preg_match('/^[A-Za-z0-9_-]{1,100}$/D',$name))$fields[$name]=$name;if(count($fields)>100)break 2;}}$fields=array_values($fields);}
             $warnings[]='DLE extra fields are sampled from up to 1000 news records. Files and exact CMS version cannot be determined from database tables alone.';
         }
-        return self::report($source,$counts,$types,$statuses,$fields,$warnings,['prefix'=>$prefix,'connection_charset'=>$charset,'table_encodings'=>array_keys($encodings),'version'=>$version,'tables'=>array_values(array_filter(array_keys($schema),fn($t)=>str_starts_with($t,$prefix))),'columns'=>array_intersect_key($schema,array_flip(array_map(fn($s)=>$prefix.$s,$wp?['posts','postmeta','users','terms','term_taxonomy']:['post','static','category','users','comments'])))]);
+        return self::report($source,$counts,$types,$statuses,$fields,$warnings,['prefix'=>$prefix,'connection_charset'=>$charset,'table_encodings'=>array_keys($encodings),'version'=>$version,'tables'=>array_values(array_filter(array_keys($schema),fn($t)=>str_starts_with($t,$prefix))),'columns'=>array_intersect_key($schema,array_flip(array_map(fn($s)=>$prefix.$s,$wp?['posts','postmeta','users','terms','term_taxonomy','term_relationships']:['post','static','category','users','comments'])))]);
+    }
+
+    /** Read actual source records using the same read-only connection and endpoint policy as discovery. */
+    public function inventory(string $source,array $config, #[\SensitiveParameter] array $secret): array
+    {
+        if ($source==='wordpress-rest') return (new PlanningSource($this->http))->rest(self::restConfig($config),$secret);
+        if (!in_array($source,['dle-db','wordpress-db'],true)) throw new \InvalidArgumentException('Unsupported planning source.');
+        $c=self::dbConfig($config);
+        // MySQL converts character columns from their stored charset to UTF-8.
+        $c['charset']='utf8mb4';
+        return $this->database($source,$c,$secret,fn($pdo,$report)=>(new PlanningSource($this->http))->database($source,$pdo,$report));
     }
 
     public function rest(array $config, #[\SensitiveParameter] array $secret): array

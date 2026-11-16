@@ -915,6 +915,15 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'get_MigrationCatalog' => 
+  array (
+    'method' => 'GET',
+    'path' => '/migration/catalog',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
   'get_MigrationProjectIndex' => 
   array (
     'method' => 'GET',
@@ -1914,12 +1923,42 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'post_MigrationProjectApprove' => 
+  array (
+    'method' => 'POST',
+    'path' => '/migration/projects/{id}/approve',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
   'post_MigrationProjectCreate' => 
   array (
     'method' => 'POST',
     'path' => '/migration/projects',
     'parameters' => 
     array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'post_MigrationProjectPlan' => 
+  array (
+    'method' => 'POST',
+    'path' => '/migration/projects/{id}/plan',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => true,
   ),
@@ -2278,6 +2317,21 @@ final class Operations {
   array (
     'method' => 'PUT',
     'path' => '/integrations/{id}/secret',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'put_MigrationProjectMapping' => 
+  array (
+    'method' => 'PUT',
+    'path' => '/migration/projects/{id}/mapping',
     'parameters' => 
     array (
       0 => 
