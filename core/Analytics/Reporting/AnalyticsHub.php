@@ -1,0 +1,74 @@
+<?php
+declare(strict_types=1);
+namespace CajeerEngine\Analytics\Reporting;
+
+use CajeerEngine\Database\DatabaseManager;
+use CajeerEngine\Integration\SecretVault;
+use CajeerEngine\Queue\ManagedQueueDriverInterface;
+use CajeerEngine\Runtime\ConfigRepository;
+use CajeerEngine\Content\RevisionConflict;
+use PDO;
+
+/** Durable report snapshots. Credentials never leave the server or enter queue payloads. */
+final readonly class AnalyticsHub
+{
+    public function __construct(private DatabaseManager $db, private SecretVault $vault, private ManagedQueueDriverInterface $queue, private ConfigRepository $config, private ?ReportProvider $metrika=null,private ?ReportProvider $ga4=null) {}
+    private function provider(string $id): ReportProvider {return match($id){'metrika'=>$this->metrika??new ApiReports('metrika'),'ga4'=>$this->ga4??new ApiReports('ga4'),default=>throw new \InvalidArgumentException('Unknown analytics provider')};}
+    private function enabled(): void {if(!$this->config->bool('integrations.enabled',true)||!$this->config->bool('analytics.enabled',true))throw new \InvalidArgumentException('Analytics reporting disabled by operator');}
+    private function query(string $sql,array $params=[]): \PDOStatement {$s=$this->db->connection()->prepare($sql);$s->execute($params);return $s;}
+    private function item(string $id): array {if(!preg_match('/^[a-f0-9]{32}$/D',$id))throw new \InvalidArgumentException('Invalid analytics connection ID');$r=$this->query('SELECT * FROM analytics_connections WHERE id=?',[$id])->fetch(PDO::FETCH_ASSOC);if(!$r)throw new \InvalidArgumentException('Analytics connection not found');return $r;}
+    private function publicItem(array $r): array {return ['id'=>$r['id'],'provider'=>$r['provider'],'name'=>$r['name'],'resource'=>$r['resource_id'],'goal'=>$r['goal_id'],'enabled'=>(bool)$r['enabled'],'revision'=>(int)$r['revision'],'last_success'=>$r['last_success'],'last_error'=>$r['last_error'],'last_attempt'=>$r['last_attempt'],'syncing'=>(int)$r['lease_until']>time()];}
+    public function overview(): array {return ['enabled'=>$this->config->bool('integrations.enabled',true)&&$this->config->bool('analytics.enabled',true),'items'=>array_map($this->publicItem(...),$this->query('SELECT * FROM analytics_connections ORDER BY name,id')->fetchAll(PDO::FETCH_ASSOC))];}
+    private function context(string $id,string $provider,string $resource): string {return 'analytics:report:v1:'.$id.':'.$provider.':'.$resource;}
+    private function validate(array $input): array {
+        $provider=$input['provider']??'';$name=$input['name']??null;$resource=$input['resource']??null;$goal=$input['goal']??null;$enabled=$input['enabled']??null;
+        if(!is_string($provider)||!is_string($name)||trim($name)===''||strlen($name)>200||preg_match('/[\x00-\x1f\x7f]/',$name)||!is_string($resource)||!preg_match('/^[1-9][0-9]{0,19}$/D',$resource)||!is_bool($enabled)||($goal!==null&&($provider!=='metrika'||!is_string($goal)||!preg_match('/^[1-9][0-9]{0,19}$/D',$goal))))throw new \InvalidArgumentException('Invalid analytics connection');
+        $this->provider($provider);return [$provider,trim($name),$resource,$goal,(int)$enabled];
+    }
+    public function save(?string $id,array $input): array {
+        [$provider,$name,$resource,$goal,$enabled]=$this->validate($input);$credential=$input['credential']??null;
+        if($credential!==null){if(!is_array($credential))throw new \InvalidArgumentException('Invalid credential');$this->provider($provider)->validateCredential($credential);}
+        if($id===null){if($credential===null)throw new \InvalidArgumentException('Credential required');if((int)$this->query('SELECT COUNT(*) FROM analytics_connections')->fetchColumn()>=50)throw new \InvalidArgumentException('Analytics connection limit reached');$id=bin2hex(random_bytes(16));$sealed=$this->vault->seal($this->context($id,$provider,$resource),json_encode($credential,JSON_THROW_ON_ERROR));$this->query('INSERT INTO analytics_connections (id,provider,name,resource_id,goal_id,enabled,revision,credential,lease_until) VALUES (?,?,?,?,?,?,1,?,0)',[$id,$provider,$name,$resource,$goal,$enabled,$sealed]);}
+        else{$old=$this->item($id);$revision=$input['revision']??null;if(!is_int($revision)||$revision!==(int)$old['revision'])throw new RevisionConflict('Analytics connection changed');
+            $changed=$provider!==$old['provider']||$resource!==$old['resource_id']||$goal!==$old['goal_id'];if($credential===null&&($provider!==$old['provider']||$resource!==$old['resource_id']))throw new \InvalidArgumentException('New credential required when changing resource');
+            $sealed=$credential===null?$old['credential']:$this->vault->seal($this->context($id,$provider,$resource),json_encode($credential,JSON_THROW_ON_ERROR));
+            $this->db->transaction(function()use($id,$provider,$name,$resource,$goal,$enabled,$sealed,$revision,$changed){$s=$this->query('UPDATE analytics_connections SET provider=?,name=?,resource_id=?,goal_id=?,enabled=?,credential=?,revision=revision+1,lease_until=0,lease_token=NULL,last_attempt=NULL,last_error=NULL WHERE id=? AND revision=?',[$provider,$name,$resource,$goal,$enabled,$sealed,$id,$revision]);if($s->rowCount()!==1)throw new RevisionConflict('Analytics connection changed');if($changed){$this->query('DELETE FROM analytics_reports WHERE connection_id=?',[$id]);$this->query('UPDATE analytics_connections SET last_success=NULL WHERE id=?',[$id]);}});
+        }return $this->publicItem($this->item($id));
+    }
+    public function delete(string $id,int $revision): void {$this->item($id);$this->db->transaction(function()use($id,$revision){$s=$this->query('DELETE FROM analytics_connections WHERE id=? AND revision=?',[$id,$revision]);if($s->rowCount()!==1)throw new RevisionConflict('Analytics connection changed');$this->query('DELETE FROM analytics_reports WHERE connection_id=?',[$id]);});}
+    public static function period(?string $from=null,?string $to=null): array {
+        if($from===null&&$to===null){$to=gmdate('Y-m-d',time()-86400);$from=gmdate('Y-m-d',time()-30*86400);}
+        foreach([$from,$to] as $d){if(!is_string($d)||!preg_match('/^\d{4}-\d{2}-\d{2}$/D',$d)||!checkdate((int)substr($d,5,2),(int)substr($d,8,2),(int)substr($d,0,4)))throw new \InvalidArgumentException('Invalid analytics date');}
+        if($from>$to||$to>gmdate('Y-m-d')||$from<'2000-01-01'||strtotime($to.' UTC')-strtotime($from.' UTC')>89*86400)throw new \InvalidArgumentException('Report period must be 1–90 days, not in future');return [$from,$to];
+    }
+    public function enqueue(string $id,?string $from=null,?string $to=null,bool $scheduled=false): array {
+        $this->enabled();$r=$this->item($id);if(!(bool)$r['enabled'])throw new \InvalidArgumentException('Analytics connection disabled');[$from,$to]=self::period($from,$to);
+        $bucket=intdiv(time(),$scheduled?3600:300);$job=$this->queue->push('analytics.report_sync',['id'=>$id,'revision'=>(int)$r['revision'],'from'=>$from,'to'=>$to,'_idempotency_key'=>'analytics-report:'.$id.':'.$r['revision'].':'.$from.':'.$to.':'.($scheduled?'scheduled':'manual').':'.$bucket]);return ['job_id'=>$job,'from'=>$from,'to'=>$to];
+    }
+    public function schedule(): array {
+        if(!$this->config->bool('integrations.enabled',true)||!$this->config->bool('analytics.enabled',true))return ['queued'=>0];$n=0;
+        foreach($this->query('SELECT id FROM analytics_connections WHERE enabled=1 ORDER BY id')->fetchAll(PDO::FETCH_COLUMN) as $id){$this->enqueue($id,null,null,true);$n++;}return ['queued'=>$n];
+    }
+    private function hostPolicy(string $provider,array $credential): void {
+        $allowed=$this->config->get('integrations.allowed_hosts',[]);if($allowed===[])return;
+        $hosts=$provider==='metrika'?['api-metrika.yandex.net']:['analyticsdata.googleapis.com'];if($provider==='ga4'&&($credential['type']??'')!=='oauth_token')$hosts[]='oauth2.googleapis.com';
+        if(array_diff($hosts,array_map('strtolower',$allowed)))throw new \RuntimeException('Analytics provider host not allowed');
+    }
+    public function sync(array $job): void {
+        $this->enabled();$id=$job['id']??'';$revision=$job['revision']??0;[$from,$to]=self::period($job['from']??null,$job['to']??null);
+        // Deleted or edited connections invalidate old jobs without exposing credentials.
+        try{$r=$this->item($id);}catch(\InvalidArgumentException){return;}if((int)$r['revision']!==$revision||!(bool)$r['enabled'])return;
+        $jobKey=$job['_idempotency_key']??null;if($jobKey!==null&&(!is_string($jobKey)||strlen($jobKey)>256))throw new \InvalidArgumentException('Invalid analytics job key');if(is_string($jobKey)&&$r['last_job_key']===$jobKey)return;
+        $lease=bin2hex(random_bytes(16));$now=time();$s=$this->query('UPDATE analytics_connections SET lease_token=?,lease_until=?,last_attempt=? WHERE id=? AND revision=? AND enabled=1 AND lease_until<=?',[$lease,$now+300,gmdate(DATE_ATOM),$id,$revision,$now]);if($s->rowCount()!==1)throw new \RuntimeException('Analytics sync busy');
+        try{
+            $credential=json_decode($this->vault->open($this->context($id,$r['provider'],$r['resource_id']),$r['credential']),true,32,JSON_THROW_ON_ERROR);
+            $this->hostPolicy($r['provider'],$credential);
+            $report=$this->provider($r['provider'])->report($r['resource_id'],$credential,$from,$to,$r['goal_id']);$json=json_encode($report,JSON_THROW_ON_ERROR|JSON_INVALID_UTF8_SUBSTITUTE);
+            $this->db->transaction(function()use($id,$revision,$lease,$from,$to,$report,$json,$jobKey){$s=$this->query('UPDATE analytics_connections SET lease_until=0,lease_token=NULL,last_success=?,last_error=NULL,last_job_key=? WHERE id=? AND revision=? AND lease_token=?',[$report['fetched_at'],$jobKey,$id,$revision,$lease]);if($s->rowCount()!==1)return;$this->query('DELETE FROM analytics_reports WHERE connection_id=? AND date_from=? AND date_to=?',[$id,$from,$to]);$this->query('INSERT INTO analytics_reports (connection_id,date_from,date_to,fetched_at,report_json) VALUES (?,?,?,?,?)',[$id,$from,$to,$report['fetched_at'],$json]);$rows=$this->query('SELECT date_from,date_to FROM analytics_reports WHERE connection_id=? ORDER BY fetched_at DESC,date_from DESC,date_to DESC',[$id])->fetchAll(PDO::FETCH_ASSOC);foreach(array_slice($rows,20) as $row)$this->query('DELETE FROM analytics_reports WHERE connection_id=? AND date_from=? AND date_to=?',[$id,$row['date_from'],$row['date_to']]);});
+        }catch(\Throwable $e){$msg=preg_match('/^Analytics provider HTTP [0-9]{3}$/D',$e->getMessage())||in_array($e->getMessage(),['Analytics provider host not allowed','Analytics transport unavailable','Invalid analytics response','Invalid OAuth response'],true)?$e->getMessage():'Analytics synchronization failed';$this->query('UPDATE analytics_connections SET lease_until=0,lease_token=NULL,last_error=? WHERE id=? AND revision=? AND lease_token=?',[$msg,$id,$revision,$lease]);throw new \RuntimeException($msg);}
+    }
+    public function report(string $id,?string $from=null,?string $to=null): array {
+        $r=$this->item($id);$params=[$id];$sql='SELECT report_json FROM analytics_reports WHERE connection_id=?';if($from!==null||$to!==null){[$from,$to]=self::period($from,$to);$sql.=' AND date_from=? AND date_to=?';$params[]=$from;$params[]=$to;}$json=$this->query($sql.' ORDER BY fetched_at DESC,date_from DESC LIMIT 1',$params)->fetchColumn();
+        $periods=$this->query('SELECT date_from,date_to,fetched_at FROM analytics_reports WHERE connection_id=? ORDER BY fetched_at DESC,date_from DESC',[$id])->fetchAll(PDO::FETCH_ASSOC);return ['connection'=>$this->publicItem($r),'report'=>$json===false?null:json_decode($json,true,64,JSON_THROW_ON_ERROR),'periods'=>$periods];
+    }
+}

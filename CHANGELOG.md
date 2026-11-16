@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.5 — Analytics Hub Core
+
+- Real Metrika Reporting API and GA4 Data API requests, encrypted credentials, SQL snapshots, hourly queue synchronization and admin report/CSV workflows.
+- Added migration 0015 for SQLite, PostgreSQL and MySQL; read/write/run analytics scopes.
+
 ## 1.3.4 — Analytics Events
 
 - Consent-aware event routing, provider mappings, automatic CMS search/download/outbound/scroll tracking, browser journal and optional first-party diagnostics.

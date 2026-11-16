@@ -6,6 +6,18 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "delete_AnalyticsReportDelete": {
+        "method": "DELETE",
+        "path": "/analytics/reports/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
     "delete_AnalyticsServerGrant": {
         "method": "DELETE",
         "path": "/tracking/events/server/grants/{id}",
@@ -186,6 +198,34 @@ export const operations = {
     "get_AnalyticsEventJournal": {
         "method": "GET",
         "path": "/tracking/events/journal",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "get_AnalyticsReportData": {
+        "method": "GET",
+        "path": "/analytics/reports/{id}/data",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "from",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "to",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
+    "get_AnalyticsReportIndex": {
+        "method": "GET",
+        "path": "/analytics/reports",
         "parameters": [],
         "bodyRequired": false
     },
@@ -1025,6 +1065,24 @@ export const operations = {
         "parameters": [],
         "bodyRequired": true
     },
+    "post_AnalyticsReportCreate": {
+        "method": "POST",
+        "path": "/analytics/reports",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "post_AnalyticsReportSync": {
+        "method": "POST",
+        "path": "/analytics/reports/{id}/sync",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
     "post_AnalyticsServerEvent": {
         "method": "POST",
         "path": "/tracking/events/server",
@@ -1523,6 +1581,18 @@ export const operations = {
         "method": "PUT",
         "path": "/tracking/events",
         "parameters": [],
+        "bodyRequired": true
+    },
+    "put_AnalyticsReportUpdate": {
+        "method": "PUT",
+        "path": "/analytics/reports/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
         "bodyRequired": true
     },
     "put_CmsNavigationMenu": {

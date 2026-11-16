@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.3.4'
+const ADMIN_VERSION = '1.3.5'
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
 localStorage.removeItem(TOKEN_KEY) // remove legacy bearer credentials
@@ -12,6 +12,7 @@ const nav = [
   ['cms', '🌐', 'CMS', 'Тема, меню, редиректы, preview'],
   ['users', '👥', 'Доступ', 'Пользователи, роли, tokens'],
   ['tracking', '📈', 'Счётчики', 'Яндекс Метрика, GA4 и GTM'],
+  ['analytics-hub', '📊', 'Analytics Hub', 'Отчёты Метрики и GA4'],
   ['analytics-events', '📊', 'События', 'Правила, цели и диагностика аналитики'],
   ['privacy', '🔒', 'Приватность', 'Согласия, политика и категории'],
   ['integrations', '🔗', 'Интеграции', 'Провайдеры, подключения и секреты'],
@@ -169,6 +170,7 @@ async function routeLoad(route) {
     if (route === 'cms') await Promise.allSettled([loadSilent('cmsOverview', '/cms'), loadSilent('theme', '/cms/theme'), loadSilent('navigation', '/cms/navigation'), loadSilent('redirects', '/cms/redirects'), loadSilent('publicRoutes', `/cms/routes?limit=100&offset=${state.forms.routeOffset || 0}`)])
     if (route === 'users') await Promise.allSettled([loadSilent('users', '/users'), loadSilent('roles', '/roles'), loadSilent('tokens', '/api-tokens')])
     if (route === 'tracking') await loadSilent('tracking', '/tracking/counters')
+    if (route === 'analytics-hub') {await loadSilent('analyticsHub','/analytics/reports');const previous=dataOf(state.cache.analyticsHubReport,{});if(previous.connection?.id){const r=state.forms.hubPeriod;await loadSilent('analyticsHubReport',`/analytics/reports/${encodeURIComponent(previous.connection.id)}/data${r?'?'+new URLSearchParams(r):''}`)}}
     if (route === 'analytics-events') await Promise.allSettled([loadSilent('analyticsEvents','/tracking/events'),loadSilent('analyticsJournal','/tracking/events/journal')])
     if (route === 'privacy') await loadSilent('privacy', '/privacy/consent')
     if (route === 'integrations') await loadSilent('integrations', '/integrations')
@@ -196,7 +198,7 @@ window.addEventListener('hashchange', () => {
 })
 
 function shell(title, subtitle, body, toolbar = '') {
-  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine</div><div class="brand-sub">Admin UI ${ADMIN_VERSION}</div></div></div><nav class="nav">${nav.filter(([id]) => (id !== 'integrations' || integrationScope('integrations:read')) && (id !== 'privacy' || integrationScope('privacy:read')) && (!['tracking','analytics-events'].includes(id) || integrationScope('tracking:read'))).map(([id, icon, label]) => `<button class="${state.route === id ? 'active' : ''}" data-route="${id}"><span class="emoji">${icon}</span><span>${label}</span></button>`).join('')}</nav><div class="footer-note">API: <span class="code-inline">${API_BASE}</span><br>${state.identity ? `User: ${escapeHtml(state.identity.email || state.identity.name || state.identity.user_id || 'auth')}` : 'Без активной сессии'}</div></aside><main class="main"><div class="topbar"><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle || '')}</p></div><div class="toolbar">${toolbar}<button class="btn secondary" data-action="refresh">Обновить</button>${state.token ? '<button class="btn ghost" data-action="logout">Выйти</button>' : '<button class="btn" data-route="login">Войти</button>'}</div></div>${noticeHtml()}${state.loading ? '<div class="notice">Загрузка...</div>' : ''}${body}</main></div>`
+  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine</div><div class="brand-sub">Admin UI ${ADMIN_VERSION}</div></div></div><nav class="nav">${nav.filter(([id]) => (id !== 'integrations' || integrationScope('integrations:read')) && (id !== 'privacy' || integrationScope('privacy:read')) && (id !== 'analytics-hub' || integrationScope('analytics:read')) && (!['tracking','analytics-events'].includes(id) || integrationScope('tracking:read'))).map(([id, icon, label]) => `<button class="${state.route === id ? 'active' : ''}" data-route="${id}"><span class="emoji">${icon}</span><span>${label}</span></button>`).join('')}</nav><div class="footer-note">API: <span class="code-inline">${API_BASE}</span><br>${state.identity ? `User: ${escapeHtml(state.identity.email || state.identity.name || state.identity.user_id || 'auth')}` : 'Без активной сессии'}</div></aside><main class="main"><div class="topbar"><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle || '')}</p></div><div class="toolbar">${toolbar}<button class="btn secondary" data-action="refresh">Обновить</button>${state.token ? '<button class="btn ghost" data-action="logout">Выйти</button>' : '<button class="btn" data-route="login">Войти</button>'}</div></div>${noticeHtml()}${state.loading ? '<div class="notice">Загрузка...</div>' : ''}${body}</main></div>`
 }
 
 function noticeHtml() {
@@ -217,6 +219,7 @@ function render() {
   else if (state.route === 'cms') body = cmsView()
   else if (state.route === 'users') body = usersView()
   else if (state.route === 'tracking') body = trackingView()
+  else if (state.route === 'analytics-hub') body = analyticsHubView()
   else if (state.route === 'analytics-events') body = analyticsEventsView()
   else if (state.route === 'privacy') body = privacyView()
   else if (state.route === 'integrations') body = integrationsView()
@@ -368,6 +371,34 @@ function bindIntegrations() {
   document.querySelectorAll('[data-integration-test]').forEach(b=>b.addEventListener('click',()=>{const i=find(b.dataset.integrationTest);request(b,`/integrations/${encodeURIComponent(i.id)}/test`,'POST',{revision:i.revision})}))
 }
 
+function analyticsHubView(){
+  if(!integrationScope('analytics:read'))return '<div class="notice error">Недостаточно прав.</div>'
+  const payload=state.cache.analyticsHub, hub=dataOf(payload,{items:[]}), items=hub.items||[], writable=integrationScope('analytics:write')&&integrationScope('integrations:secrets'), runnable=integrationScope('analytics:run')
+  if(payload?.error)return `<div class="notice error">${escapeHtml(payload.error.message)}</div>`
+  const fields=i=>`<label>Название</label><input class="input" name="name" required maxlength="200" value="${escapeHtml(i?.name||'')}"><label>Провайдер</label><select class="input" name="provider"><option value="metrika" ${i?.provider==='metrika'?'selected':''}>Яндекс Метрика</option><option value="ga4" ${i?.provider==='ga4'?'selected':''}>GA4</option></select><label>Номер счётчика / числовой Property ID GA4</label><input class="input" name="resource" required pattern="[1-9][0-9]{0,19}" value="${escapeHtml(i?.resource||'')}"><label>Goal ID (только Метрика, необязательно)</label><input class="input" name="goal" pattern="[1-9][0-9]{0,19}" value="${escapeHtml(i?.goal||'')}"><label>Credential JSON ${i?'(пусто — сохранить существующий)':''}</label><textarea class="input" name="credential" autocomplete="off" ${i?'':'required'} placeholder='{"type":"oauth_token","token":"…"}'></textarea><label><input type="checkbox" name="enabled" ${!i||i.enabled?'checked':''}> Активно</label>`
+  const report=dataOf(state.cache.analyticsHubReport,{}), r=report.report, selected=report.connection?.id
+  const dateAt=n=>new Date(Date.now()-n*86400000).toISOString().slice(0,10), period=state.forms.hubPeriod||r||{from:dateAt(30),to:dateAt(1)}
+  const graph=()=>{const daily=r?.sections?.daily?.rows||[];if(!daily.length)return '';const max=Math.max(1,...daily.map(x=>x.values[1]||0)),points=daily.map((x,i)=>`${20+i*600/Math.max(1,daily.length-1)},${130-110*(x.values[1]||0)/max}`).join(' ');return `<div class="card"><h3>${escapeHtml(r.labels[1])} по дням</h3><svg viewBox="0 0 640 150" width="100%" role="img" aria-label="${escapeHtml(r.labels[1])}"><path d="M20 20 V130 H620" stroke="currentColor" fill="none" opacity=".4"/><polyline points="${points}" fill="none" stroke="#2563eb" stroke-width="2"/>${daily.length===1?`<circle cx="20" cy="${130-110*(daily[0].values[1]||0)/max}" r="4" fill="#2563eb"/>`:''}</svg><p>${escapeHtml(daily[0].label)} — ${escapeHtml(daily[daily.length-1].label)} · max ${escapeHtml(max.toLocaleString('ru-RU'))}</p></div>`}
+  const rows=(section)=>{const s=r.sections[section];return `<h3>${({overview:'Итоги',daily:'Динамика по дням',channels:'Каналы',pages:'Посадочные страницы'})[section]}</h3>${s.truncated?'<p>Показаны первые 100 строк по визитам/сессиям.</p>':''}${s.quality?.sampled||s.quality?.thresholded||s.quality?.data_loss?'<p class="notice">Провайдер сообщает о семплировании, порогах или потере детализации.</p>':''}${table(['Измерение',...r.labels],s.rows.map(x=>`<tr><td>${escapeHtml(x.label)}</td>${x.values.map(v=>`<td>${escapeHtml(v.toLocaleString('ru-RU'))}</td>`).join('')}</tr>`))}`}
+  const details=state.cache.analyticsHubReport?.error?`<div class="notice error">${escapeHtml(state.cache.analyticsHubReport.error.message)}</div>`:selected?`<div class="card"><h2>${escapeHtml(report.connection.name)} — отчёты</h2><p>Последняя попытка: ${escapeHtml(report.connection.last_attempt||'—')} · Последний успех: ${escapeHtml(report.connection.last_success||'—')}</p>${report.connection.last_error?`<p class="notice error">${escapeHtml(report.connection.last_error)}. Последний успешный снимок сохранён.</p>`:''}<form class="form" data-hub-period="${escapeHtml(selected)}"><label>Начало</label><input class="input" name="from" type="date" value="${escapeHtml(period.from)}" required><label>Конец</label><input class="input" name="to" type="date" value="${escapeHtml(period.to)}" required><button class="btn secondary" name="mode" value="read">Открыть сохранённый период</button>${runnable&&hub.enabled?'<button class="btn" name="mode" value="sync">Запросить период через API</button>':''}</form>${report.periods?.length?`<p>Сохранённые периоды:</p>${report.periods.map(p=>`<button class="btn small secondary" data-hub-period-open="${escapeHtml(selected)}" data-from="${escapeHtml(p.date_from)}" data-to="${escapeHtml(p.date_to)}">${escapeHtml(p.date_from)} — ${escapeHtml(p.date_to)}</button>`).join(' ')}`:''}${r?`<p>${escapeHtml(r.from)} — ${escapeHtml(r.to)} · Получено ${escapeHtml(r.fetched_at)} · TZ ${escapeHtml(r.timezone||'счётчика')}</p><button class="btn secondary" data-hub-export>CSV</button>${graph()}${['overview','daily','channels','pages'].map(rows).join('')}`:'<p>Нет сохранённого отчёта за выбранный период. Запустите синхронизацию и дождитесь обработки очереди.</p>'}</div>`:''
+  return `<div class="card"><h2>Analytics Hub</h2><p>Реальные агрегированные данные API. Источники не суммируются. Автоматическое обновление — последние 30 завершённых UTC-дней, ежечасно. ${hub.enabled?'':'Отправка отключена оператором.'}</p><p>Метрика: OAuth token с правом чтения. GA4: числовой Property ID, сервисный аккаунт или OAuth refresh token. Форматы credentials — в docs/analytics-hub.md.</p></div>${writable?`<div class="card"><h2>Добавить источник</h2><form class="form" data-hub-create>${fields(null)}<button class="btn">Создать</button></form></div>`:''}<div class="grid two">${items.map(i=>`<div class="card"><h2>${escapeHtml(i.name)}</h2><p>${escapeHtml(i.provider)} · ${escapeHtml(i.resource)} · ${i.enabled?'Активно':'Отключено'}</p><p>Последний успех: ${escapeHtml(i.last_success||'—')} ${i.syncing?'· Синхронизация':''}</p>${i.last_error?`<p class="notice error">${escapeHtml(i.last_error)}</p>`:''}<button class="btn secondary" data-hub-open="${escapeHtml(i.id)}">Отчёты</button>${runnable&&i.enabled&&hub.enabled?`<button class="btn" data-hub-sync="${escapeHtml(i.id)}">Синхронизировать</button>`:''}${writable?`<details><summary>Настройки</summary><form class="form" data-hub-edit="${escapeHtml(i.id)}">${fields(i)}<button class="btn">Сохранить</button><button type="button" class="btn danger" data-hub-delete="${escapeHtml(i.id)}">Удалить</button></form></details>`:''}</div>`).join('')||'<p>Источники не настроены.</p>'}</div>${details}`
+}
+function bindAnalyticsHub(){
+  const items=()=>dataOf(state.cache.analyticsHub,{items:[]}).items||[], find=id=>items().find(i=>i.id===id)
+  const run=async(el,fn)=>{if(el.dataset.busy)return;el.dataset.busy='1';try{await fn();if(state.route==='analytics-hub')render()}catch(e){setNotice('error',e.message)}finally{delete el.dataset.busy}}
+  const open=async(id,from='',to='')=>{state.forms.hubPeriod=from&&to?{from,to}:null;state.cache.analyticsHubReport=await api(`/analytics/reports/${encodeURIComponent(id)}/data${from&&to?'?'+new URLSearchParams({from,to}):''}`)}
+  const refresh=()=>loadSilent('analyticsHub','/analytics/reports')
+  const save=(form,id)=>{const fd=new FormData(form);const body={name:fd.get('name'),provider:fd.get('provider'),resource:fd.get('resource'),goal:fd.get('goal')||null,enabled:fd.has('enabled')};if(id)body.revision=find(id).revision;if(fd.get('credential').trim())body.credential=JSON.parse(fd.get('credential'));return api('/analytics/reports'+(id?'/'+encodeURIComponent(id):''),{method:id?'PUT':'POST',body:JSON.stringify(body)})}
+  document.querySelectorAll('[data-hub-create],[data-hub-edit]').forEach(f=>f.addEventListener('submit',e=>{e.preventDefault();run(f,async()=>{await save(f,f.dataset.hubEdit);state.cache.analyticsHubReport=null;await refresh();setNotice('ok','Источник сохранён')})}))
+  document.querySelectorAll('[data-hub-open]').forEach(b=>b.addEventListener('click',()=>run(b,()=>open(b.dataset.hubOpen))))
+  document.querySelectorAll('[data-hub-period-open]').forEach(b=>b.addEventListener('click',()=>run(b,()=>open(b.dataset.hubPeriodOpen,b.dataset.from,b.dataset.to))))
+  const sync=async(id,body)=>{await api(`/analytics/reports/${encodeURIComponent(id)}/sync`,{method:'POST',body:JSON.stringify(body)});await refresh();setNotice('ok','Задача поставлена в очередь. После выполнения worker обновите отчёт.')}
+  document.querySelectorAll('[data-hub-sync]').forEach(b=>b.addEventListener('click',()=>run(b,()=>sync(b.dataset.hubSync,{}))))
+  document.querySelectorAll('[data-hub-delete]').forEach(b=>b.addEventListener('click',()=>{if(confirm('Удалить источник и все его отчёты?'))run(b,async()=>{await api(`/analytics/reports/${encodeURIComponent(b.dataset.hubDelete)}`,{method:'DELETE',body:JSON.stringify({revision:find(b.dataset.hubDelete).revision})});state.cache.analyticsHubReport=null;await refresh()})}))
+  document.querySelector('[data-hub-period]')?.addEventListener('submit',e=>{e.preventDefault();const f=e.currentTarget,fd=new FormData(f),from=fd.get('from'),to=fd.get('to');run(f,async()=>{if(e.submitter?.value==='sync')await sync(f.dataset.hubPeriod,{from,to});await open(f.dataset.hubPeriod,from,to)})})
+  document.querySelector('[data-hub-export]')?.addEventListener('click',()=>{const r=dataOf(state.cache.analyticsHubReport,{}).report;if(!r)return;const cell=v=>'"'+String(v).replace(/^\s*[=+\-@]|^[\t\r\n]/,"'$&").replace(/"/g,'""')+'"';const lines=[['provider','from','to','section','dimension',...r.metrics],...Object.entries(r.sections).flatMap(([s,x])=>x.rows.map(row=>[r.provider,r.from,r.to,s,row.label,...row.values]))];const url=URL.createObjectURL(new Blob(['\uFEFF'+lines.map(x=>x.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='analytics-'+r.provider+'-'+r.from+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)})
+}
+
 function bindForms() {
   bindContentTypes()
   bindContent()
@@ -377,6 +408,7 @@ function bindForms() {
   bindPrivacy()
   bindTracking()
   bindAnalyticsEvents()
+  bindAnalyticsHub()
   bindIntegrations()
   bindExtensions()
   bindUpdates()
@@ -393,7 +425,7 @@ function dashboardView() {
   const dashboard = dataOf(state.cache.dashboard, {})
   const cards = dashboard.cards || []
   const bootstrap = dataOf(state.cache.bootstrap, {})
-  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.3.4 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
+  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.3.5 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
 }
 
 function contentTypesView() {

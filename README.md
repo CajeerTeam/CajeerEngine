@@ -16,7 +16,7 @@ php bin/cajeer admin:assets --check
 php bin/cajeer doctor
 ```
 
-## Production Stable 1.3.4
+## Production Stable 1.3.5
 
 Допуск к эксплуатации зависит от прохождения полного release CI, а не от номера версии. [Production certification](docs/production-certification.md): реальные TLS/FPM/PostgreSQL интеграции, нагрузочный профиль, security-приёмка, аудит зависимостей и привязка доказательств к артефактам.
 
@@ -33,7 +33,7 @@ node admin/scripts/publish-admin-assets.mjs --check
 php tools/release-regression.php
 # После коммита всех изменений и composer.lock:
 bash tools/release-pipeline.sh /tmp/cajeer-release
-bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.3.4-dist.zip sqlite
+bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.3.5-dist.zip sqlite
 ```
 
 Сборка использует чистый Git snapshot и проверяет каждую запись ZIP, checksum и sidecar manifest. Dist включает `vendor/`, production Admin assets, миграции и пустые runtime-маркеры. Никакие данные рабочей установки, загруженные медиа, секреты и установленные пользователем плагины не включаются. Публиковать dist только после успешных smoke tests; SHA256 проверяет целостность, но не заменяет подпись доверенного издателя.
@@ -51,6 +51,10 @@ ZIP export v3 переносит контент, медиа, CMS-конфигу�
 ## Расширения
 
 Поддерживает подписанные модули, плагины и темы, зависимости, расширяемые административные действия, очередь, scheduler и безопасный upgrade с резервным копированием. [Руководство Extension Platform](docs/extensions-platform.md); рабочие примеры находятся в `examples/extensions/`.
+### Analytics Hub (1.3.5)
+
+Read-only Metrika and GA4 reports, SQL snapshots, encrypted credentials, queue synchronization and admin CSV export. See [Analytics Hub setup](docs/analytics-hub.md).
+
 ### Analytics Events (1.3.4)
 
 Consent-gated event routing, configurable provider mappings, automatic search/download/outbound/scroll events and optional first-party diagnostics. See [Analytics Events](docs/analytics-events.md).

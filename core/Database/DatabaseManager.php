@@ -253,6 +253,8 @@ final class DatabaseManager
             'ce_public_route_state',
             'ce_public_routes',
             'ce_cms_search',
+            'analytics_connections',
+            'analytics_reports',
         ];
 
         if($driver==='pgsql')$tables[]='ce_scheduler_runs';

@@ -15,6 +15,21 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'delete_AnalyticsReportDelete' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/analytics/reports/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
   'delete_AnalyticsServerGrant' => 
   array (
     'method' => 'DELETE',
@@ -244,6 +259,42 @@ final class Operations {
   array (
     'method' => 'GET',
     'path' => '/tracking/events/journal',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_AnalyticsReportData' => 
+  array (
+    'method' => 'GET',
+    'path' => '/analytics/reports/{id}/data',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'from',
+        'in' => 'query',
+        'required' => false,
+      ),
+      2 => 
+      array (
+        'name' => 'to',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_AnalyticsReportIndex' => 
+  array (
+    'method' => 'GET',
+    'path' => '/analytics/reports',
     'parameters' => 
     array (
     ),
@@ -1341,6 +1392,30 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'post_AnalyticsReportCreate' => 
+  array (
+    'method' => 'POST',
+    'path' => '/analytics/reports',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'post_AnalyticsReportSync' => 
+  array (
+    'method' => 'POST',
+    'path' => '/analytics/reports/{id}/sync',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
   'post_AnalyticsServerEvent' => 
   array (
     'method' => 'POST',
@@ -2028,6 +2103,21 @@ final class Operations {
     'path' => '/tracking/events',
     'parameters' => 
     array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'put_AnalyticsReportUpdate' => 
+  array (
+    'method' => 'PUT',
+    'path' => '/analytics/reports/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
     ),
     'bodyRequired' => true,
   ),

@@ -26,14 +26,16 @@ try {
     $config=new ConfigRepository($work);$config->set('database',['default'=>'sqlite','connections'=>['sqlite'=>['database'=>$work.'/test.sqlite']]]);
     $db=new DatabaseManager($config);(new MigrationRunner($db->connection(),$root.'/migrations'))->run('sqlite');
     $roles=new RoleRepository($db);$passwords=new PasswordHasher($config);$users=new UserRepository($db,$roles,$passwords);$tokens=new ApiTokenRepository($db);
-    $roles->upsert('tracking-admin','Tracking admin',['tracking:read','tracking:write','integrations:run']);
+    $roles->upsert('tracking-admin','Tracking admin',['tracking:read','tracking:write','integrations:run','analytics:read','analytics:write','analytics:run','integrations:secrets']);
     $uid=$users->create('tracking@example.org','Tracking admin',password_hash('Strong-password123',PASSWORD_DEFAULT),['tracking-admin']);
     $read=$tokens->create($uid,'reader',['tracking:read'])['plain_token'];$write=$tokens->create($uid,'writer',['tracking:read','tracking:write'])['plain_token'];
     $serverToken=$tokens->create($uid,'server',['tracking:read','tracking:write','integrations:run'])['plain_token'];
+    $hubRead=$tokens->create($uid,'hub-reader',['analytics:read'])['plain_token'];$hubWrite=$tokens->create($uid,'hub-writer',['analytics:read','analytics:write','analytics:run','integrations:secrets'])['plain_token'];
     $auth=new AuthService($config,$users,$tokens,new AuditLogRepository($db),$passwords,new TwoFactorTotp());
     $tracking=new TrackingConfig($work);$policy=new ConsentPolicy($work);$audit=new AuditLogger($work);
     $eventConfig=new EventConfig($work);$journal=new EventJournal($work);$center=new IntegrationCenter(new IntegrationStore($work),ProviderRegistry::defaults(),new SecretVault('base64:'.base64_encode(random_bytes(32))),$config);$server=new ServerEvents($work,$center,new FileQueueDriver($work));
-    $controllers=['tracking'=>new TrackingController($tracking,$audit),'consent'=>new ConsentController($policy,$audit),'analyticsEvents'=>new AnalyticsEventController($eventConfig,$journal,$audit,$server)];$router=new Router();
+    $hub=new \CajeerEngine\Analytics\Reporting\AnalyticsHub($db,new SecretVault('base64:'.base64_encode(random_bytes(32))),new FileQueueDriver($work),$config);
+    $controllers=['analyticsHub'=>new \CajeerEngine\Api\Controller\AnalyticsHubController($hub,$audit),'tracking'=>new TrackingController($tracking,$audit),'consent'=>new ConsentController($policy,$audit),'analyticsEvents'=>new AnalyticsEventController($eventConfig,$journal,$audit,$server)];$router=new Router();
     foreach(RouteRegistry::api() as [$method,$path,$name,$service,$action,$scopes])if(isset($controllers[$service]))$router->add([$method],$path,$name,[$controllers[$service],$action],$scopes);
     $router->add(['GET'],'/','public.home',fn()=>new Response('<html></html>',200,['Content-Type'=>'text/html']),null);
     $router->add(['GET'],'/admin/','admin.fixture',fn()=>new Response('<html></html>',200,['Content-Type'=>'text/html']),null);
@@ -77,4 +79,13 @@ try {
     assertHttp($call('GET',$grantPath.'/'.$grant,$serverToken)->getStatusCode()===200&&$call('DELETE',$grantPath.'/'.$grant,$serverToken)->getStatusCode()===200,'server lease status and revoke');
     assertHttp($call('PUT',$path,$write,array_replace($input,['revision'=>2,'enabled'=>false]))->getStatusCode()===200,'disable counters');
     assertHttp(!str_contains((string)$call('GET','/')->headers->get('Content-Security-Policy'),'googletagmanager.com'),'disabled CSP does not permit vendor scripts');
+    $hubPath='/api/v1/analytics/reports';$source=['name'=>'Metrika site','provider'=>'metrika','resource'=>'1234','enabled'=>true,'credential'=>['type'=>'oauth_token','token'=>'private-test-token']];
+    assertHttp($call('GET',$hubPath)->getStatusCode()===401&&$call('GET',$hubPath,$hubRead)->getStatusCode()===200,'analytics hub read scope');
+    assertHttp($call('POST',$hubPath,$hubRead,$source)->getStatusCode()===403&&$call('POST',$hubPath,null,$source,$hubWrite)->getStatusCode()===403,'analytics write scope and CSRF required');
+    assertHttp($call('POST',$hubPath,$hubWrite,array_replace($source,['resource'=>'G-123']))->getStatusCode()===422,'analytics property schema rejects measurement ID');
+    $created=$call('POST',$hubPath,$hubWrite,$source);assertHttp($created->getStatusCode()===201&&!str_contains($created->getContent(),'private-test-token'),'source created and credential not exposed');$hubId=json_decode($created->getContent(),true)['data']['id'];
+    assertHttp($call('GET',$hubPath.'/'.$hubId.'/data',$hubRead)->getStatusCode()===200,'empty stored report readable');
+    assertHttp($call('POST',$hubPath.'/'.$hubId.'/sync',$hubRead,['from'=>'2026-01-01','to'=>'2026-01-02'])->getStatusCode()===403&&$call('POST',$hubPath.'/'.$hubId.'/sync',$hubWrite,['from'=>'2026-01-01','to'=>'2026-01-02'])->getStatusCode()===202,'sync route enqueues with correct permission');
+    assertHttp($call('PUT',$hubPath.'/'.$hubId,$hubWrite,$source+['revision'=>0])->getStatusCode()===422,'revision schema rejects invalid revision');
+    assertHttp($call('DELETE',$hubPath.'/'.$hubId,$hubWrite,['revision'=>1])->getStatusCode()===200,'source deletion');
 } finally { putenv('ANALYTICS_SERVER_TARGETS'); RecoveryBundle::cleanup($work); }

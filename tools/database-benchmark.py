@@ -16,7 +16,7 @@ def run(size: int):
     with tempfile.TemporaryDirectory(prefix='ce-perf-') as temp:
         db = sqlite3.connect(Path(temp) / 'bench.sqlite')
         db.execute('PRAGMA foreign_keys=ON')
-        migrations = sorted((ROOT / 'migrations/sqlite').glob('*.sql'))
+        migrations = [p for p in sorted((ROOT / 'migrations/sqlite').glob('*.sql')) if p.name <= '0013_database_performance.sql']
         for path in migrations[:-1]:
             db.executescript(path.read_text())
         assert migrations[-1].name == '0013_database_performance.sql'

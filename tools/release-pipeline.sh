@@ -30,6 +30,7 @@ php tools/consent-regression.php
 php tools/tracking-regression.php
 php tools/tracking-http-regression.php
 php tools/analytics-events-regression.php
+php tools/analytics-hub-regression.php --require-db
 node admin/scripts/publish-admin-assets.mjs
 node admin/scripts/publish-admin-assets.mjs --check
 php bin/cajeer admin:assets --check

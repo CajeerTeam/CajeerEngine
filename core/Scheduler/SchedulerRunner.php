@@ -19,18 +19,19 @@ final readonly class SchedulerRunner
         private ManagedQueueDriverInterface $queue,
         private ?\CajeerEngine\Extension\Runtime\PlatformServices $platform = null,
         private ?TaskRunStore $runStore = null,
+        private ?\CajeerEngine\Analytics\Reporting\AnalyticsHub $analyticsHub = null,
     ) {
     }
 
     /** @return list<array<string, mixed>> */
     public function tasks(): array
     {
-        return array_map(function($task){$name=$task['name'];$task['state']=($this->runStore??new TaskRunStore($this->rootPath))->status(in_array($name,['tmp.cleanup','queue.cleanup_processed','search.index_published','webhooks.dispatch_pending'],true)?$name:'extension.'.$name);return $task;},array_merge([
+        return array_map(function($task){$name=$task['name'];$task['state']=($this->runStore??new TaskRunStore($this->rootPath))->status(in_array($name,['tmp.cleanup','queue.cleanup_processed','search.index_published','webhooks.dispatch_pending','analytics.sync_reports'],true)?$name:'extension.'.$name);return $task;},array_merge([
             ['name' => 'tmp.cleanup', 'description' => 'Удаление старых временных файлов.', 'interval' => 'hourly'],
             ['name' => 'queue.cleanup_processed', 'description' => 'Удаление старых обработанных file-queue задач.', 'interval' => 'daily'],
             ['name' => 'search.index_published', 'description' => 'Проверка и восстановление актуальности поискового каталога.', 'interval' => 'every_minute'],
             ['name' => 'webhooks.dispatch_pending', 'description' => 'Отправка pending-событий Event API.', 'interval' => 'every_minute'],
-        ], array_map(static fn($n)=>['name'=>$n,'description'=>'Extension task','interval'=>'every_minute'],$this->platform?->tasks()??[])));
+        ], $this->analyticsHub===null?[]:[['name'=>'analytics.sync_reports','description'=>'Queue analytics report refresh','interval'=>'hourly']], array_map(static fn($n)=>['name'=>$n,'description'=>'Extension task','interval'=>'every_minute'],$this->platform?->tasks()??[])));
     }
 
     /** @return array<string, mixed> */
@@ -43,6 +44,7 @@ final readonly class SchedulerRunner
         $results['search.index_published']=$store->run('search.index_published',60,fn()=>$this->searchIndexer->reconcile());
         $results['webhooks.dispatch_pending']=$store->run('webhooks.dispatch_pending',60,fn()=>$this->webhooks->enqueuePending($this->queue,50));
         if(\CajeerEngine\Observability\TraceExporter::enabled())$results['observability.export_traces']=$store->run('observability.export_traces',60,fn()=>(new \CajeerEngine\Observability\TraceExporter($this->rootPath))->flush());
+        if($this->analyticsHub!==null)$results['analytics.sync_reports']=$store->run('analytics.sync_reports',3600,fn()=>$this->analyticsHub->schedule());
         $results['extensions']=$this->platform?->runTasks($this->rootPath,$store)??[];
         $ok=true;foreach($results as $name=>$result){if($name==='extensions'){foreach($result as $r)if(($r['ok']??true)===false)$ok=false;}elseif(($result['ok']??true)===false)$ok=false;}
         $this->writeLog($results);
