@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.3.7",
+    "version": "1.3.8",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -25210,6 +25210,10 @@
           "plausible_url": {
             "type": "string",
             "maxLength": 512
+          },
+          "cloudflare_token": {
+            "type": "string",
+            "pattern": "^([a-f0-9]{32})?$"
           }
         }
       },
@@ -25608,7 +25612,9 @@
               "webmaster",
               "search_console",
               "matomo",
-              "plausible"
+              "plausible",
+              "cf_zone",
+              "cf_web"
             ]
           },
           "name": {
@@ -25620,8 +25626,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 512,
-            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies. Matomo numeric Site ID or Plausible site domain.",
-            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+|(?:[a-z0-9-]+\\.)+[a-z][a-z0-9-]*)$"
+            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies. Matomo numeric Site ID or Plausible site domain. Cloudflare Zone ID or Web Analytics Site Tag (32 hex).",
+            "pattern": "^(?:[a-f0-9]{32}|[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+|(?:[a-z0-9-]+\\.)+[a-z][a-z0-9-]*)$"
           },
           "goal": {
             "anyOf": [
@@ -25742,6 +25748,51 @@
                   "endpoint"
                 ],
                 "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "api_token"
+                    ]
+                  },
+                  "token": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,256}$"
+                  }
+                },
+                "required": [
+                  "type",
+                  "token"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "api_token"
+                    ]
+                  },
+                  "token": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,256}$"
+                  },
+                  "account_id": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{32}$"
+                  }
+                },
+                "required": [
+                  "type",
+                  "token",
+                  "account_id"
+                ],
+                "additionalProperties": false
               }
             ]
           }
@@ -25766,7 +25817,9 @@
               "webmaster",
               "search_console",
               "matomo",
-              "plausible"
+              "plausible",
+              "cf_zone",
+              "cf_web"
             ]
           },
           "name": {
@@ -25778,8 +25831,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 512,
-            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies. Matomo numeric Site ID or Plausible site domain.",
-            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+|(?:[a-z0-9-]+\\.)+[a-z][a-z0-9-]*)$"
+            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies. Matomo numeric Site ID or Plausible site domain. Cloudflare Zone ID or Web Analytics Site Tag (32 hex).",
+            "pattern": "^(?:[a-f0-9]{32}|[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+|(?:[a-z0-9-]+\\.)+[a-z][a-z0-9-]*)$"
           },
           "goal": {
             "anyOf": [
@@ -25904,6 +25957,51 @@
                   "endpoint"
                 ],
                 "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "api_token"
+                    ]
+                  },
+                  "token": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,256}$"
+                  }
+                },
+                "required": [
+                  "type",
+                  "token"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "api_token"
+                    ]
+                  },
+                  "token": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,256}$"
+                  },
+                  "account_id": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{32}$"
+                  }
+                },
+                "required": [
+                  "type",
+                  "token",
+                  "account_id"
+                ],
+                "additionalProperties": false
               }
             ]
           }
@@ -25928,7 +26026,9 @@
               "webmaster",
               "search_console",
               "matomo",
-              "plausible"
+              "plausible",
+              "cf_zone",
+              "cf_web"
             ]
           },
           "name": {
@@ -25940,8 +26040,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 512,
-            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies. Matomo numeric Site ID or Plausible site domain.",
-            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+|(?:[a-z0-9-]+\\.)+[a-z][a-z0-9-]*)$"
+            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies. Matomo numeric Site ID or Plausible site domain. Cloudflare Zone ID or Web Analytics Site Tag (32 hex).",
+            "pattern": "^(?:[a-f0-9]{32}|[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+|(?:[a-z0-9-]+\\.)+[a-z][a-z0-9-]*)$"
           },
           "goal": {
             "anyOf": [
@@ -26159,15 +26259,17 @@
               "webmaster",
               "search_console",
               "matomo",
-              "plausible"
+              "plausible",
+              "cf_zone",
+              "cf_web"
             ]
           },
           "resource": {
             "type": "string",
             "minLength": 1,
             "maxLength": 512,
-            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies. Matomo numeric Site ID or Plausible site domain.",
-            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+|(?:[a-z0-9-]+\\.)+[a-z][a-z0-9-]*)$"
+            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies. Matomo numeric Site ID or Plausible site domain. Cloudflare Zone ID or Web Analytics Site Tag (32 hex).",
+            "pattern": "^(?:[a-f0-9]{32}|[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+|(?:[a-z0-9-]+\\.)+[a-z][a-z0-9-]*)$"
           },
           "from": {
             "type": "string",
@@ -26220,6 +26322,24 @@
                 "$ref": "#/components/schemas/AnalyticsReportSection"
               },
               "events": {
+                "$ref": "#/components/schemas/AnalyticsReportSection"
+              },
+              "cache": {
+                "$ref": "#/components/schemas/AnalyticsReportSection"
+              },
+              "status": {
+                "$ref": "#/components/schemas/AnalyticsReportSection"
+              },
+              "summary": {
+                "$ref": "#/components/schemas/AnalyticsReportSection"
+              },
+              "vitals": {
+                "$ref": "#/components/schemas/AnalyticsReportSection"
+              },
+              "performance": {
+                "$ref": "#/components/schemas/AnalyticsReportSection"
+              },
+              "security": {
                 "$ref": "#/components/schemas/AnalyticsReportSection"
               }
             },

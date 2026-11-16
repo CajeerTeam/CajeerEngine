@@ -71,7 +71,7 @@ final class Metrics
             static $routes=null; $routes??=array_column(\CajeerEngine\Http\RouteRegistry::all(),2);
             return in_array($name,$routes,true)||in_array($name,['unmatched','bootstrap','maintenance','install','upgrade','health','metrics'],true)?$name:'other';
         }
-        $known=match($kind){'job'=>['log.message','search.index_all','webhook.dispatch','webhook.deliver','webhooks.dispatch_pending','worker'], 'scheduler'=>['tmp.cleanup','queue.cleanup_processed','search.index_published','webhooks.dispatch_pending','runner','observability.export_traces'], 'database'=>['connect','transaction','query','health'],default=>[]};
+        $known=match($kind){'job'=>['log.message','search.index_all','webhook.dispatch','webhook.deliver','webhooks.dispatch_pending','analytics.report_sync','worker'], 'scheduler'=>['tmp.cleanup','queue.cleanup_processed','search.index_published','webhooks.dispatch_pending','analytics.sync_reports','runner','observability.export_traces'], 'database'=>['connect','transaction','query','health'],default=>[]};
         return in_array($name,$known,true)?$name:(str_starts_with($name,'extension.')?'extension':'other');
     }
     public function snapshot(): array

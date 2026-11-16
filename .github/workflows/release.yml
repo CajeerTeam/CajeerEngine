@@ -53,6 +53,7 @@ jobs:
       - run: php tools/analytics-hub-regression.php --require-db
       - run: php tools/search-webmaster-regression.php --require-db
       - run: php tools/alternative-analytics-regression.php --require-db
+      - run: php tools/cloudflare-analytics-regression.php --require-db
       - name: Consent browser regression (Chromium)
         run: |
           python3 -m venv /tmp/ce-consent-browser
@@ -62,6 +63,7 @@ jobs:
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/tracking-browser-regression.py --network
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/analytics-events-browser-regression.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/alternative-analytics-browser-regression.py
+          CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/cloudflare-browser-regression.py
       - run: php tools/generate-api-sdk.php --check
       - run: php bin/cajeer api:lint --strict --json
       - run: php tools/github-release-regression.php

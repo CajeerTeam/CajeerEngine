@@ -38,7 +38,8 @@
     if(!['http:','https:'].includes(location.protocol)||/^\/(?:admin|api|preview|install|upgrade|assets|uploads|extensions)(?:\/|$)/i.test(location.pathname))return null;
     if(typeof c.metrika_id!=='string'||typeof c.ga4_id!=='string'||typeof c.gtm_id!=='string'||typeof c.ga4_debug!=='boolean')return null;
     if((c.metrika_id&&!/^[1-9][0-9]{0,11}$/.test(c.metrika_id))||(c.ga4_id&&!/^G-[A-Z0-9]{4,20}$/.test(c.ga4_id))||(c.gtm_id&&!/^GTM-[A-Z0-9]{4,20}$/.test(c.gtm_id))||(c.gtm_id&&(c.ga4_id||c.metrika_id)))return null;
-    const alt={...c,matomo_id:c.matomo_id??'',matomo_url:c.matomo_url??'',plausible_id:c.plausible_id??'',plausible_url:c.plausible_url??''};
+    const alt={...c,matomo_id:c.matomo_id??'',matomo_url:c.matomo_url??'',plausible_id:c.plausible_id??'',plausible_url:c.plausible_url??'',cloudflare_token:c.cloudflare_token??''};
+    if(typeof alt.cloudflare_token!=='string'||(alt.cloudflare_token&&(!/^[a-f0-9]{32}$/.test(alt.cloudflare_token)||c.gtm_id)))return null;
     for(const p of ['matomo','plausible']){
       const id=alt[p+'_id'],url=alt[p+'_url'];if(typeof id!=='string'||typeof url!=='string'||Boolean(id)!==Boolean(url))return null;
       if(!id)continue;
@@ -175,11 +176,11 @@
     const script=document.createElement('script');script.async=true;script.src=src;script.referrerPolicy='strict-origin-when-cross-origin';script.dataset.ceTracking=name;
     const c={id,script,status:'loading',last:null};counters.set(name,c);
     // Existing tags installed by themes are not owned by this runtime; fail rather than duplicate.
-    const conflict=[...document.querySelectorAll('script[src]')].some(s=>{try{const u=new URL(s.src);return name==='matomo'?u.href===src||/\/(?:matomo|piwik)\.js$/.test(u.pathname):name==='metrika'?u.hostname==='mc.yandex.ru'&&u.pathname.startsWith('/metrika/'):u.hostname==='www.googletagmanager.com'&&/\/(gtag\/js|gtm\.js)$/.test(u.pathname);}catch{return false;}});
+    const conflict=[...document.querySelectorAll('script[src]')].some(s=>{try{const u=new URL(s.src);return name==='cloudflare'?u.hostname==='static.cloudflareinsights.com'&&u.pathname==='/beacon.min.js':name==='matomo'?u.href===src||/\/(?:matomo|piwik)\.js$/.test(u.pathname):name==='metrika'?u.hostname==='mc.yandex.ru'&&u.pathname.startsWith('/metrika/'):u.hostname==='www.googletagmanager.com'&&/\/(gtag\/js|gtm\.js)$/.test(u.pathname);}catch{return false;}});
     if(conflict){c.status='error';c.reason='existing-tag';publishTracking();return;}
     script.addEventListener('load',()=>{if(!trackingAllowed(name))return;c.status='loaded';publishTracking();},{once:true});
     script.addEventListener('error',()=>{c.status='error';c.reason='load-failed';publishTracking();},{once:true});
-    try {initialize();document.head.append(script);}catch{c.status='error';c.reason='initialization-failed';}
+    try {initialize(script);document.head.append(script);}catch{c.status='error';c.reason='initialization-failed';}
     publishTracking();
   }
   function activateTracking(){
@@ -201,6 +202,7 @@
         if(window._paq)throw new Error('Existing Matomo tracker');
         window._paq=[['disableCookies'],['setTrackerUrl',c.matomo_url.replace(/\/$/,'')+'/matomo.php'],['setSiteId',c.matomo_id],['setRequestMethod','POST'],['requireConsent'],['setConsentGiven']];
       });
+      if(c.cloudflare_token)startCounter('cloudflare',c.cloudflare_token,'https://static.cloudflareinsights.com/beacon.min.js?token='+encodeURIComponent(c.cloudflare_token),script=>{script.type='module';});
       if(c.plausible_id&&!counters.has('plausible')){
         const conflict=typeof window.plausible==='function'||[...document.querySelectorAll('script[src]')].some(s=>s.src.startsWith(c.plausible_url.replace(/\/$/,'')+'/js/'));
         counters.set('plausible',{id:c.plausible_id,endpoint:c.plausible_url.replace(/\/$/,''),status:conflict?'error':'loaded',reason:conflict?'existing-tag':null,last:null});publishTracking();

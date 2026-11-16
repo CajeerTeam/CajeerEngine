@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.8 — Infrastructure Analytics
+
+- Cloudflare Edge and Web Analytics reporting with fixed GraphQL queries, encrypted credentials, SQL snapshots and queue synchronization.
+- Consent-gated manual Web Analytics beacon, CSP, cache and HTTP status summaries, optional security and performance metrics, RUM Core Web Vitals.
+- Updated admin, API schema and regression coverage.
+
 ## 1.3.7 — Alternative Analytics
 
 - Matomo and Plausible: consent-aware browser events, real API reports, operator-approved endpoints and admin configuration.
