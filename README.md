@@ -16,7 +16,7 @@ php bin/cajeer admin:assets --check
 php bin/cajeer doctor
 ```
 
-## Production Stable 1.3.9
+## Production Stable 1.4.0
 
 Допуск к эксплуатации зависит от прохождения полного release CI, а не от номера версии. [Production certification](docs/production-certification.md): реальные TLS/FPM/PostgreSQL интеграции, нагрузочный профиль, security-приёмка, аудит зависимостей и привязка доказательств к артефактам.
 
@@ -33,7 +33,7 @@ node admin/scripts/publish-admin-assets.mjs --check
 php tools/release-regression.php
 # После коммита всех изменений и composer.lock:
 bash tools/release-pipeline.sh /tmp/cajeer-release
-bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.3.9-dist.zip sqlite
+bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.4.0-dist.zip sqlite
 ```
 
 Сборка использует чистый Git snapshot и проверяет каждую запись ZIP, checksum и sidecar manifest. Dist включает `vendor/`, production Admin assets, миграции и пустые runtime-маркеры. Никакие данные рабочей установки, загруженные медиа, секреты и установленные пользователем плагины не включаются. Публиковать dist только после успешных smoke tests; SHA256 проверяет целостность, но не заменяет подпись доверенного издателя.
@@ -51,6 +51,10 @@ ZIP export v3 переносит контент, медиа, CMS-конфигу�
 ## Расширения
 
 Поддерживает подписанные модули, плагины и темы, зависимости, расширяемые административные действия, очередь, scheduler и безопасный upgrade с резервным копированием. [Руководство Extension Platform](docs/extensions-platform.md); рабочие примеры находятся в `examples/extensions/`.
+### Analytics Hub GA (1.4.0)
+
+Production analytics with previous-period comparisons, durable sync receipts and bounded history, source health and migration `0017`. See [GA operations](docs/analytics-ga.md).
+
 ### Advertising & Conversion Tracking (1.3.9)
 
 Consent-gated Google Ads, Meta Pixel, TikTok Pixel, VK Ads and Yandex Direct goals, direct Meta/TikTok server conversion delivery, UTM attribution and diagnostics. [Setup and security](docs/advertising-conversions.md).

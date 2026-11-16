@@ -6,14 +6,14 @@ export default defineNuxtConfig({
     baseURL: '/admin/',
     buildAssetsDir: 'assets/',
     head: {
-      title: 'CajeerEngine Admin 1.3.9',
+      title: 'CajeerEngine Admin 1.4.0',
       htmlAttrs: { lang: 'ru' }
     }
   },
   runtimeConfig: {
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || '/api/v1',
-      adminVersion: '1.3.9'
+      adminVersion: '1.4.0'
     }
   },
   typescript: {

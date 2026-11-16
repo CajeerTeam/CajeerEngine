@@ -255,6 +255,7 @@ final class DatabaseManager
             'ce_cms_search',
             'analytics_connections',
             'analytics_reports',
+            'analytics_sync_runs',
         ];
 
         if($driver==='pgsql')$tables[]='ce_scheduler_runs';

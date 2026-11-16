@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0 — Analytics & Tracking / Analytics Hub GA
+
+- Equal-length previous-period comparisons of saved provider totals, with explicit missing/incomplete data and sampling diagnostics.
+- Durable per-job synchronization receipts, retry history, lease fencing, isolated scheduler failures, report-size limits and operational overview.
+- Migration 0017 for SQLite, PostgreSQL and MySQL; existing sources, reports, permissions and credentials preserved.
+- GA regression checks for comparison, queue replay, interrupted sync, upgrade and backup/restore.
+
 ## 1.3.9 — Advertising & Conversion Tracking
 
 - Google Ads, Meta Pixel, TikTok Pixel, VK Ads/Top Mail.Ru and Yandex Direct goals with analytics + marketing consent.
