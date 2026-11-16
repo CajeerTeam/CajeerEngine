@@ -122,6 +122,7 @@ final readonly class IntegrationCenter
         if (!$test && !$item['enabled']) throw new \InvalidArgumentException('Integration is disabled.');
         $this->policy($item['config']);
         $provider=$this->providers->get($item['provider']);
+        if($provider instanceof \CajeerEngine\Integration\Provider\AdvertisingProvider&&($test||$eventId===null))throw new \InvalidArgumentException('Advertising API delivery requires a trusted consent-checked server event');
         $secret=isset($item['credential']) ? $this->vault->open($this->context($item),$item['credential']) : '';
         if($eventId!==null&&!preg_match('/^[a-f0-9]{32}$/D',$eventId))throw new \InvalidArgumentException('Invalid event id');
         $eventId??=Uuid::v4(); $start=microtime(true); $status=0;

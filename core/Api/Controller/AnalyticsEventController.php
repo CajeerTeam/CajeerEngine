@@ -27,7 +27,7 @@ final readonly class AnalyticsEventController
     }
     public function grant(Request $r): JsonResponse
     {
-        $auth=$this->producer($r);$body=$r->attributes->get('json',[]);return $this->response($this->server->grant($auth['token_id'],(string)$body['version'],(int)$body['ttl_seconds']));
+        $auth=$this->producer($r);$body=$r->attributes->get('json',[]);return $this->response($this->server->grant($auth['token_id'],(string)$body['version'],(int)$body['ttl_seconds'],(bool)($body['marketing']??false)));
     }
     public function revoke(Request $r,array $params): JsonResponse
     {

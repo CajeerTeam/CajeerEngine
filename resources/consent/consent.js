@@ -31,7 +31,11 @@
   // Only this runtime owns these tags; GTM is exclusive and requires all optional categories.
   const counters = new Map();
   let stopping = false;
-  const trackingAllowed = name => !stopping && ready && valid(record) && current.analytics && (name!=='gtm'||(current.marketing&&current.functional));
+  const adProviders=['google_ads','meta','tiktok','vk','yandex_ads'];
+  const adEvents=['generate_lead','form_submit','sign_up'];
+  const adLabels={generate_lead:'ads_lead_label',form_submit:'ads_form_label',sign_up:'ads_signup_label'};
+  const yandexGoals={generate_lead:'ads_yandex_lead_goal',form_submit:'ads_yandex_form_goal',sign_up:'ads_yandex_signup_goal'};
+  const trackingAllowed = name => !stopping && ready && valid(record) && current.analytics && (!adProviders.includes(name)||current.marketing) && (name!=='gtm'||(current.marketing&&current.functional));
   function trackingConfig() {
     const c=policy?.tracking;
     if(!c || c.enabled!==true || !Array.isArray(c.hosts) || !c.hosts.includes(location.hostname.toLowerCase()))return null;
@@ -47,6 +51,13 @@
       try{const u=new URL(url);if(!/^https:\/\/[a-z0-9.-]+(?:\/[a-zA-Z0-9_-]+)*\/?$/.test(url)||!((p==='plausible'&&url.replace(/\/$/,'')==='https://plausible.io')||policy.script_origins.includes(u.origin))) {alt[p+'_id']='';alt[p+'_url']='';}}
       catch{return null;}
     }
+    const patterns={google_ads_id:/^AW-[0-9]{5,20}$/,meta_id:/^[1-9][0-9]{5,24}$/,tiktok_id:/^[A-Z0-9]{10,40}$/,vk_id:/^[1-9][0-9]{0,19}$/,ads_lead_label:/^[A-Za-z0-9_-]{1,100}$/,ads_form_label:/^[A-Za-z0-9_-]{1,100}$/,ads_signup_label:/^[A-Za-z0-9_-]{1,100}$/,ads_yandex_lead_goal:/^[A-Za-z0-9_-]{1,64}$/,ads_yandex_form_goal:/^[A-Za-z0-9_-]{1,64}$/,ads_yandex_signup_goal:/^[A-Za-z0-9_-]{1,64}$/};
+    for(const [k,pattern] of Object.entries(patterns)){alt[k]=c[k]??'';if(typeof alt[k]!=='string'||(alt[k]&&!pattern.test(alt[k])))return null;}
+    alt.ads_events=c.ads_events??[];alt.ads_attribution=c.ads_attribution??false;
+    if(typeof alt.ads_attribution!=='boolean')return null;
+    if(!Array.isArray(alt.ads_events)||alt.ads_events.some(n=>!adEvents.includes(n))||new Set(alt.ads_events).size!==alt.ads_events.length||c.gtm_id&&adProviders.some(n=>alt[n+'_id']))return null;
+    for(const n of adEvents)if(alt[adLabels[n]]&&(!alt.google_ads_id||!alt.ads_events.includes(n)))return null;
+    for(const n of adEvents)if(alt[yandexGoals[n]]&&(!alt.metrika_id||!alt.ads_events.includes(n)))return null;
     return alt;
   }
   const trackingStatus = () => Object.fromEntries([...counters].map(([name,c])=>[name,{id:c.id,status:c.status,reason:c.reason||null}]));
@@ -109,13 +120,17 @@
     const safe=safeParams(name,params);if(!safe)return false;
     const id=options.id??eventId();if(typeof id!=='string'||! /^[a-f0-9]{32}$/.test(id))return false;
     const now=Date.now();eventWindow=eventWindow.filter(t=>t>now-60000);if(eventWindow.length>=120||eventIds.has(id))return false;
-    const outcomes={};
+    const outcomes={};const config=trackingConfig();
     for(const [provider,c] of counters){
-      const target=rule[provider];if(!target||!trackingAllowed(provider))continue;
+      const isAd=adProviders.includes(provider);
+      const target=isAd?adTarget(config,provider,name):rule[provider];if(!target||!trackingAllowed(provider)||(provider==='metrika'&&adEvents.some(n=>target===config[yandexGoals[n]])))continue;
       if(name==='page_view'&&c.last===data.page_location)continue;
       if(c.status==='error'||c.status==='stopped'){outcomes[provider]='failed';continue;}
       try{
-        if(name==='page_view'){
+        if(isAd){
+          dispatchAd(provider,c,target,name,safe,id,data);
+          if(name==='page_view')c.last=data.page_location;
+        }else if(name==='page_view'){
           if(provider==='ga4')window.gtag('event','page_view',{...data,send_to:c.id});
           if(provider==='metrika')window.ym(Number(c.id),'hit',data.page_location,{referer:data.page_referrer||''});
           if(provider==='gtm')window.dataLayer.push({event:'ce_page_view',...data,ce_event_id:id});
@@ -171,12 +186,76 @@
     // A simple browser request preserves the visitor's real network/user-agent attributes.
     fetch(c.endpoint+'/api/event',{method:'POST',mode:'no-cors',credentials:'omit',referrerPolicy:'no-referrer',keepalive:true,headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)}).catch(()=>{if(!trackingAllowed('plausible'))return;c.status='error';c.reason='transport-failed';publishTracking();});
   }
+  function adTarget(config,provider,name){
+    if(name==='page_view')return ['google_ads','yandex_ads'].includes(provider)?'':'PageView';
+    if(!config.ads_events.includes(name))return '';
+    if(provider==='google_ads')return config[adLabels[name]]||'';
+    if(provider==='yandex_ads')return config[yandexGoals[name]]||'';
+    if(provider==='meta')return {generate_lead:'Lead',form_submit:'Contact',sign_up:'CompleteRegistration'}[name]||'';
+    if(provider==='tiktok')return {generate_lead:'Contact',form_submit:'SubmitForm',sign_up:'CompleteRegistration'}[name]||'';
+    return {generate_lead:'generatelead',form_submit:'formsubmit',sign_up:'signup'}[name]||'';
+  }
+  function dispatchAd(provider,c,target,name,safe,id,data){
+    if(!trackingAllowed(provider))throw Error('Marketing consent required');
+    const params=typeof safe.value==='number'&&safe.value>=0&&safe.currency?{value:safe.value,currency:safe.currency}:{};
+    if(provider==='yandex_ads')window.ym(Number(c.id),'reachGoal',target,params);
+    if(provider==='google_ads')window.gtag('event','conversion',{send_to:c.id+'/'+target,...params,transaction_id:id});
+    if(provider==='meta')window.fbq('trackSingle',c.id,target,params,{eventID:id});
+    if(provider==='tiktok'){
+      if(name==='page_view')window.ttq.page();else window.ttq.track(target,params,{event_id:id});
+    }
+    if(provider==='vk')window._tmr.push(name==='page_view'?{id:c.id,type:'pageView',start:Date.now(),url:data.page_location}:{id:c.id,type:'reachGoal',goal:target,...(typeof params.value==='number'?{value:params.value}:{})});
+  }
+  // Session-only attribution. No click IDs or raw query strings, no automatic forwarding.
+  const attributionKey='ce.ads.attribution.v1';let attribution=null;
+  function captureAttribution(c){
+    if(!c.ads_attribution||!trackingAllowed('google_ads'))return;
+    try{
+      const old=JSON.parse(sessionStorage.getItem(attributionKey)||'null');
+      const valid=t=>t&&typeof t==='object'&&Object.keys(t).every(k=>['source','medium','campaign'].includes(k)&&typeof t[k]==='string'&&/^[A-Za-z0-9_.-]{1,80}$/.test(t[k]));
+      if(old&&old.version===policy.version&&valid(old.first)&&valid(old.last))attribution=old;
+      const query=new URLSearchParams(location.search||'');const touch={};
+      for(const k of ['source','medium','campaign']){const v=query.get('utm_'+k);if(v&&/^[A-Za-z0-9_.-]{1,80}$/.test(v))touch[k]=v;}
+      if(Object.keys(touch).length){attribution={version:policy.version,first:attribution?.first||touch,last:touch};sessionStorage.setItem(attributionKey,JSON.stringify(attribution));}
+    }catch{} // blocked storage does not prevent conversion delivery
+  }
+  function clearAttribution(){attribution=null;try{sessionStorage.removeItem(attributionKey);}catch{}}
+  function activateAds(c){
+    if(!trackingAllowed('google_ads'))return;
+    captureAttribution(c);
+    if(c.metrika_id&&adEvents.some(n=>c[yandexGoals[n]])&&!counters.has('yandex_ads')){
+      const m=counters.get('metrika');if(m){const ad={id:m.id,status:m.status,reason:m.reason,last:null};counters.set('yandex_ads',ad);m.script?.addEventListener('load',()=>{if(trackingAllowed('yandex_ads')){ad.status='loaded';publishTracking();}},{once:true});m.script?.addEventListener('error',()=>{ad.status='error';ad.reason='load-failed';publishTracking();},{once:true});publishTracking();}
+    }
+    if(c.google_ads_id&&!counters.has('google_ads')){
+      const configure=()=>{window.gtag('config',c.google_ads_id,{send_page_view:false,...(locationData()||{})});};
+      const ga=counters.get('ga4');
+      if(ga){
+        // One Google library; a second destination is configured only after marketing consent.
+        const ad={id:c.google_ads_id,status:ga.status,reason:ga.reason,last:null};counters.set('google_ads',ad);
+        if(ga.status!=='error'){configure();ga.script?.addEventListener('load',()=>{if(trackingAllowed('google_ads')){ad.status='loaded';publishTracking();}},{once:true});ga.script?.addEventListener('error',()=>{ad.status='error';ad.reason='load-failed';publishTracking();},{once:true});}publishTracking();
+      }else startCounter('google_ads',c.google_ads_id,'https://www.googletagmanager.com/gtag/js?id='+encodeURIComponent(c.google_ads_id),()=>{window.gtag('js',new Date());configure();});
+    }
+    if(c.meta_id)startCounter('meta',c.meta_id,'https://connect.facebook.net/en_US/fbevents.js',()=>{
+      if(window.fbq||window._fbq)throw Error('Existing Meta pixel');
+      const fbq=function(){fbq.callMethod?fbq.callMethod.apply(fbq,arguments):fbq.queue.push(arguments);};fbq.queue=[];fbq.push=fbq;fbq.loaded=true;fbq.version='2.0';window.fbq=window._fbq=fbq;
+      fbq('consent','grant');fbq('init',c.meta_id);
+    });
+    if(c.tiktok_id)startCounter('tiktok',c.tiktok_id,'https://analytics.tiktok.com/i18n/pixel/events.js?sdkid='+encodeURIComponent(c.tiktok_id)+'&lib=ttq',()=>{
+      if(window.ttq)throw Error('Existing TikTok pixel');
+      window.TiktokAnalyticsObject='ttq';const ttq=window.ttq=[];
+      ttq.methods=['page','track','identify','instances','debug','on','off','once','ready','alias','group','enableCookie','disableCookie','holdConsent','revokeConsent','grantConsent'];
+      ttq.setAndDefer=(t,e)=>{t[e]=function(){t.push([e,...arguments]);};};for(const m of ttq.methods)ttq.setAndDefer(ttq,m);
+      ttq._i={[c.tiktok_id]:[]};ttq._i[c.tiktok_id]._u='https://analytics.tiktok.com/i18n/pixel/events.js';ttq._t={[c.tiktok_id]:Date.now()};ttq._o={[c.tiktok_id]:{}};
+      ttq.instance=id=>{const t=ttq._i[id]||[];for(const m of ttq.methods)ttq.setAndDefer(t,m);return t;};
+    });
+    if(c.vk_id)startCounter('vk',c.vk_id,'https://top-fwz1.mail.ru/js/code.js',()=>{if(window._tmr)throw Error('Existing VK pixel');window._tmr=[];});
+  }
   function startCounter(name,id,src,initialize) {
     if(counters.has(name)||!trackingAllowed(name))return;
     const script=document.createElement('script');script.async=true;script.src=src;script.referrerPolicy='strict-origin-when-cross-origin';script.dataset.ceTracking=name;
     const c={id,script,status:'loading',last:null};counters.set(name,c);
     // Existing tags installed by themes are not owned by this runtime; fail rather than duplicate.
-    const conflict=[...document.querySelectorAll('script[src]')].some(s=>{try{const u=new URL(s.src);return name==='cloudflare'?u.hostname==='static.cloudflareinsights.com'&&u.pathname==='/beacon.min.js':name==='matomo'?u.href===src||/\/(?:matomo|piwik)\.js$/.test(u.pathname):name==='metrika'?u.hostname==='mc.yandex.ru'&&u.pathname.startsWith('/metrika/'):u.hostname==='www.googletagmanager.com'&&/\/(gtag\/js|gtm\.js)$/.test(u.pathname);}catch{return false;}});
+    const conflict=[...document.querySelectorAll('script[src]')].some(s=>{try{const u=new URL(s.src);return name==='meta'?u.hostname==='connect.facebook.net'&&u.pathname.endsWith('/fbevents.js'):name==='tiktok'?u.hostname==='analytics.tiktok.com'&&u.pathname.includes('/pixel/'):name==='vk'?u.hostname==='top-fwz1.mail.ru'&&u.pathname==='/js/code.js':name==='cloudflare'?u.hostname==='static.cloudflareinsights.com'&&u.pathname==='/beacon.min.js':name==='matomo'?u.href===src||/\/(?:matomo|piwik)\.js$/.test(u.pathname):name==='metrika'?u.hostname==='mc.yandex.ru'&&u.pathname.startsWith('/metrika/'):u.hostname==='www.googletagmanager.com'&&/\/(gtag\/js|gtm\.js)$/.test(u.pathname);}catch{return false;}});
     if(conflict){c.status='error';c.reason='existing-tag';publishTracking();return;}
     script.addEventListener('load',()=>{if(!trackingAllowed(name))return;c.status='loaded';publishTracking();},{once:true});
     script.addEventListener('error',()=>{c.status='error';c.reason='load-failed';publishTracking();},{once:true});
@@ -208,15 +287,20 @@
         counters.set('plausible',{id:c.plausible_id,endpoint:c.plausible_url.replace(/\/$/,''),status:conflict?'error':'loaded',reason:conflict?'existing-tag':null,last:null});publishTracking();
       }
     }
+    if(!c.gtm_id)activateAds(c);
     view();
     automaticPage();
   }
   function stopTracking(next){
-    const revoke=[...counters].some(([name])=>!next.analytics||(name==='gtm'&&(!next.marketing||!next.functional)));
+    const revoke=[...counters].some(([name])=>!next.analytics||(adProviders.includes(name)&&!next.marketing)||(name==='gtm'&&(!next.marketing||!next.functional)));
+    if(!next.analytics||!next.marketing)clearAttribution();
     if(!revoke)return false;
     stopping=true;eventJournal.length=0;eventIds.clear();eventWindow=[];scrollSeen.clear();searchSeen=false;
     for(const [name,c] of counters){
-      if(name==='ga4')window['ga-disable-'+c.id]=true;
+      if(name==='ga4'||name==='google_ads')window['ga-disable-'+c.id]=true;
+      if(name==='meta'&&typeof window.fbq==='function')try{if(c.status!=='loaded'&&Array.isArray(window.fbq.queue))window.fbq.queue.length=0;window.fbq('consent','revoke');}catch{}
+      if(name==='tiktok'&&typeof window.ttq?.revokeConsent==='function')try{if(c.status!=='loaded'&&Array.isArray(window.ttq))window.ttq.length=0;window.ttq.revokeConsent();}catch{}
+      if(name==='vk'&&c.status!=='loaded'&&Array.isArray(window._tmr))window._tmr.length=0;
       if(name==='metrika'&&c.status==='loaded'&&typeof window.ym==='function')try{window.ym(Number(c.id),'destruct');}catch{}
       if(name==='matomo'&&window._paq){if(c.status!=='loaded'&&Array.isArray(window._paq))window._paq.length=0;window._paq.push(['forgetConsentGiven']);}
       c.script?.remove();c.status='stopped';
@@ -224,8 +308,8 @@
     publishTracking();return true;
   }
   window.CajeerTracking=Object.freeze({pageView:view,event:counterEvent,getStatus:trackingStatus});
-  window.CajeerAnalytics=Object.freeze({emit:counterEvent,pageView:view,getJournal:()=>trackingAllowed('metrika')?eventJournal.map(r=>({...r,outcomes:{...r.outcomes}})):[],getStatus:trackingStatus});
-  const cookiePatterns = {analytics:/^(?:_ga(?:_|$)|_gid$|_gat(?:_|$)|_ym_|_pk_|_clck$|_clsk$)/,marketing:/^(?:_fbp$|_fbc$|_gcl_|_ttp$|ttcsid(?:_|$))/,functional:/^ce_optional_/};
+  window.CajeerAnalytics=Object.freeze({emit:counterEvent,pageView:view,getJournal:()=>trackingAllowed('metrika')?eventJournal.map(r=>({...r,outcomes:{...r.outcomes}})):[],getStatus:trackingStatus,getAttribution:()=>trackingAllowed('google_ads')&&trackingConfig()?.ads_attribution&&attribution?{first:{...attribution.first},last:{...attribution.last}}:null});
+  const cookiePatterns = {analytics:/^(?:_ga(?:_|$)|_gid$|_gat(?:_|$)|_ym_|_pk_|_clck$|_clsk$)/,marketing:/^(?:_fbp$|_fbc$|_gcl_|_ttp$|_tt_enable_cookie$|_tmr_|ttcsid(?:_|$))/,functional:/^ce_optional_/};
   function clean(category) {
     const names = document.cookie.split(';').map(v=>v.split('=')[0].trim()).filter(v=>cookiePatterns[category].test(v));
     const paths = new Set(['/']); let path=''; for(const part of location.pathname.split('/').filter(Boolean)){path+='/'+part;paths.add(path);paths.add(path+'/');}

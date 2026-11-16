@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.3.8",
+    "version": "1.3.9",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -19547,6 +19547,10 @@
                     "properties": {
                       "url": {
                         "type": "string"
+                      },
+                      "pixel_id": {
+                        "type": "string",
+                        "pattern": "^[A-Z0-9]{10,40}$"
                       }
                     },
                     "required": [
@@ -19763,6 +19767,10 @@
                     "properties": {
                       "url": {
                         "type": "string"
+                      },
+                      "pixel_id": {
+                        "type": "string",
+                        "pattern": "^[A-Z0-9]{10,40}$"
                       }
                     },
                     "required": [
@@ -25214,6 +25222,61 @@
           "cloudflare_token": {
             "type": "string",
             "pattern": "^([a-f0-9]{32})?$"
+          },
+          "google_ads_id": {
+            "type": "string",
+            "pattern": "^(AW-[0-9]{5,20})?$"
+          },
+          "meta_id": {
+            "type": "string",
+            "pattern": "^([1-9][0-9]{5,24})?$"
+          },
+          "tiktok_id": {
+            "type": "string",
+            "pattern": "^([A-Z0-9]{10,40})?$"
+          },
+          "vk_id": {
+            "type": "string",
+            "pattern": "^([1-9][0-9]{0,19})?$"
+          },
+          "ads_lead_label": {
+            "type": "string",
+            "pattern": "^([A-Za-z0-9_-]{1,100})?$"
+          },
+          "ads_form_label": {
+            "type": "string",
+            "pattern": "^([A-Za-z0-9_-]{1,100})?$"
+          },
+          "ads_signup_label": {
+            "type": "string",
+            "pattern": "^([A-Za-z0-9_-]{1,100})?$"
+          },
+          "ads_events": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "string",
+              "enum": [
+                "generate_lead",
+                "form_submit",
+                "sign_up"
+              ]
+            }
+          },
+          "ads_yandex_lead_goal": {
+            "type": "string",
+            "pattern": "^([A-Za-z0-9_-]{1,64})?$"
+          },
+          "ads_yandex_form_goal": {
+            "type": "string",
+            "pattern": "^([A-Za-z0-9_-]{1,64})?$"
+          },
+          "ads_yandex_signup_goal": {
+            "type": "string",
+            "pattern": "^([A-Za-z0-9_-]{1,64})?$"
+          },
+          "ads_attribution": {
+            "type": "boolean"
           }
         }
       },
@@ -25336,6 +25399,46 @@
               "submitted",
               "failed"
             ]
+          },
+          "google_ads": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "submitted",
+              "failed"
+            ]
+          },
+          "meta": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "submitted",
+              "failed"
+            ]
+          },
+          "tiktok": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "submitted",
+              "failed"
+            ]
+          },
+          "vk": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "submitted",
+              "failed"
+            ]
+          },
+          "yandex_ads": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "submitted",
+              "failed"
+            ]
           }
         },
         "additionalProperties": false,
@@ -25436,6 +25539,10 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 900
+          },
+          "marketing": {
+            "type": "boolean",
+            "description": "Trusted producer attests to active marketing consent in addition to analytics."
           }
         },
         "required": [
@@ -25511,6 +25618,19 @@
           "currency": {
             "type": "string",
             "pattern": "^[A-Z]{3}$"
+          },
+          "email_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "source_url": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "user_agent": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
           }
         },
         "required": [

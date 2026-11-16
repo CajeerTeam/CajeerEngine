@@ -33,6 +33,8 @@ final class ProviderRegistry
         $registry = new self();
         $registry->register(new HttpProvider(false));
         $registry->register(new HttpProvider(true));
+        $registry->register(new AdvertisingProvider(true));
+        $registry->register(new AdvertisingProvider(false));
         return $registry;
     }
 }

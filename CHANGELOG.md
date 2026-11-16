@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.9 — Advertising & Conversion Tracking
+
+- Google Ads, Meta Pixel, TikTok Pixel, VK Ads/Top Mail.Ru and Yandex Direct goals with analytics + marketing consent.
+- Explicit conversion rules, Google label mapping, per-event diagnostics, session-scoped UTM attribution and shared GA4 Google tag.
+- Real Meta Conversions API and TikTok Events API delivery through the existing queue with encrypted matching data, short marketing consent leases and stable event identifiers.
+- New configuration and API schemas remain backward-compatible; no SQL migration required.
+- Added PHP and Chromium advertising regression checks to release CI.
+
 ## 1.3.8 — Infrastructure Analytics
 
 - Cloudflare Edge and Web Analytics reporting with fixed GraphQL queries, encrypted credentials, SQL snapshots and queue synchronization.
