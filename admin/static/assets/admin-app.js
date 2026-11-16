@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.4.0'
+const ADMIN_VERSION = '1.4.1'
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
 localStorage.removeItem(TOKEN_KEY) // remove legacy bearer credentials
@@ -19,6 +19,7 @@ const nav = [
   ['extensions', '🔌', 'Extensions', 'Runtime, lifecycle, events'],
   ['updates', '⬆️', 'Updates', 'Maintenance и rollback'],
   ['search', '🔎', 'Search', 'Поиск и reindex'],
+  ['migration', '↔', 'Migration Center', 'DLE / WordPress Discovery'],
   ['import-export', '📦', 'Import/export', 'Пакеты, diff, run'],
   ['system', '⚙️', 'System', 'Диагностика API/runtime'],
 ]
@@ -178,6 +179,7 @@ async function routeLoad(route) {
     if (route === 'extensions') await Promise.allSettled([loadSilent('extensions', '/extensions'), loadSilent('extensionsRuntime', '/extensions/runtime'), loadSilent('extensionsDiagnostics', '/extensions/diagnostics')])
     if (route === 'updates') await Promise.allSettled([loadSilent('updates', '/updates'), loadSilent('maintenance', '/updates/maintenance')])
     if (route === 'search') await loadSilent('searchDiagnostics', '/search/diagnostics')
+    if (route === 'migration') await loadSilent('migrationProjects','/migration/projects')
     if (route === 'import-export') await Promise.allSettled([loadSilent('exports', '/import-export/exports'),loadSilent('importRequests','/import-export/requests')])
     if (route === 'system') await loadSilent('operations', '/system/operations')
   } catch {}
@@ -199,7 +201,7 @@ window.addEventListener('hashchange', () => {
 })
 
 function shell(title, subtitle, body, toolbar = '') {
-  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine</div><div class="brand-sub">Admin UI ${ADMIN_VERSION}</div></div></div><nav class="nav">${nav.filter(([id]) => (id !== 'integrations' || integrationScope('integrations:read')) && (id !== 'privacy' || integrationScope('privacy:read')) && (id !== 'analytics-hub' || integrationScope('analytics:read')) && (!['tracking','analytics-events'].includes(id) || integrationScope('tracking:read'))).map(([id, icon, label]) => `<button class="${state.route === id ? 'active' : ''}" data-route="${id}"><span class="emoji">${icon}</span><span>${label}</span></button>`).join('')}</nav><div class="footer-note">API: <span class="code-inline">${API_BASE}</span><br>${state.identity ? `User: ${escapeHtml(state.identity.email || state.identity.name || state.identity.user_id || 'auth')}` : 'Без активной сессии'}</div></aside><main class="main"><div class="topbar"><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle || '')}</p></div><div class="toolbar">${toolbar}<button class="btn secondary" data-action="refresh">Обновить</button>${state.token ? '<button class="btn ghost" data-action="logout">Выйти</button>' : '<button class="btn" data-route="login">Войти</button>'}</div></div>${noticeHtml()}${state.loading ? '<div class="notice">Загрузка...</div>' : ''}${body}</main></div>`
+  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine</div><div class="brand-sub">Admin UI ${ADMIN_VERSION}</div></div></div><nav class="nav">${nav.filter(([id]) => (id !== 'migration' || integrationScope('migration:read')) && (id !== 'integrations' || integrationScope('integrations:read')) && (id !== 'privacy' || integrationScope('privacy:read')) && (id !== 'analytics-hub' || integrationScope('analytics:read')) && (!['tracking','analytics-events'].includes(id) || integrationScope('tracking:read'))).map(([id, icon, label]) => `<button class="${state.route === id ? 'active' : ''}" data-route="${id}"><span class="emoji">${icon}</span><span>${label}</span></button>`).join('')}</nav><div class="footer-note">API: <span class="code-inline">${API_BASE}</span><br>${state.identity ? `User: ${escapeHtml(state.identity.email || state.identity.name || state.identity.user_id || 'auth')}` : 'Без активной сессии'}</div></aside><main class="main"><div class="topbar"><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle || '')}</p></div><div class="toolbar">${toolbar}<button class="btn secondary" data-action="refresh">Обновить</button>${state.token ? '<button class="btn ghost" data-action="logout">Выйти</button>' : '<button class="btn" data-route="login">Войти</button>'}</div></div>${noticeHtml()}${state.loading ? '<div class="notice">Загрузка...</div>' : ''}${body}</main></div>`
 }
 
 function noticeHtml() {
@@ -227,6 +229,7 @@ function render() {
   else if (state.route === 'extensions') body = extensionsView()
   else if (state.route === 'updates') body = updatesView()
   else if (state.route === 'search') body = searchView()
+  else if (state.route === 'migration') body = migrationView()
   else if (state.route === 'import-export') body = importExportView()
   else if (state.route === 'system') body = systemView()
   else body = dashboardView()
@@ -410,7 +413,37 @@ function bindAnalyticsHub(){
   document.querySelector('[data-hub-export]')?.addEventListener('click',()=>{const r=dataOf(state.cache.analyticsHubReport,{}).report;if(!r)return;const cell=v=>'"'+String(v).replace(/^\s*[=+\-@]|^[\t\r\n]/,"'$&").replace(/"/g,'""')+'"';const lines=['matomo','plausible','cf_zone','cf_web'].includes(r.provider)?[['provider','from','to','section','dimension','metric','value'],...Object.entries(r.sections).flatMap(([s,x])=>x.rows.flatMap(row=>row.values.map((v,j)=>[r.provider,r.from,r.to,s,row.label,(x.metrics||r.metrics)[j],v??''])))]:[['provider','from','to','section','dimension',...r.metrics],...Object.entries(r.sections).flatMap(([s,x])=>x.rows.map(row=>[r.provider,r.from,r.to,s,row.label,...row.values]))];const url=URL.createObjectURL(new Blob(['\uFEFF'+lines.map(x=>x.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='analytics-'+r.provider+'-'+r.from+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)})
 }
 
+function migrationView(){
+  if(!integrationScope('migration:read'))return '<div class="notice error">Недостаточно прав.</div>'
+  const cached=state.cache.migrationProjects;if(cached?.error)return `<div class="notice error">${escapeHtml(cached.error.message)}</div>`
+  const projects=dataOf(cached,{projects:[]}).projects||[], selected=projects.find(p=>p.id===state.cache.migrationSelected), editing=selected&&state.cache.migrationEditing
+  const write=integrationScope('migration:write'), manage=write&&integrationScope('integrations:secrets'), run=integrationScope('migration:run')
+  const kinds={'dle-db':'DataLife Engine — MySQL/MariaDB','wordpress-db':'WordPress — MySQL/MariaDB','wordpress-rest':'WordPress — REST API','wordpress-wxr':'WordPress — WXR XML'}
+  const source=editing?selected.source:'wordpress-wxr', c=editing?selected.config:{}, report=selected?.report
+  const field=(name,label,value='',type='text')=>`<label>${escapeHtml(label)}<input name="${name}" type="${type}" value="${escapeHtml(value)}" ${type==='password'?'autocomplete="new-password"':''}></label>`
+  const sourceFields=`<div data-migration-db>${field('host','IPv4 базы (разрешённый оператором)',c.host)}${field('port','Порт',c.port||3306,'number')}${field('database','Имя базы',c.database)}${field('prefix','Префикс таблиц (пусто = авто)',c.prefix)}<label>Кодировка соединения<select name="charset">${['utf8mb4','utf8','cp1251'].map(v=>`<option ${v===c.charset?'selected':''}>${v}</option>`).join('')}</select></label></div><div data-migration-rest>${field('url','HTTPS URL сайта WordPress',c.url,'url')}</div><div data-migration-credentials>${field('username','Пользователь (REST: необязательно)')}${field('password','Пароль БД / WordPress Application Password','','password')}</div>`
+  return `<div class="grid two"><div class="card"><h2>1. Проекты миграции</h2><p>Анализ источника без изменения сайта назначения.</p>${projects.map(p=>`<div class="notice"><strong>${escapeHtml(p.name)}</strong> · ${escapeHtml(kinds[p.source])} · ${escapeHtml(p.status)} <button class="btn secondary" data-migration-open="${p.id}">Открыть</button></div>`).join('')||'<p>Нет проектов.</p>'}${manage?`<button class="btn secondary" data-migration-new>Новый проект</button><h3>${editing?'Изменить подключение':'Создать проект'}</h3><form class="form" data-migration-form data-id="${editing?selected.id:''}">${field('name','Название',editing?selected.name:'')}<label>Источник<select name="source">${Object.entries(kinds).map(([k,v])=>`<option value="${k}" ${k===source?'selected':''}>${escapeHtml(v)}</option>`).join('')}</select></label>${sourceFields}<p>Изменение подключения сбрасывает предыдущий отчёт; credentials нужно ввести заново.</p><button class="btn" type="submit">Сохранить проект</button></form>`:''}</div><div class="card"><h2>2. Анализ источника</h2>${selected?`<h3>${escapeHtml(selected.name)}</h3><p>${escapeHtml(kinds[selected.source])} · ревизия ${selected.revision}</p>${manage?'<button class="btn secondary" data-migration-edit>Изменить подключение</button>':''}${write?'<button class="btn ghost" data-migration-delete>Удалить</button>':''}${run?`<button class="btn" data-migration-scan>Запустить / повторить анализ</button>${selected.source==='wordpress-wxr'&&write?'<form class="form" data-migration-upload><label>WXR XML (до 8 MiB)<input type="file" name="file" accept=".xml,text/xml,application/xml" required></label><button class="btn" type="submit">Загрузить и анализировать</button></form>':''}`:''}${selected.error?`<div class="notice error">${escapeHtml(selected.error)}${report?' (ниже предыдущий успешный отчёт)':''}</div>`:''}${report?`<h2>3. Отчёт совместимости</h2><p>Последний успешный анализ: ${escapeHtml(report.scanned_at)}</p><table><thead><tr><th>Сущность</th><th>Количество</th><th>Совместимость</th></tr></thead><tbody>${Object.entries(report.counts||{}).map(([k,v])=>`<tr><td>${escapeHtml(k)}</td><td>${v===null?'Недоступно':escapeHtml((report.details?.lower_bound_counts||[]).includes(k)?'≥ '+v:v)}</td><td>${escapeHtml(report.compatibility?.[k])}</td></tr>`).join('')}</tbody></table><h3>Типы, статусы, поля и структура</h3><pre>${escapeHtml(JSON.stringify({types:report.types,statuses:report.statuses,fields:report.fields,details:report.details},null,2))}</pre><h3>Ограничения</h3><ul>${(report.warnings||[]).map(w=>`<li>${escapeHtml(w)}</li>`).join('')}</ul><button class="btn secondary" data-migration-export>Скачать JSON отчёт</button>`:'<p>Отчёт появится после успешного анализа.</p>'}`:'<p>Создайте или откройте проект.</p>'}</div></div>`
+}
+function bindMigration(){
+  if(state.route!=='migration')return
+  const projects=dataOf(state.cache.migrationProjects,{projects:[]}).projects||[], selected=projects.find(p=>p.id===state.cache.migrationSelected)
+  const execute=async(el,fn)=>{if(el.dataset.busy)return;el.dataset.busy='1';el.disabled=true;try{await fn();if(state.route==='migration')render()}catch(e){setNotice('error',e.message)}finally{delete el.dataset.busy;el.disabled=false}}
+  const refresh=()=>loadSilent('migrationProjects','/migration/projects')
+  document.querySelectorAll('[data-migration-open]').forEach(b=>b.addEventListener('click',()=>{state.cache.migrationSelected=b.dataset.migrationOpen;state.cache.migrationEditing=false;render()}))
+  document.querySelector('[data-migration-new]')?.addEventListener('click',()=>{state.cache.migrationSelected=null;state.cache.migrationEditing=false;render()})
+  document.querySelector('[data-migration-edit]')?.addEventListener('click',()=>{state.cache.migrationEditing=true;render()})
+  const f=document.querySelector('[data-migration-form]')
+  if(f){const sync=()=>{const v=f.elements.source.value;for(const [sel,show] of [['[data-migration-db]',v.endsWith('-db')],['[data-migration-rest]',v==='wordpress-rest'],['[data-migration-credentials]',v!=='wordpress-wxr']]){const el=f.querySelector(sel);el.hidden=!show;el.querySelectorAll('input,select').forEach(i=>i.disabled=!show)}};sync();f.elements.source.addEventListener('change',sync);f.addEventListener('submit',e=>{e.preventDefault();execute(f,async()=>{const d=new FormData(f),source=d.get('source');const body={name:d.get('name'),source,config:source.endsWith('-db')?{host:d.get('host'),port:Number(d.get('port')),database:d.get('database'),prefix:d.get('prefix'),charset:d.get('charset')}:source==='wordpress-rest'?{url:d.get('url')}: {},credential:source==='wordpress-wxr'?{}:{username:d.get('username')||'',password:d.get('password')||''}};const id=f.dataset.id;if(id)body.revision=selected.revision;const p=dataOf(await api('/migration/projects'+(id?'/'+id:''),{method:id?'PUT':'POST',body:JSON.stringify(body)}));f.elements.password.value='';state.cache.migrationSelected=p.id;state.cache.migrationEditing=false;await refresh()})})}
+  if(!selected)return
+  const path='/migration/projects/'+selected.id
+  document.querySelector('[data-migration-scan]')?.addEventListener('click',e=>execute(e.currentTarget,async()=>{await api(path+'/scan',{method:'POST',body:JSON.stringify({revision:selected.revision})});await refresh()}))
+  document.querySelector('[data-migration-upload]')?.addEventListener('submit',e=>{e.preventDefault();const form=e.currentTarget;execute(form,async()=>{const body=new FormData(form);body.append('revision',String(selected.revision));await api(path+'/wxr',{method:'POST',body});await refresh()})})
+  document.querySelector('[data-migration-delete]')?.addEventListener('click',e=>{if(confirm('Удалить проект, credentials и сохранённый WXR?'))execute(e.currentTarget,async()=>{await api(path,{method:'DELETE',body:JSON.stringify({revision:selected.revision})});state.cache.migrationSelected=null;state.cache.migrationEditing=false;await refresh()})})
+  document.querySelector('[data-migration-export]')?.addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(selected.report,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='migration-discovery-'+selected.id+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)})
+}
+
 function bindForms() {
+  bindMigration()
   bindContentTypes()
   bindContent()
   bindMedia()
@@ -436,7 +469,7 @@ function dashboardView() {
   const dashboard = dataOf(state.cache.dashboard, {})
   const cards = dashboard.cards || []
   const bootstrap = dataOf(state.cache.bootstrap, {})
-  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.4.0 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
+  return `<div class="grid cards">${cards.map((card) => `<div class="card kpi"><div class="kpi-label">${escapeHtml(card.label)}</div><div class="kpi-value">${escapeHtml(card.value)}</div><span class="badge ${card.status || 'ok'}">${escapeHtml(card.status || 'ok')}</span></div>`).join('') || '<div class="card"><h2>Admin API</h2><p>Нажмите “Обновить”, чтобы получить dashboard.</p></div>'}</div><div class="grid two"><div class="card"><h2>Продукт</h2><p>Admin UI 1.4.1 — production static SPA с CRUD-экранами, авторизацией, route guards и обработкой 401/403.</p><div class="status-line"><span class="badge ok">static assets</span><span class="badge ok">Bearer auth</span><span class="badge ok">CMS CRUD</span><span class="badge ok">media upload</span></div></div><div class="card"><h2>Bootstrap</h2><pre class="json">${escapeHtml(JSON.stringify(bootstrap.app || bootstrap, null, 2))}</pre></div></div>`
 }
 
 function contentTypesView() {

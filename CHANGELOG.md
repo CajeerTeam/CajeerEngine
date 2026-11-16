@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.1 — Migration Center & Discovery
+
+- Persistent migration projects and a production admin wizard for DLE MySQL/MariaDB, WordPress database, REST and WXR.
+- Read-only source inspection with exact database counts, REST totals, WXR parsing, field/type/status inventories, and explicit compatibility limits.
+- Encrypted credentials and WXR archives, operator endpoint allowlists, revision-guarded scans, last successful report retention, audit and RBAC.
+- No target content or database changes; no new SQL migration.
+
 ## 1.4.0 — Analytics & Tracking / Analytics Hub GA
 
 - Equal-length previous-period comparisons of saved provider totals, with explicit missing/incomplete data and sampling diagnostics.

@@ -156,6 +156,21 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'delete_MigrationProjectDelete' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/migration/projects/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
   'delete_UsersDisable' => 
   array (
     'method' => 'DELETE',
@@ -895,6 +910,30 @@ final class Operations {
       array (
         'name' => 'signature',
         'in' => 'query',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_MigrationProjectIndex' => 
+  array (
+    'method' => 'GET',
+    'path' => '/migration/projects',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_MigrationProjectShow' => 
+  array (
+    'method' => 'GET',
+    'path' => '/migration/projects/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
         'required' => true,
       ),
     ),
@@ -1875,6 +1914,45 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'post_MigrationProjectCreate' => 
+  array (
+    'method' => 'POST',
+    'path' => '/migration/projects',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'post_MigrationProjectScan' => 
+  array (
+    'method' => 'POST',
+    'path' => '/migration/projects/{id}/scan',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'post_MigrationProjectUpload' => 
+  array (
+    'method' => 'POST',
+    'path' => '/migration/projects/{id}/wxr',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
   'post_QueueFailedRetry' => 
   array (
     'method' => 'POST',
@@ -2200,6 +2278,21 @@ final class Operations {
   array (
     'method' => 'PUT',
     'path' => '/integrations/{id}/secret',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'put_MigrationProjectUpdate' => 
+  array (
+    'method' => 'PUT',
+    'path' => '/migration/projects/{id}',
     'parameters' => 
     array (
       0 => 

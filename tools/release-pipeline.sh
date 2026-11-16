@@ -35,6 +35,8 @@ php tools/search-webmaster-regression.php --require-db
 php tools/alternative-analytics-regression.php --require-db
 php tools/cloudflare-analytics-regression.php --require-db
 php tools/advertising-regression.php
+php tools/migration-discovery-regression.php --require-xml
+php tools/migration-http-regression.php
 node admin/scripts/publish-admin-assets.mjs
 node admin/scripts/publish-admin-assets.mjs --check
 php bin/cajeer admin:assets --check

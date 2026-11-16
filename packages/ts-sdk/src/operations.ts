@@ -119,6 +119,18 @@ export const operations = {
         ],
         "bodyRequired": false
     },
+    "delete_MigrationProjectDelete": {
+        "method": "DELETE",
+        "path": "/migration/projects/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
     "delete_UsersDisable": {
         "method": "DELETE",
         "path": "/users/{id}",
@@ -689,6 +701,24 @@ export const operations = {
             {
                 "name": "signature",
                 "in": "query",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "get_MigrationProjectIndex": {
+        "method": "GET",
+        "path": "/migration/projects",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "get_MigrationProjectShow": {
+        "method": "GET",
+        "path": "/migration/projects/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
                 "required": true
             }
         ],
@@ -1422,6 +1452,36 @@ export const operations = {
         "parameters": [],
         "bodyRequired": true
     },
+    "post_MigrationProjectCreate": {
+        "method": "POST",
+        "path": "/migration/projects",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "post_MigrationProjectScan": {
+        "method": "POST",
+        "path": "/migration/projects/{id}/scan",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "post_MigrationProjectUpload": {
+        "method": "POST",
+        "path": "/migration/projects/{id}/wxr",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
     "post_QueueFailedRetry": {
         "method": "POST",
         "path": "/queue/failed/{id}/retry",
@@ -1657,6 +1717,18 @@ export const operations = {
     "put_IntegrationsSecret": {
         "method": "PUT",
         "path": "/integrations/{id}/secret",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "put_MigrationProjectUpdate": {
+        "method": "PUT",
+        "path": "/migration/projects/{id}",
         "parameters": [
             {
                 "name": "id",

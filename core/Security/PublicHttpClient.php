@@ -43,10 +43,18 @@ final class PublicHttpClient implements OutboundHttpTransport
 
     public function request(string $url, string $method, #[\SensitiveParameter] array $headers = [], #[\SensitiveParameter] string $body = '', int $maxBytes = 1048576): array
     {
+        [$status,$response] = $this->requestWithHeaders($url,$method,$headers,$body,$maxBytes);
+        return [$status,$response];
+    }
+
+    /** Same pinned transport, with final response headers for pagination metadata. */
+    public function requestWithHeaders(string $url,string $method,#[\SensitiveParameter] array $headers=[],#[\SensitiveParameter] string $body='',int $maxBytes=1048576):array
+    {
         if (!function_exists('curl_init')) { throw new \RuntimeException('Secure outbound HTTP requires ext-curl'); }
         [$host, $port, $ip] = self::target($url);
         $ch = curl_init($url);
         $response = '';
+        $responseHeaders = [];
         $headerLines = [];
         foreach ($headers as $name => $value) {
             if (!preg_match('/^[A-Za-z0-9-]+$/D', $name) || preg_match('/[\r\n]/', $value)) { throw new \InvalidArgumentException('Invalid outbound header'); }
@@ -55,6 +63,11 @@ final class PublicHttpClient implements OutboundHttpTransport
         $options = [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => $headerLines, CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_PROXY => '', CURLOPT_CONNECTTIMEOUT => 4, CURLOPT_TIMEOUT => 10,
             CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_HEADERFUNCTION => static function ($ch,string $line) use (&$responseHeaders):int {
+                if (str_starts_with($line,'HTTP/')) $responseHeaders=[];
+                elseif (str_contains($line,':')) {[$name,$value]=explode(':',$line,2);$name=strtolower(trim($name));if(in_array($name,['x-wp-total','x-wp-totalpages'],true))$responseHeaders[$name]=trim($value);}
+                return strlen($line);
+            },
             CURLOPT_WRITEFUNCTION => static function ($ch, string $chunk) use (&$response, $maxBytes): int {
                 if (strlen($response) + strlen($chunk) > $maxBytes) return 0;
                 $response .= $chunk; return strlen($chunk);
@@ -65,7 +78,7 @@ final class PublicHttpClient implements OutboundHttpTransport
             curl_setopt_array($ch, $options);
             if (curl_exec($ch) === false) { throw new \RuntimeException('Outbound request failed or response exceeds limit'); }
             $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-            return [$status, $response];
+            return [$status, $response, $responseHeaders];
         } finally { curl_close($ch); }
     }
 }

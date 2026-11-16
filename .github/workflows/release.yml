@@ -19,6 +19,15 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U cajeer -d cajeer_smoke"
           --health-interval 5s --health-timeout 5s --health-retries 10
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: migration-fixture
+          MARIADB_ROOT_HOST: '%'
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s --health-timeout 5s --health-retries 20
       redis:
         image: redis:7.4
         ports: ['6379:6379']
@@ -30,7 +39,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, pdo_sqlite, pdo_pgsql, sodium, zip, dom, xml, xmlwriter, curl, openssl, gd, redis, pcntl
+          extensions: mbstring, pdo_sqlite, pdo_pgsql, pdo_mysql, sodium, zip, dom, xml, xmlreader, xmlwriter, curl, openssl, gd, redis, pcntl
           tools: composer:v2
       - uses: actions/setup-node@v7
         with:
@@ -52,6 +61,11 @@ jobs:
       - run: php tools/analytics-events-regression.php
       - run: php tools/analytics-hub-regression.php --require-db
       - run: php tools/analytics-ga-regression.php --require-db
+      - name: Migration discovery real XML and MariaDB regression
+        env:
+          MIGRATION_TEST_MYSQL: '1'
+          MIGRATION_TEST_MYSQL_PASSWORD: migration-fixture
+        run: php tools/migration-discovery-regression.php --require-xml --require-mysql
       - run: python3 tools/analytics-ga-upgrade-regression.py
       - run: php tools/search-webmaster-regression.php --require-db
       - run: php tools/alternative-analytics-regression.php --require-db
@@ -69,6 +83,7 @@ jobs:
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/cloudflare-browser-regression.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/advertising-browser-regression.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/analytics-ga-browser-regression.py
+          CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/migration-browser-regression.py
       - run: php tools/generate-api-sdk.php --check
       - run: php bin/cajeer api:lint --strict --json
       - run: php tools/github-release-regression.php
