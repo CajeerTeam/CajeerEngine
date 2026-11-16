@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.4.2-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.4.2-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.4.3-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.4.3-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.4.2-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.4.3-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,7 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
-    "Mapping & Migration Planning: real source inventory, typed mappings, target conflict resolution, read-only dry run and revision/hash-guarded approval."
+    "Transactional DLE content import: approved mapping, source revalidation, historical dates, mapped authors, sanitized richtext, SQL receipt and replay protection."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -72,7 +72,8 @@
     "1.3.9": "Advertising & Conversion Tracking — real browser tags, consent-checked server conversions and diagnostics",
     "1.4.0": "Analytics & Tracking / Analytics Hub GA — comparative reports, synchronization reliability and release acceptance",
     "1.4.1": "Migration Center & Discovery — DLE and WordPress real source inspection and protected projects",
-    "1.4.2": "Mapping & Migration Planning — field/type/user mapping, conflict resolution and verified dry run"
+    "1.4.2": "Mapping & Migration Planning — field/type/user mapping, conflict resolution and verified dry run",
+    "1.4.3": "DLE Migration — real bounded content transfer and durable SQL execution receipt"
   },
   "stability": "stable"
 }

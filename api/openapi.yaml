@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.4.2",
+    "version": "1.4.3",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -28750,7 +28750,8 @@
               "failed",
               "mapped",
               "planned",
-              "approved"
+              "approved",
+              "completed"
             ]
           },
           "report": {
@@ -28774,6 +28775,48 @@
           },
           "plan": {
             "$ref": "#/components/schemas/MigrationPlan"
+          },
+          "execution": {
+            "type": "object",
+            "properties": {
+              "project_id": {
+                "type": "string"
+              },
+              "plan_sha256": {
+                "type": "string"
+              },
+              "completed_at": {
+                "type": "string"
+              },
+              "counts": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                }
+              },
+              "records": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "project_id",
+              "plan_sha256",
+              "completed_at",
+              "counts",
+              "records",
+              "warnings"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [

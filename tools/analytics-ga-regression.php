@@ -27,7 +27,7 @@ $work=sys_get_temp_dir().'/ce-ga-'.bin2hex(random_bytes(8));mkdir($work,0700);
 try{
  $config=new ConfigRepository($work);$config->set('database',['default'=>'sqlite','connections'=>['sqlite'=>['database'=>$work.'/test.sqlite']]]);$db=new DatabaseManager($config);$pdo=$db->connection();
  // Upgrade an actual 1.3.9 database, not just a clean install.
- $m=$work.'/old-migrations/sqlite';mkdir($m,0700,true);foreach(glob($root.'/migrations/sqlite/*.sql') as $f)if(!str_contains($f,'0017_'))copy($f,$m.'/'.basename($f));
+ $m=$work.'/old-migrations/sqlite';mkdir($m,0700,true);foreach(glob($root.'/migrations/sqlite/*.sql') as $f)if(basename($f)< '0017_')copy($f,$m.'/'.basename($f));
  (new MigrationRunner($pdo,$work.'/old-migrations'))->run('sqlite');
  $vault=new SecretVault('base64:'.base64_encode(random_bytes(32)));$queue=new FileQueueDriver($work);
  $id=bin2hex(random_bytes(16));$sealed=$vault->seal('analytics:report:v1:'.$id.':metrika:1234',json_encode(['token'=>'test-token']));

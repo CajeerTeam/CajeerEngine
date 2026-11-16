@@ -40,7 +40,37 @@ final readonly class PlanningSource
             foreach($rows as $r){$r['categories']=implode(',',$tax[$r['id']]['category']??[]);$r['tags']=implode(',',$tax[$r['id']]['post_tag']??[]);$records[]=self::record((string)$r['type'],$r,$meta[$r['id']]??[]);}
             foreach($read('users',['id'=>'ID','email'=>'user_email'],'',' ORDER BY ID') as $u)$users[]=['id'=>(string)$u['id'],'email'=>(string)$u['email']];
         }else{
-            foreach(['post'=>'post','static'=>'page'] as $s=>$type){$map=['id'=>'id','title'=>'title','body'=>$s==='post'?'full_story':'template','excerpt'=>'short_story','slug'=> $s==='post'?'alt_name':'name','date'=>'date','author'=>'autor','status'=>'approve','categories'=>'category','tags'=>'tags','xfields'=>'xfields'];foreach($read($s,$map,'',' ORDER BY id') as $r){$meta=[];foreach(explode('||',(string)$r['xfields']) as $pair){$parts=explode('|',$pair,2);if(count($parts)===2&&preg_match('/^[A-Za-z0-9_-]{1,100}$/D',$parts[0]))$meta['meta:'.$parts[0]]=str_replace('&#124;','|',$parts[1]);}$r['status']=$s==='static'?'draft':((string)$r['status']==='1'?'publish':'draft');$records[]=self::record($type,$r,$meta);}}
+            // Keep original category IDs, and expose real names and parent paths as typed mapping inputs.
+            $categories=[];
+            foreach($read('category',['id'=>'id','name'=>'name','parent'=>'parentid','slug'=>'alt_name'],'',' ORDER BY id') as $c){
+                if(count($categories)>=self::LIMIT)throw new \RuntimeException('DLE category inventory exceeds 500.');
+                $categories[(string)$c['id']]=['id'=>(string)$c['id'],'name'=>(string)$c['name'],'parent'=>(string)$c['parent'],'slug'=>(string)$c['slug']];
+            }
+            foreach(['post'=>'post','static'=>'page'] as $s=>$type){
+                $staticCols=$schema[$prefix.$s]??[];
+                $map=['id'=>'id','title'=>$s==='static'&&!in_array('title',$staticCols,true)?'descr':'title','body'=>$s==='post'?'full_story':'template','excerpt'=>'short_story','slug'=>$s==='post'?'alt_name':'name','date'=>'date','author'=>'autor','status'=>'approve','categories'=>'category','tags'=>'tags','xfields'=>'xfields','access'=>'access','groups'=>'grouplevel','views'=>'news_read','rating'=>'rating','seo_title'=>'metatitle','seo_description'=>$s==='static'?'metadescr':'descr','seo_keywords'=>$s==='static'?'metakeys':'keywords'];
+                foreach($read($s,$map,'',' ORDER BY id') as $r){
+                    $meta=[];foreach(explode('||',(string)$r['xfields']) as $pair){$parts=explode('|',$pair,2);if(count($parts)===2&&preg_match('/^[A-Za-z0-9_-]{1,100}$/D',$parts[0]))$meta['meta:'.$parts[0]]=str_replace('&#124;','|',$parts[1]);}
+                    $paths=[];$names=[];foreach(array_filter(array_map('trim',explode(',',(string)$r['categories'])),fn($v)=>$v!==''&&$v!=='0') as $cid){
+                        if(!isset($categories[$cid])){$warnings['missing_category']='Some DLE category IDs are missing from the category table.';continue;}
+                        $names[]=$categories[$cid]['name'];$path=[];$seen=[];$cursor=$cid;
+                        while(isset($categories[$cursor])){if(isset($seen[$cursor])||count($path)>=64)throw new \RuntimeException('DLE category hierarchy contains a cycle or exceeds 64 levels.');$seen[$cursor]=true;$c=$categories[$cursor];array_unshift($path,$c);$cursor=$c['parent'];}
+                        if($cursor!==''&&$cursor!=='0')$warnings['missing_parent']='Some DLE category parents are missing.';
+                        $paths[]=$path;
+                    }
+                    $meta['meta:category_names']=implode(', ',$names);$meta['meta:category_tree']=$paths;
+                    foreach(['views','rating','seo_title','seo_description','seo_keywords'] as $k)if($r[$k]!=='')$meta['meta:dle_'.$k]=(string)$r[$k];
+                    $publicAccess=in_array(trim((string)$r['access']),['','0'],true)&&in_array(strtolower(trim((string)$r['groups'])),['','0','all'],true);
+                    $staticKnown=in_array('grouplevel',$schema[$prefix.$s]??[],true)||in_array('approve',$schema[$prefix.$s]??[],true);
+                    $approved=$s==='post'?(string)$r['status']==='1':($staticKnown&&in_array((string)$r['status'],['','1'],true));
+                    $sourceDate=DleImporter::date((string)$r['date']);if($sourceDate!==null)$r['date']=$sourceDate;
+                    if($sourceDate!==null&&$sourceDate>gmdate('Y-m-d H:i:s')){$approved=false;$warnings['future']='Future-dated DLE records remain draft.';}
+                    $r['status']=$approved&&$publicAccess?'publish':'draft';
+                    if(!$publicAccess)$warnings['access']='Restricted DLE records are mapped to draft; source ACLs are not imported.';
+                    $record=self::record($type,$r,$meta);$record['origin']='dle';$records[]=$record;
+                }
+            }
+            $warnings['dle_content']='DLE richtext is sanitized; supported simple BBCode is converted. Unknown markup, media and source ACLs are not executed or imported.';
             foreach($read('users',['id'=>'name','email'=>'email'],'',' ORDER BY name') as $u)$users[]=['id'=>(string)$u['id'],'email'=>(string)$u['email']];
         }
         return self::inventory($records,$users,array_values($warnings));

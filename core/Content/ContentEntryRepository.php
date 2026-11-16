@@ -157,6 +157,22 @@ final class ContentEntryRepository
         return $index->mutate(fn() => $this->createRaw($typeHandle, $payload, $importId), ['storage/app/content/' . basename($this->path($typeHandle))]);
     }
 
+    /** Only the migration executor calls this; no HTTP payload can set historical metadata. */
+    public function importDleEntry(string $typeHandle,array $payload,?string $targetId,?string $authorId,?string $sourceDate):array
+    {
+        if (!$this->useDatabase() || !$this->pdo()->inTransaction()) throw new \LogicException('DLE import requires a database transaction.');
+        $entry=$targetId===null?$this->create($typeHandle,$payload):$this->update($typeHandle,$targetId,$payload);
+        if($entry===null||$entry['slug']!==$payload['slug'])throw new RevisionConflict('Migration target changed during import.');
+        $params=['id'=>$entry['id']];$sets=[];
+        if($authorId!==null){$sets[]='author_id=:author';$params['author']=$authorId;}
+        if($sourceDate!==null){
+            if($targetId===null){$sets[]='created_at=:created';$params['created']=$sourceDate;}
+            if($payload['status']==='published'){$sets[]='published_at=:published';$params['published']=$sourceDate;}
+        }
+        if($sets){$q=$this->pdo()->prepare('UPDATE ce_content_entries SET '.implode(', ',$sets).' WHERE id=:id');$q->execute($params);}
+        return $this->findById($typeHandle,$entry['id'])??throw new \RuntimeException('Imported content disappeared.');
+    }
+
     private function createRaw(string $typeHandle, array $payload, ?string $importId = null): array
     {
         if ($this->useDatabase()) {

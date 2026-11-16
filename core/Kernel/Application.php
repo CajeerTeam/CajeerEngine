@@ -159,7 +159,7 @@ final class Application
         $response->headers->set('traceparent',$trace->header());
         $response->headers->set('X-Runtime-Ms',(string)round($duration*1000));
         $this->container->get(RuntimeLogger::class)->info('HTTP request handled',$trace->fields()+['request_id'=>(string)$request->attributes->get('request_id',''),'method'=>$request->getMethod(),'route'=>$route,'status'=>$response->getStatusCode(),'duration_ms'=>round($duration*1000,3)]);
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.4.2'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.4.3'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -351,7 +351,7 @@ final class Application
         ));
 
         $container->set('controller.search', fn (ServiceContainer $c): SearchController => new SearchController($c->get(SearchService::class),new \CajeerEngine\Privacy\ConsentPolicy($rootPath)));
-        $container->set('controller.migration', fn (ServiceContainer $c) => new \CajeerEngine\Api\Controller\MigrationController(new \CajeerEngine\Migration\MigrationCenter($rootPath,new SecretVault((string)(getenv('INTEGRATIONS_KEY') ?: getenv('APP_KEY') ?: '')),planner:new \CajeerEngine\Migration\MigrationPlanner($c->get(ContentTypeRepository::class),$c->get(ContentEntryRepository::class),$c->get(UserRepository::class),$c->get(DatabaseManager::class))),$c->get(AuditLogger::class)));
+        $container->set('controller.migration', fn (ServiceContainer $c) => new \CajeerEngine\Api\Controller\MigrationController(\CajeerEngine\Migration\MigrationFactory::create($rootPath,$c->get(DatabaseManager::class),$c->get(ContentTypeRepository::class),$c->get(ContentEntryRepository::class),$c->get(UserRepository::class)),$c->get(AuditLogger::class)));
         $container->set('controller.analyticsHub', fn (ServiceContainer $c) => new \CajeerEngine\Api\Controller\AnalyticsHubController($c->get(\CajeerEngine\Analytics\Reporting\AnalyticsHub::class),$c->get(AuditLogger::class)));
         $container->set('controller.analyticsEvents', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\AnalyticsEventController => new \CajeerEngine\Api\Controller\AnalyticsEventController(new \CajeerEngine\Analytics\EventConfig($rootPath), new \CajeerEngine\Analytics\EventJournal($rootPath), $c->get(AuditLogger::class), new \CajeerEngine\Analytics\ServerEvents($rootPath,$c->get(IntegrationCenter::class),$c->get(ManagedQueueDriverInterface::class))));
         $container->set('controller.tracking', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\TrackingController => new \CajeerEngine\Api\Controller\TrackingController(new \CajeerEngine\Privacy\TrackingConfig($rootPath), $c->get(AuditLogger::class)));

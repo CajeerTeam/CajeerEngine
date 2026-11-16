@@ -45,6 +45,17 @@ final class MigrationPlanner
         if(!is_string($v)||!preg_match('/^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})?)?$/D',$v)||!checkdate((int)substr($v,5,2),(int)substr($v,8,2),(int)substr($v,0,4)))throw new \InvalidArgumentException('Invalid source date.');
         $d=new \DateTimeImmutable($v,new \DateTimeZone('UTC'));return $d->format($time?DATE_ATOM:'Y-m-d');
     }
+    /** The same normalization is used by planning and the transactional importer. */
+    public static function payload(array $r,array $rule,array $type,string $locale,string $status):array
+    {
+        $defs=array_column($type['fields']??[],null,'handle');$payload=['title'=>$r['fields']['title'],'slug'=>$r['fields']['slug']?:$r['fields']['title'],'locale'=>$locale,'status'=>$status,'data'=>[]];
+                    foreach($rule['fields'] as $dest=>$spec){$v=self::value($r['fields'][$spec['from']]??null,$spec['transform']);if(str_starts_with($dest,'data:')){$field=substr($dest,5);if(!isset($defs[$field]))throw new \InvalidArgumentException('Unknown target field: '.$field);if(in_array($defs[$field]['type'],['media','relation','blocks'],true)&&$v!==null&&$v!=='')throw new \InvalidArgumentException('Media, relations and blocks require a later migration stage.');$payload['data'][$field]=$v;}else{if(!is_scalar($v)&&$v!==null)throw new \InvalidArgumentException('Title/slug require scalar.');$payload[$dest]=(string)$v;}}
+                    if(($r['origin']??null)==='dle'){
+            foreach($defs as $h=>$definition)if(($definition['type']??null)==='richtext'&&is_string($payload['data'][$h]??null))$payload['data'][$h]=DleContent::html($payload['data'][$h]);
+        }
+        return (new ContentEntryValidator($type))->normalizeForCreate($payload);
+    }
+    public static function fingerprint(mixed $value):string {return self::hash($value);}
     public static function build(array $inventory,array $mapping,array $types,array $entries,array $targetUsers,callable $findEmail):array
     {
         $mapping=self::mapping($mapping);$actions=[];$userActions=[];$counts=['create'=>0,'update'=>0,'skip'=>0,'conflict'=>0,'invalid'=>0];$userCounts=['link'=>0,'create'=>0,'skip'=>0,'unmapped'=>0,'conflict'=>0];$reserved=[];$targetIndex=[];$targetState=[];
@@ -55,9 +66,7 @@ final class MigrationPlanner
             try{
                 if($rule===null)throw new \InvalidArgumentException('Source type is not mapped.');
                 if($rule['target']===''||$status==='skip'){$a['action']='skip';$a['reason']='Excluded by mapping.';}
-                else{$handle=$rule['target'];$type=$types[$handle]??throw new \InvalidArgumentException('Target type does not exist.');$defs=array_column($type['fields']??[],null,'handle');$payload=['title'=>$r['fields']['title'],'slug'=>$r['fields']['slug']?:$r['fields']['title'],'locale'=>$mapping['locale'],'status'=>$status,'data'=>[]];
-                    foreach($rule['fields'] as $dest=>$spec){$v=self::value($r['fields'][$spec['from']]??null,$spec['transform']);if(str_starts_with($dest,'data:')){$field=substr($dest,5);if(!isset($defs[$field]))throw new \InvalidArgumentException('Unknown target field: '.$field);if(in_array($defs[$field]['type'],['media','relation','blocks'],true)&&$v!==null&&$v!=='')throw new \InvalidArgumentException('Media, relations and blocks require a later migration stage.');$payload['data'][$field]=$v;}else{if(!is_scalar($v)&&$v!==null)throw new \InvalidArgumentException('Title/slug require scalar.');$payload[$dest]=(string)$v;}}
-                    $normalized=(new ContentEntryValidator($type))->normalizeForCreate($payload);$slug=$normalized['slug'];$key=$handle.'|'.$mapping['locale'].'|'.$slug;$matches=$targetIndex[$key]??[];$a['slug']=$slug;$a['action']='create';
+                else{$handle=$rule['target'];$type=$types[$handle]??throw new \InvalidArgumentException('Target type does not exist.');$normalized=self::payload($r,$rule,$type,$mapping['locale'],$status);$slug=$normalized['slug'];$key=$handle.'|'.$mapping['locale'].'|'.$slug;$matches=$targetIndex[$key]??[];$a['slug']=$slug;$a['action']='create';
                     if(count($matches)>1||isset($reserved[$key])){$a['action']='conflict';$a['reason']='Ambiguous target or duplicate planned slug.';}
                     elseif($matches){$existing=$matches[0];$a['target_id']=$existing['id'];switch($mapping['conflict']){case 'skip':$a['action']='skip';$a['reason']='Existing target slug.';break;case 'update':$a['action']=!empty($existing['deleted_at'])?'conflict':'update';$a['reason']=!empty($existing['deleted_at'])?'Deleted target reserves slug; choose create or skip.':'Explicit update policy.';break;case 'create':$base=$slug;$i=2;do{$slug=$base.'-'.$i++;$key=$handle.'|'.$mapping['locale'].'|'.$slug;}while(isset($targetIndex[$key])||isset($reserved[$key]));$normalized['slug']=$a['slug']=$slug;$a['target_id']=null;break;default:$a['action']='conflict';$a['reason']='Existing target slug.';}}
                     if(in_array($a['action'],['create','update'],true)){$reserved[$key]=true;$chosen=$mapping['users'][$r['author']]??null;if($chosen!==null&&!in_array($chosen,['skip','create'],true))$a['author_id']=$chosen;$a['payload_sha256']=self::hash($normalized);}

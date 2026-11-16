@@ -37,6 +37,7 @@ php tools/cloudflare-analytics-regression.php --require-db
 php tools/advertising-regression.php
 php tools/migration-discovery-regression.php --require-xml
 php tools/migration-planning-regression.php --require-xml
+php tools/dle-migration-regression.php --require-db
 php tools/migration-http-regression.php
 node admin/scripts/publish-admin-assets.mjs
 node admin/scripts/publish-admin-assets.mjs --check

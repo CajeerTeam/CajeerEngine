@@ -1,0 +1,7 @@
+-- Atomic receipt and source-to-target identity mapping for a completed DLE import.
+CREATE TABLE IF NOT EXISTS ce_dle_migration_runs (
+    project_id VARCHAR(32) PRIMARY KEY,
+    plan_sha256 VARCHAR(64) NOT NULL,
+    completed_at VARCHAR(40) NOT NULL,
+    result TEXT NOT NULL
+);

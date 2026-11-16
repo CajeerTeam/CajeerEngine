@@ -21,4 +21,14 @@ with sync_playwright() as p:
     page.on('dialog',lambda d:d.accept());page.locator('[data-migration-approve]').click();page.get_by_text('Подтверждён: 2026-11-16').wait_for();assert page.evaluate("requests.some(r=>r.path.endsWith('/approve')&&r.body.revision===4&&r.body.sha256==='b'.repeat(64))")
     print('PASS revision and hash guarded approval')
     page.evaluate("state.identity.scopes=['migration:read'];render()");assert page.locator('[data-migration-mapping]').count()==0 and page.locator('[data-migration-plan]').count()==0 and page.locator('[data-migration-approve]').count()==0
-    assert not errors,errors;print('PASS read-only access and no JavaScript errors');browser.close()
+    assert not errors,errors;print('PASS read-only access and no JavaScript errors')
+    page.evaluate("state.identity.scopes=['migration:read','migration:write','migration:run','integrations:secrets','users:read'];project={...project,source:'dle-db'};")
+    page.evaluate("async()=>{await loadSilent('migrationProjects','/migration/projects');render()}")
+    page.get_by_text('6. Выполнение DLE').wait_for()
+    assert page.get_by_text('php bin/cajeer migration:dle-import '+'a'*32+' '+'b'*64+' --yes',exact=True).count()==1
+    print('PASS approved DLE plan exposes exact operator command')
+    page.evaluate("project={...project,status:'completed',execution:{project_id:project.id,plan_sha256:project.plan.sha256,completed_at:'2026-11-16',counts:{create:1,update:0,skip:0},records:[{source_type:'post',source_id:'42',target_type:'articles',target_id:'12345678-1234-1234-1234-123456789abc',action:'create'}],warnings:[]}}")
+    page.locator('[data-migration-refresh]').click();page.get_by_text('6. Перенос DLE завершён').wait_for()
+    assert page.get_by_text('post:42',exact=True).count()==1 and page.locator('[data-migration-result-export]').count()==1
+    assert page.locator('[data-migration-edit]').count()==0 and page.locator('[data-migration-delete]').count()==0 and page.locator('[data-migration-mapping]').count()==0
+    assert not errors,errors;print('PASS completed receipt refreshed and mutation controls removed');browser.close()

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.3 — DLE Migration
+
+- Реальное выполнение подтверждённого DLE-плана через штатный репозиторий контента, с транзакционным обновлением маршрутов, поиска и SQL-квитанции.
+- Перенос новостей, статических страниц, xfields, категорий/тегов через mapping, исторических дат и явно сопоставленных авторов; безопасный HTML и простые BBCode.
+- Операторская команда `migration:dle-import`, повторный запуск без дублирования, итоговый JSON в мастере, миграция 0018.
+
 ## 1.4.2 — Mapping & Migration Planning
 
 - Real bounded DLE/WordPress DB, REST and WXR content inventory, persistent mapping rules and typed field transformations.

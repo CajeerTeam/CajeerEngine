@@ -67,6 +67,12 @@ jobs:
           MIGRATION_TEST_MYSQL_PASSWORD: migration-fixture
         run: php tools/migration-discovery-regression.php --require-xml --require-mysql
       - run: php tools/migration-planning-regression.php --require-xml
+      - name: DLE migration actual MariaDB source and SQLite target
+        env:
+          MIGRATION_TEST_MYSQL: '1'
+          MIGRATION_TEST_MYSQL_PASSWORD: migration-fixture
+        run: php tools/dle-migration-regression.php --require-db --require-mysql
+      - run: python3 tools/dle-migration-sqlite-regression.py
       - run: python3 tools/analytics-ga-upgrade-regression.py
       - run: php tools/search-webmaster-regression.php --require-db
       - run: php tools/alternative-analytics-regression.php --require-db

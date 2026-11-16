@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='ce-analytics-ga-') as d:
     db=sqlite3.connect(Path(d)/'site.sqlite')
-    migrations=sorted((ROOT/'migrations/sqlite').glob('*.sql'))
+    migrations=sorted(p for p in (ROOT/'migrations/sqlite').glob('*.sql') if p.name[:4]<='0017')
     for migration in migrations[:-1]: db.executescript(migration.read_text())
     assert migrations[-1].name=='0017_analytics_sync_runs.sql'
     source='a'*32; encrypted='opaque-encrypted-fixture'; report=json.dumps({'provider':'ga4','resource':'123','metrics':['activeUsers'],'sections':{'overview':{'rows':[{'label':'Total','values':[20]}]}}})
