@@ -79,6 +79,8 @@ jobs:
           MIGRATION_TEST_MYSQL_PASSWORD: migration-fixture
         run: php tools/wordpress-migration-regression.php --require-db --require-xml --require-mysql
       - run: python3 tools/wordpress-migration-sqlite-regression.py
+      - run: php tools/identity-migration-regression.php --require-db
+      - run: python3 tools/identity-migration-sqlite-regression.py
       - run: python3 tools/analytics-ga-upgrade-regression.py
       - run: php tools/search-webmaster-regression.php --require-db
       - run: php tools/alternative-analytics-regression.php --require-db

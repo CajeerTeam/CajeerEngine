@@ -103,7 +103,7 @@ final readonly class SourceDiscovery
             $fields=array_values(array_unique(array_merge($fields,['category_names','category_tree','dle_views','dle_rating','dle_seo_title','dle_seo_description','dle_seo_keywords'])));
             $warnings[]='DLE extra fields are sampled from up to 1000 news records. Files and exact CMS version cannot be determined from database tables alone.';
         }
-        return self::report($source,$counts,$types,$statuses,$fields,$warnings,['prefix'=>$prefix,'connection_charset'=>$charset,'table_encodings'=>array_keys($encodings),'version'=>$version,'tables'=>array_values(array_filter(array_keys($schema),fn($t)=>str_starts_with($t,$prefix))),'columns'=>array_intersect_key($schema,array_flip(array_map(fn($s)=>$prefix.$s,$wp?['posts','postmeta','users','terms','term_taxonomy','term_relationships']:['post','static','category','users','comments'])))]);
+        return self::report($source,$counts,$types,$statuses,$fields,$warnings,['prefix'=>$prefix,'connection_charset'=>$charset,'table_encodings'=>array_keys($encodings),'version'=>$version,'tables'=>array_values(array_filter(array_keys($schema),fn($t)=>str_starts_with($t,$prefix))),'columns'=>array_intersect_key($schema,array_flip(array_map(fn($s)=>$prefix.$s,$wp?['posts','postmeta','users','usermeta','terms','term_taxonomy','term_relationships']:['post','static','category','users','comments'])))]);
     }
 
     /** Read actual source records using the same read-only connection and endpoint policy as discovery. */

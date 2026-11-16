@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.5 — Users & Identity Migration
+
+- Transactional source user creation, author links, safe roles and one-time operator activation.
+- Durable identity receipts and blocked source account protection.
+
 ## 1.4.4 — WordPress Migration
 
 - Execute approved WordPress WXR, database and REST content plans through the shared transactional importer.

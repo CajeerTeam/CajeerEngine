@@ -12,8 +12,8 @@ with sync_playwright() as p:
     page.locator('[data-migration-open]').click(); form=page.locator('[data-migration-mapping]');form.wait_for()
     form.locator('[data-plan-target]').select_option('articles')
     form.locator('[data-plan-field="data:rating"] [data-plan-from]').select_option('meta:rating');form.locator('[data-plan-field="data:rating"] [data-plan-transform]').select_option('number')
-    form.locator('[name=users]').fill('{"writer":"skip"}');form.locator('[data-plan-status=publish]').select_option('published');form.locator('button[type=submit]').click();page.locator('[data-migration-plan]').wait_for()
-    assert page.evaluate("requests.some(r=>r.path.endsWith('/mapping')&&r.body.revision===2&&r.body.mapping.types.post.fields['data:rating'].transform==='number'&&r.body.mapping.users.writer==='skip')")
+    form.locator('[name=users]').fill('{"writer":"create"}');form.locator('[name=user_roles]').fill('{"writer":"editor"}');form.locator('[data-plan-status=publish]').select_option('published');form.locator('button[type=submit]').click();page.locator('[data-migration-plan]').wait_for()
+    assert page.evaluate("requests.some(r=>r.path.endsWith('/mapping')&&r.body.revision===2&&r.body.mapping.types.post.fields['data:rating'].transform==='number'&&r.body.mapping.users.writer==='create'&&r.body.mapping.user_roles.writer==='editor')")
     print('PASS mapping editor sends actual selected fields, status, transform and user rule')
     page.locator('[data-migration-plan]').click();page.locator('[data-migration-approve]').wait_for();assert page.get_by_text('Готов к подтверждению').count()==1
     assert page.evaluate("requests.some(r=>r.path.endsWith('/plan')&&r.body.revision===3)")
@@ -29,8 +29,9 @@ with sync_playwright() as p:
     page.get_by_text('6. Выполнение DLE').wait_for()
     assert page.get_by_text('php bin/cajeer migration:dle-import '+'a'*32+' '+'b'*64+' --yes',exact=True).count()==1
     print('PASS approved DLE plan exposes exact operator command')
-    page.evaluate("project={...project,status:'completed',execution:{project_id:project.id,plan_sha256:project.plan.sha256,completed_at:'2026-11-16',counts:{create:1,update:0,skip:0},records:[{source_type:'post',source_id:'42',target_type:'articles',target_id:'12345678-1234-1234-1234-123456789abc',action:'create'}],warnings:[]}}")
+    page.evaluate("project={...project,status:'completed',execution:{project_id:project.id,plan_sha256:project.plan.sha256,completed_at:'2026-11-16',counts:{create:1,update:0,skip:0},records:[{source_type:'post',source_id:'42',target_type:'articles',target_id:'12345678-1234-1234-1234-123456789abc',action:'create'}],users:[{source_id:'writer',target_id:'23456789-1234-1234-1234-123456789abc',action:'create',role:'editor',activation:'pending'}],warnings:[]}}")
     page.locator('[data-migration-refresh]').click();page.get_by_text('6. Перенос DLE завершён').wait_for()
     assert page.get_by_text('post:42',exact=True).count()==1 and page.locator('[data-migration-result-export]').count()==1
     assert page.locator('[data-migration-edit]').count()==0 and page.locator('[data-migration-delete]').count()==0 and page.locator('[data-migration-mapping]').count()==0
-    assert not errors,errors;print('PASS completed receipt refreshed and mutation controls removed');browser.close()
+    assert page.get_by_text('23456789-1234-1234-1234-123456789abc',exact=True).count()==1 and page.get_by_text('pending',exact=True).count()==1
+    assert not errors,errors;print('PASS completed receipt refreshed, identity status and mutation controls removed');browser.close()

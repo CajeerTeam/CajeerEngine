@@ -38,8 +38,11 @@ readonly class ContentMigrationImporter
             // RouteIndex owns the target SQL writer lock and transaction, including projection rebuild.
             $fresh=$this->planner->plan($inventory,$project['mapping']);
             if(!hash_equals($plan['sha256'],$fresh['sha256']))throw new RevisionConflict('Source or target changed; run Dry Run and approve again.');
+            if(!$this->db->tableExists('ce_migration_identities'))throw new \RuntimeException('Run identity migration 0020 before content import.');
+            $roles=new \CajeerEngine\Database\Repository\RoleRepository($this->db);
+            $identities=(new IdentityMigration($this->db,new \CajeerEngine\Database\Repository\UserRepository($this->db,$roles),$roles))->import($id,$inventory,$fresh['users']);
             $records=[];foreach($inventory['records'] as $r)$records[$r['type'].':'.$r['id']]=$r;
-            $result=['project_id'=>$id,'plan_sha256'=>$plan['sha256'],'completed_at'=>gmdate(DATE_ATOM),'counts'=>['create'=>0,'update'=>0,'skip'=>0],'records'=>[],'warnings'=>[$wp?'New user accounts, media files, comments, menus, standalone taxonomies, page hierarchy and redirects are deferred. Historical dates use source GMT where available; local-only dates are not written.':'New user accounts, media files, comments, standalone taxonomies and redirects are not imported by this release. DLE source timestamps are interpreted as UTC.']];
+            $result=['project_id'=>$id,'plan_sha256'=>$plan['sha256'],'completed_at'=>gmdate(DATE_ATOM),'counts'=>['create'=>0,'update'=>0,'skip'=>0],'records'=>[],'users'=>$identities['users'],'warnings'=>[$wp?'Media files, comments, menus, standalone taxonomies, page hierarchy and redirects are deferred. Historical dates use source GMT where available; local-only dates are not written.':'Media files, comments, standalone taxonomies and redirects are not imported by this release. DLE source timestamps are interpreted as UTC.']];
             foreach($fresh['records'] as $a){
                 $key=$a['source_type'].':'.$a['source_id'];$r=$records[$key]??throw new \LogicException('Missing source record.');
                 if(!$wp&&!in_array($a['source_type'],['post','page'],true))throw new \InvalidArgumentException('Unexpected DLE content type.');
@@ -51,8 +54,9 @@ readonly class ContentMigrationImporter
                     $payload=MigrationPlanner::payload($r,$rule,$type,$project['mapping']['locale'],$status);$payload['slug']=$a['slug'];
                     if(!hash_equals($a['payload_sha256'],MigrationPlanner::fingerprint($payload)))throw new RevisionConflict('Payload differs from approved plan.');
                     $date=$wp?WordPressContent::date($r['fields']['meta:wp_date_gmt']??''):self::date($r['fields']['date']);
-                    $entry=$this->entries->importMigrationEntry($rule['target'],$payload,$a['action']==='update'?$a['target_id']:null,$a['author_id'],$date);
-                    $row['target_id']=$entry['id'];$row['slug']=$entry['slug'];$row['author_id']=$a['author_id'];$row['revision']=$entry['revision'];
+                    $author=$identities['map'][$r['author']]??$a['author_id'];
+                    $entry=$this->entries->importMigrationEntry($rule['target'],$payload,$a['action']==='update'?$a['target_id']:null,$author,$date);
+                    $row['target_id']=$entry['id'];$row['slug']=$entry['slug'];$row['author_id']=$author;$row['revision']=$entry['revision'];
                     if($r['fields']['date']!==''&&$date===null)$result['warnings'][]='Missing or invalid historical UTC date for '.$key.'; target timestamp retained.';
                 }
                 $result['counts'][$a['action']]++;$result['records'][]=$row;
