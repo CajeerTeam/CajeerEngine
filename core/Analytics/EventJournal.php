@@ -18,7 +18,7 @@ final readonly class EventJournal
         if(!$config['collect_diagnostics']||!$tracking['enabled']||!in_array(strtolower($host),$tracking['hosts'],true))throw new \InvalidArgumentException('Event diagnostics disabled for this host');
         if(array_diff(array_keys($input),['id','name','version','outcomes'])||count($input)!==4||!is_string($input['id']??null)||!preg_match('/^[a-f0-9]{32}$/D',$input['id'])||($input['version']??null)!==$policy['version']||!EventConfig::name($input['name']??null)||!is_array($input['outcomes']??null))throw new \InvalidArgumentException('Invalid event diagnostic');
         $rule=EventConfig::rule($config,$input['name']);if(!$rule||!in_array($input['name'],array_column($config['rules'],'name'),true))throw new \InvalidArgumentException('Event disabled');
-        $outcomes=$input['outcomes'];if(!$outcomes||count($outcomes)>3)throw new \InvalidArgumentException('Invalid outcomes');
+        $outcomes=$input['outcomes'];if(!$outcomes||count($outcomes)>5)throw new \InvalidArgumentException('Invalid outcomes');
         foreach($outcomes as $provider=>$status){if(!in_array($provider,EventConfig::PROVIDERS,true)||$rule[$provider]===''||$tracking[$provider.'_id']===''||!in_array($status,['queued','submitted','failed'],true))throw new \InvalidArgumentException('Invalid provider outcome');}
         return $this->transaction(function(array &$rows)use($input,$outcomes){
             foreach($rows as $row)if($row['id']===$input['id']){if($row['name']!==$input['name']||$row['outcomes']!=$outcomes)throw new \InvalidArgumentException('Event id conflict');return ['accepted'=>true,'duplicate'=>true];}

@@ -12,8 +12,8 @@ use PDO;
 /** Durable report snapshots. Credentials never leave the server or enter queue payloads. */
 final readonly class AnalyticsHub
 {
-    public function __construct(private DatabaseManager $db, private SecretVault $vault, private ManagedQueueDriverInterface $queue, private ConfigRepository $config, private ?ReportProvider $metrika=null,private ?ReportProvider $ga4=null, private ?SearchReports $webmaster=null, private ?SearchReports $searchConsole=null) {}
-    private function provider(string $id): ReportProvider {return match($id){'metrika'=>$this->metrika??new ApiReports('metrika'),'ga4'=>$this->ga4??new ApiReports('ga4'),'webmaster'=>$this->webmaster??new SearchReports('webmaster'),'search_console'=>$this->searchConsole??new SearchReports('search_console'),default=>throw new \InvalidArgumentException('Unknown analytics provider')};}
+    public function __construct(private DatabaseManager $db, private SecretVault $vault, private ManagedQueueDriverInterface $queue, private ConfigRepository $config, private ?ReportProvider $metrika=null,private ?ReportProvider $ga4=null, private ?SearchReports $webmaster=null, private ?SearchReports $searchConsole=null, private ?ReportProvider $matomo=null, private ?ReportProvider $plausible=null) {}
+    private function provider(string $id): ReportProvider {return match($id){'metrika'=>$this->metrika??new ApiReports('metrika'),'ga4'=>$this->ga4??new ApiReports('ga4'),'webmaster'=>$this->webmaster??new SearchReports('webmaster'),'search_console'=>$this->searchConsole??new SearchReports('search_console'),'matomo'=>$this->matomo??new AlternativeReports('matomo'),'plausible'=>$this->plausible??new AlternativeReports('plausible'),default=>throw new \InvalidArgumentException('Unknown analytics provider')};}
     private function enabled(): void {if(!$this->config->bool('integrations.enabled',true)||!$this->config->bool('analytics.enabled',true))throw new \InvalidArgumentException('Analytics reporting disabled by operator');}
     private function query(string $sql,array $params=[]): \PDOStatement {$s=$this->db->connection()->prepare($sql);$s->execute($params);return $s;}
     private function item(string $id): array {if(!preg_match('/^[a-f0-9]{32}$/D',$id))throw new \InvalidArgumentException('Invalid analytics connection ID');$r=$this->query('SELECT * FROM analytics_connections WHERE id=?',[$id])->fetch(PDO::FETCH_ASSOC);if(!$r)throw new \InvalidArgumentException('Analytics connection not found');return $r;}
@@ -22,15 +22,15 @@ final readonly class AnalyticsHub
     private function context(string $id,string $provider,string $resource): string {return 'analytics:report:v1:'.$id.':'.$provider.':'.$resource;}
     private function validate(array $input): array {
         $provider=$input['provider']??'';$name=$input['name']??null;$resource=$input['resource']??null;$goal=$input['goal']??null;$enabled=$input['enabled']??null;
-        if(!is_string($provider)||!is_string($name)||trim($name)===''||strlen($name)>200||preg_match('/[\x00-\x1f\x7f]/',$name)||!is_string($resource)||!(in_array($provider,['webmaster','search_console'],true)?SearchReports::validResource($provider,$resource):preg_match('/^[1-9][0-9]{0,19}$/D',$resource))||!is_bool($enabled)||($goal!==null&&($provider!=='metrika'||!is_string($goal)||!preg_match('/^[1-9][0-9]{0,19}$/D',$goal))))throw new \InvalidArgumentException('Invalid analytics connection');
+        if(!is_string($provider)||!is_string($name)||trim($name)===''||strlen($name)>200||preg_match('/[\x00-\x1f\x7f]/',$name)||!is_string($resource)||!(in_array($provider,['webmaster','search_console'],true)?SearchReports::validResource($provider,$resource):(in_array($provider,['matomo','plausible'],true)?AlternativeReports::validResource($provider,$resource):preg_match('/^[1-9][0-9]{0,19}$/D',$resource)))||!is_bool($enabled)||($goal!==null&&($provider!=='metrika'||!is_string($goal)||!preg_match('/^[1-9][0-9]{0,19}$/D',$goal))))throw new \InvalidArgumentException('Invalid analytics connection');
         $this->provider($provider);return [$provider,trim($name),$resource,$goal,(int)$enabled];
     }
     public function save(?string $id,array $input): array {
         [$provider,$name,$resource,$goal,$enabled]=$this->validate($input);$credential=$input['credential']??null;
-        if($credential!==null){if(!is_array($credential))throw new \InvalidArgumentException('Invalid credential');$this->provider($provider)->validateCredential($credential);}
+        if($credential!==null){if(!is_array($credential))throw new \InvalidArgumentException('Invalid credential');$this->provider($provider)->validateCredential($credential);if(in_array($provider,['matomo','plausible'],true)){try{$this->hostPolicy($provider,$credential);}catch(\RuntimeException $e){throw new \InvalidArgumentException($e->getMessage());}}}
         if($id===null){if($credential===null)throw new \InvalidArgumentException('Credential required');if((int)$this->query('SELECT COUNT(*) FROM analytics_connections')->fetchColumn()>=50)throw new \InvalidArgumentException('Analytics connection limit reached');$id=bin2hex(random_bytes(16));$sealed=$this->vault->seal($this->context($id,$provider,$resource),json_encode($credential,JSON_THROW_ON_ERROR));$this->query('INSERT INTO analytics_connections (id,provider,name,resource_id,goal_id,enabled,revision,credential,lease_until) VALUES (?,?,?,?,?,?,1,?,0)',[$id,$provider,$name,$resource,$goal,$enabled,$sealed]);}
         else{$old=$this->item($id);$revision=$input['revision']??null;if(!is_int($revision)||$revision!==(int)$old['revision'])throw new RevisionConflict('Analytics connection changed');
-            $changed=$provider!==$old['provider']||$resource!==$old['resource_id']||$goal!==$old['goal_id'];if($credential===null&&($provider!==$old['provider']||$resource!==$old['resource_id']))throw new \InvalidArgumentException('New credential required when changing resource');
+            $changed=($credential!==null&&in_array($provider,['matomo','plausible'],true))||$provider!==$old['provider']||$resource!==$old['resource_id']||$goal!==$old['goal_id'];if($credential===null&&($provider!==$old['provider']||$resource!==$old['resource_id']))throw new \InvalidArgumentException('New credential required when changing resource');
             $sealed=$credential===null?$old['credential']:$this->vault->seal($this->context($id,$provider,$resource),json_encode($credential,JSON_THROW_ON_ERROR));
             $this->db->transaction(function()use($id,$provider,$name,$resource,$goal,$enabled,$sealed,$revision,$changed){$s=$this->query('UPDATE analytics_connections SET provider=?,name=?,resource_id=?,goal_id=?,enabled=?,credential=?,revision=revision+1,lease_until=0,lease_token=NULL,last_attempt=NULL,last_error=NULL WHERE id=? AND revision=?',[$provider,$name,$resource,$goal,$enabled,$sealed,$id,$revision]);if($s->rowCount()!==1)throw new RevisionConflict('Analytics connection changed');if($changed){$this->query('DELETE FROM analytics_reports WHERE connection_id=?',[$id]);$this->query('UPDATE analytics_connections SET last_success=NULL WHERE id=?',[$id]);}});
         }return $this->publicItem($this->item($id));
@@ -50,7 +50,13 @@ final readonly class AnalyticsHub
         foreach($this->query('SELECT id FROM analytics_connections WHERE enabled=1 ORDER BY id')->fetchAll(PDO::FETCH_COLUMN) as $id){$this->enqueue($id,null,null,true);$n++;}return ['queued'=>$n];
     }
     private function hostPolicy(string $provider,array $credential,?string $action=null): void {
-        $allowed=$this->config->get('integrations.allowed_hosts',[]);if($allowed===[])return;
+        $allowed=$this->config->get('integrations.allowed_hosts',[]);
+        if(in_array($provider,['matomo','plausible'],true)){
+            $host=parse_url(AlternativeReports::base($credential['endpoint']??''),PHP_URL_HOST);
+            if(($allowed!==[]||$provider!=='plausible'||$host!=='plausible.io')&&!in_array($host,array_map('strtolower',$allowed),true))throw new \RuntimeException('Analytics provider host not allowed');
+            return;
+        }
+        if($allowed===[])return;
         $hosts=match($provider){'metrika'=>['api-metrika.yandex.net'],'ga4'=>['analyticsdata.googleapis.com'],'webmaster'=>['api.webmaster.yandex.net'],'search_console'=>[$action==='inspect'?'searchconsole.googleapis.com':'www.googleapis.com'],default=>throw new \InvalidArgumentException('Unknown analytics provider')};if(in_array($provider,['ga4','search_console'],true)&&($credential['type']??'')!=='oauth_token')$hosts[]='oauth2.googleapis.com';
         if(array_diff($hosts,array_map('strtolower',$allowed)))throw new \RuntimeException('Analytics provider host not allowed');
     }

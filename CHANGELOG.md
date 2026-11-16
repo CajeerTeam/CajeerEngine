@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.7 — Alternative Analytics
+
+- Matomo and Plausible: consent-aware browser events, real API reports, operator-approved endpoints and admin configuration.
+- Existing report storage, queue, scheduler and encrypted credentials reused; no SQL migration.
+
 ## 1.3.6 — Search & Webmaster
 
 - Yandex Webmaster and Google Search Console real search performance reports, current sitemap and indexing diagnostics, sitemap submission and Google URL inspection.

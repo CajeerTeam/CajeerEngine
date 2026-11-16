@@ -38,7 +38,15 @@
     if(!['http:','https:'].includes(location.protocol)||/^\/(?:admin|api|preview|install|upgrade|assets|uploads|extensions)(?:\/|$)/i.test(location.pathname))return null;
     if(typeof c.metrika_id!=='string'||typeof c.ga4_id!=='string'||typeof c.gtm_id!=='string'||typeof c.ga4_debug!=='boolean')return null;
     if((c.metrika_id&&!/^[1-9][0-9]{0,11}$/.test(c.metrika_id))||(c.ga4_id&&!/^G-[A-Z0-9]{4,20}$/.test(c.ga4_id))||(c.gtm_id&&!/^GTM-[A-Z0-9]{4,20}$/.test(c.gtm_id))||(c.gtm_id&&(c.ga4_id||c.metrika_id)))return null;
-    return c;
+    const alt={...c,matomo_id:c.matomo_id??'',matomo_url:c.matomo_url??'',plausible_id:c.plausible_id??'',plausible_url:c.plausible_url??''};
+    for(const p of ['matomo','plausible']){
+      const id=alt[p+'_id'],url=alt[p+'_url'];if(typeof id!=='string'||typeof url!=='string'||Boolean(id)!==Boolean(url))return null;
+      if(!id)continue;
+      if(c.gtm_id||!(p==='matomo'?/^[1-9][0-9]{0,19}$/.test(id):/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z][a-z0-9-]*$/.test(id)))return null;
+      try{const u=new URL(url);if(!/^https:\/\/[a-z0-9.-]+(?:\/[a-zA-Z0-9_-]+)*\/?$/.test(url)||!((p==='plausible'&&url.replace(/\/$/,'')==='https://plausible.io')||policy.script_origins.includes(u.origin))) {alt[p+'_id']='';alt[p+'_url']='';}}
+      catch{return null;}
+    }
+    return alt;
   }
   const trackingStatus = () => Object.fromEntries([...counters].map(([name,c])=>[name,{id:c.id,status:c.status,reason:c.reason||null}]));
   function publishTracking(){document.dispatchEvent(new CustomEvent('cajeer:tracking-status',{detail:trackingStatus()}));}
@@ -54,23 +62,24 @@
   // No raw form values, search terms, URLs, identifiers or arbitrary strings in event parameters.
   const eventJournal=[], eventIds=new Map(), scrollSeen=new Set();
   const automaticNames=['search','file_download','outbound_click','scroll'];
-  const providers=['ga4','metrika','gtm'];
+  const providers=['ga4','metrika','gtm','matomo','plausible'];
   const reserved=new Set(['purchase','refund','add_to_cart','begin_checkout','view_item']);
   let eventWindow=[], searchSeen=false, diagnosticPending=0, scrollScheduled=false;
   const eventName=n=>typeof n==='string'&&/^[a-z][a-z0-9_]{0,39}$/.test(n)&&! /^(?:ce_|google_|ga_|firebase_|gtm_|session_|first_)/.test(n)&&!reserved.has(n);
-  const defaultEvents=()=>({enabled:true,allow_custom:true,collect_diagnostics:false,rules:[...['page_view',...automaticNames,'form_submit','generate_lead','sign_up','login']].map(name=>({name,enabled:true,automatic:automaticNames.includes(name),ga4:automaticNames.includes(name)?'site_'+name:name,metrika:name,gtm:name}))});
+  const defaultEvents=()=>({enabled:true,allow_custom:true,collect_diagnostics:false,rules:[...['page_view',...automaticNames,'form_submit','generate_lead','sign_up','login']].map(name=>({name,enabled:true,automatic:automaticNames.includes(name),ga4:automaticNames.includes(name)?'site_'+name:name,metrika:name,gtm:name,matomo:name,plausible:name==='pageview'?'':name}))});
   function eventConfig(){
-    const c=policy?.events??defaultEvents();
+    const source=policy?.events??defaultEvents();
+    const c={...source,rules:Array.isArray(source.rules)?source.rules.map(r=>r?{matomo:r.name,plausible:r.name==='pageview'?'':r.name,...r}:r):source.rules};
     if(!c||typeof c.enabled!=='boolean'||typeof c.allow_custom!=='boolean'||typeof c.collect_diagnostics!=='boolean'||!Array.isArray(c.rules)||c.rules.length>100)return null;
     const names=new Set();
-    for(const r of c.rules){if(!r||!eventName(r.name)||names.has(r.name)||typeof r.enabled!=='boolean'||typeof r.automatic!=='boolean'||(r.automatic&&!automaticNames.includes(r.name))||providers.some(p=>typeof r[p]!=='string'||(r[p]!==''&&(!eventName(r[p])||(r.name==='page_view'?r[p]!=='page_view':r[p]==='page_view')))))return null;names.add(r.name);}
+    for(const r of c.rules){if(!r||!eventName(r.name)||names.has(r.name)||typeof r.enabled!=='boolean'||typeof r.automatic!=='boolean'||(r.automatic&&!automaticNames.includes(r.name))||providers.some(p=>typeof r[p]!=='string'||(p==='plausible'&&r[p]==='pageview')||(r[p]!==''&&(!eventName(r[p])||(r.name==='page_view'?r[p]!=='page_view':r[p]==='page_view')))))return null;names.add(r.name);}
     return names.has('page_view')?c:null;
   }
   function eventRule(name,automatic=false){
     const config=eventConfig();if(!config?.enabled||!eventName(name))return null;
     const rule=config.rules.find(r=>r.name===name);
     if(rule)return rule.enabled&&(!automatic||rule.automatic)?rule:null;
-    return !automatic&&config.allow_custom?{name,ga4:name,metrika:name,gtm:name}:null;
+    return !automatic&&config.allow_custom?{name,ga4:name,metrika:name,gtm:name,matomo:name,plausible:name==='pageview'?'':name}:null;
   }
   function eventId(){return Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');}
   function safeParams(name,params){
@@ -109,11 +118,15 @@
           if(provider==='ga4')window.gtag('event','page_view',{...data,send_to:c.id});
           if(provider==='metrika')window.ym(Number(c.id),'hit',data.page_location,{referer:data.page_referrer||''});
           if(provider==='gtm')window.dataLayer.push({event:'ce_page_view',...data,ce_event_id:id});
+          if(provider==='matomo'){window._paq.push(['setCustomUrl',data.page_location],['setReferrerUrl',data.page_referrer||''],['setDocumentTitle',new URL(data.page_location).pathname],['trackPageView']);}
+          if(provider==='plausible')sendPlausible(c,'pageview',data,{});
           c.last=data.page_location;
         }else{
           if(provider==='ga4')window.gtag('event',target,{...safe,event_id:id,send_to:c.id});
           if(provider==='metrika')window.ym(Number(c.id),'reachGoal',target,safe);
           if(provider==='gtm')window.dataLayer.push({event:'ce_'+target,...safe,ce_event_id:id});
+          if(provider==='matomo'){const loc=locationData();if(!loc)throw new Error('Invalid event URL');window._paq.push(['setCustomUrl',loc.page_location],['setReferrerUrl',loc.page_referrer||''],['setDocumentTitle',new URL(loc.page_location).pathname],['trackEvent','CajeerEngine',target,...(typeof safe.value==='number'?[target,safe.value]:[])]);}
+          if(provider==='plausible')sendPlausible(c,target,locationData(),safe);
         }
         outcomes[provider]=c.status==='loaded'?'submitted':'queued';
       }catch{outcomes[provider]='failed';}
@@ -151,12 +164,18 @@
       const percent=100*window.scrollY/height;for(const n of [25,50,75,90])if(percent>=n&&!scrollSeen.has(n)&&autoEvent('scroll',{percent_scrolled:n}))scrollSeen.add(n);
     });
   },{passive:true});
+  function sendPlausible(c,name,data,props){
+    if(!data||!trackingAllowed('plausible'))throw new Error('Tracking disabled');
+    const payload={name,domain:c.id,url:data.page_location,referrer:data.page_referrer||undefined,props};
+    // A simple browser request preserves the visitor's real network/user-agent attributes.
+    fetch(c.endpoint+'/api/event',{method:'POST',mode:'no-cors',credentials:'omit',referrerPolicy:'no-referrer',keepalive:true,headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)}).catch(()=>{if(!trackingAllowed('plausible'))return;c.status='error';c.reason='transport-failed';publishTracking();});
+  }
   function startCounter(name,id,src,initialize) {
     if(counters.has(name)||!trackingAllowed(name))return;
     const script=document.createElement('script');script.async=true;script.src=src;script.referrerPolicy='strict-origin-when-cross-origin';script.dataset.ceTracking=name;
     const c={id,script,status:'loading',last:null};counters.set(name,c);
     // Existing tags installed by themes are not owned by this runtime; fail rather than duplicate.
-    const conflict=[...document.querySelectorAll('script[src]')].some(s=>{try{const u=new URL(s.src);return name==='metrika'?u.hostname==='mc.yandex.ru'&&u.pathname.startsWith('/metrika/'):u.hostname==='www.googletagmanager.com'&&/\/(gtag\/js|gtm\.js)$/.test(u.pathname);}catch{return false;}});
+    const conflict=[...document.querySelectorAll('script[src]')].some(s=>{try{const u=new URL(s.src);return name==='matomo'?u.href===src||/\/(?:matomo|piwik)\.js$/.test(u.pathname):name==='metrika'?u.hostname==='mc.yandex.ru'&&u.pathname.startsWith('/metrika/'):u.hostname==='www.googletagmanager.com'&&/\/(gtag\/js|gtm\.js)$/.test(u.pathname);}catch{return false;}});
     if(conflict){c.status='error';c.reason='existing-tag';publishTracking();return;}
     script.addEventListener('load',()=>{if(!trackingAllowed(name))return;c.status='loaded';publishTracking();},{once:true});
     script.addEventListener('error',()=>{c.status='error';c.reason='load-failed';publishTracking();},{once:true});
@@ -178,6 +197,14 @@
         window['ga-disable-'+c.ga4_id]=false;
         window.gtag('js',new Date());window.gtag('config',c.ga4_id,{send_page_view:false,allow_google_signals:false,allow_ad_personalization_signals:false,...(c.ga4_debug?{debug_mode:true}:{}),...(locationData()||{})});
       });
+      if(c.matomo_id)startCounter('matomo',c.matomo_id,c.matomo_url.replace(/\/$/,'')+'/matomo.js',()=>{
+        if(window._paq)throw new Error('Existing Matomo tracker');
+        window._paq=[['disableCookies'],['setTrackerUrl',c.matomo_url.replace(/\/$/,'')+'/matomo.php'],['setSiteId',c.matomo_id],['setRequestMethod','POST'],['requireConsent'],['setConsentGiven']];
+      });
+      if(c.plausible_id&&!counters.has('plausible')){
+        const conflict=typeof window.plausible==='function'||[...document.querySelectorAll('script[src]')].some(s=>s.src.startsWith(c.plausible_url.replace(/\/$/,'')+'/js/'));
+        counters.set('plausible',{id:c.plausible_id,endpoint:c.plausible_url.replace(/\/$/,''),status:conflict?'error':'loaded',reason:conflict?'existing-tag':null,last:null});publishTracking();
+      }
     }
     view();
     automaticPage();
@@ -189,7 +216,8 @@
     for(const [name,c] of counters){
       if(name==='ga4')window['ga-disable-'+c.id]=true;
       if(name==='metrika'&&c.status==='loaded'&&typeof window.ym==='function')try{window.ym(Number(c.id),'destruct');}catch{}
-      c.script.remove();c.status='stopped';
+      if(name==='matomo'&&window._paq){if(c.status!=='loaded'&&Array.isArray(window._paq))window._paq.length=0;window._paq.push(['forgetConsentGiven']);}
+      c.script?.remove();c.status='stopped';
     }
     publishTracking();return true;
   }

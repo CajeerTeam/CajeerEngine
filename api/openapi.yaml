@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.3.6",
+    "version": "1.3.7",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -25194,6 +25194,22 @@
           },
           "ga4_debug": {
             "type": "boolean"
+          },
+          "matomo_id": {
+            "type": "string",
+            "pattern": "^([1-9][0-9]{0,19})?$"
+          },
+          "plausible_id": {
+            "type": "string",
+            "maxLength": 253
+          },
+          "matomo_url": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "plausible_url": {
+            "type": "string",
+            "maxLength": 512
           }
         }
       },
@@ -25219,6 +25235,14 @@
             "pattern": "^(?:[a-z][a-z0-9_]{0,39})?$"
           },
           "gtm": {
+            "type": "string",
+            "pattern": "^(?:[a-z][a-z0-9_]{0,39})?$"
+          },
+          "matomo": {
+            "type": "string",
+            "pattern": "^(?:[a-z][a-z0-9_]{0,39})?$"
+          },
+          "plausible": {
             "type": "string",
             "pattern": "^(?:[a-z][a-z0-9_]{0,39})?$"
           }
@@ -25286,6 +25310,22 @@
             ]
           },
           "gtm": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "submitted",
+              "failed"
+            ]
+          },
+          "matomo": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "submitted",
+              "failed"
+            ]
+          },
+          "plausible": {
             "type": "string",
             "enum": [
               "queued",
@@ -25566,7 +25606,9 @@
               "metrika",
               "ga4",
               "webmaster",
-              "search_console"
+              "search_console",
+              "matomo",
+              "plausible"
             ]
           },
           "name": {
@@ -25578,8 +25620,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 512,
-            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies.",
-            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+)$"
+            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies. Matomo numeric Site ID or Plausible site domain.",
+            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+|(?:[a-z0-9-]+\\.)+[a-z][a-z0-9-]*)$"
           },
           "goal": {
             "anyOf": [
@@ -25673,6 +25715,33 @@
                   "refresh_token"
                 ],
                 "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "api_token"
+                    ]
+                  },
+                  "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "endpoint": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "type",
+                  "token",
+                  "endpoint"
+                ],
+                "additionalProperties": false
               }
             ]
           }
@@ -25695,7 +25764,9 @@
               "metrika",
               "ga4",
               "webmaster",
-              "search_console"
+              "search_console",
+              "matomo",
+              "plausible"
             ]
           },
           "name": {
@@ -25707,8 +25778,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 512,
-            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies.",
-            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+)$"
+            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies. Matomo numeric Site ID or Plausible site domain.",
+            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+|(?:[a-z0-9-]+\\.)+[a-z][a-z0-9-]*)$"
           },
           "goal": {
             "anyOf": [
@@ -25806,6 +25877,33 @@
                   "refresh_token"
                 ],
                 "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "api_token"
+                    ]
+                  },
+                  "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "endpoint": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "type",
+                  "token",
+                  "endpoint"
+                ],
+                "additionalProperties": false
               }
             ]
           }
@@ -25828,7 +25926,9 @@
               "metrika",
               "ga4",
               "webmaster",
-              "search_console"
+              "search_console",
+              "matomo",
+              "plausible"
             ]
           },
           "name": {
@@ -25840,8 +25940,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 512,
-            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies.",
-            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+)$"
+            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies. Matomo numeric Site ID or Plausible site domain.",
+            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+|(?:[a-z0-9-]+\\.)+[a-z][a-z0-9-]*)$"
           },
           "goal": {
             "anyOf": [
@@ -26026,6 +26126,18 @@
               "string",
               "null"
             ]
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -26045,15 +26157,17 @@
               "metrika",
               "ga4",
               "webmaster",
-              "search_console"
+              "search_console",
+              "matomo",
+              "plausible"
             ]
           },
           "resource": {
             "type": "string",
             "minLength": 1,
             "maxLength": 512,
-            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies.",
-            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+)$"
+            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies. Matomo numeric Site ID or Plausible site domain.",
+            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+|(?:[a-z0-9-]+\\.)+[a-z][a-z0-9-]*)$"
           },
           "from": {
             "type": "string",
@@ -26103,6 +26217,9 @@
                 "$ref": "#/components/schemas/AnalyticsReportSection"
               },
               "countries": {
+                "$ref": "#/components/schemas/AnalyticsReportSection"
+              },
+              "events": {
                 "$ref": "#/components/schemas/AnalyticsReportSection"
               }
             },
