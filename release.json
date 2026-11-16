@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.4.3-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.4.3-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.4.4-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.4.4-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.4.3-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.4.4-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,7 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
-    "Transactional DLE content import: approved mapping, source revalidation, historical dates, mapped authors, sanitized richtext, SQL receipt and replay protection."
+    "Transactional WordPress content migration through WXR, read-only MySQL/MariaDB and REST; approved plan revalidation, safe HTML, protected drafts, UTC dates and durable SQL execution receipts."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -73,7 +73,8 @@
     "1.4.0": "Analytics & Tracking / Analytics Hub GA — comparative reports, synchronization reliability and release acceptance",
     "1.4.1": "Migration Center & Discovery — DLE and WordPress real source inspection and protected projects",
     "1.4.2": "Mapping & Migration Planning — field/type/user mapping, conflict resolution and verified dry run",
-    "1.4.3": "DLE Migration — real bounded content transfer and durable SQL execution receipt"
+    "1.4.3": "DLE Migration — real bounded content transfer and durable SQL execution receipt",
+    "1.4.4": "WordPress Migration — real bounded content transfer through WXR, SQL and REST"
   },
   "stability": "stable"
 }

@@ -20,6 +20,8 @@ with sync_playwright() as p:
     print('PASS dry run and report rendering')
     page.on('dialog',lambda d:d.accept());page.locator('[data-migration-approve]').click();page.get_by_text('Подтверждён: 2026-11-16').wait_for();assert page.evaluate("requests.some(r=>r.path.endsWith('/approve')&&r.body.revision===4&&r.body.sha256==='b'.repeat(64))")
     print('PASS revision and hash guarded approval')
+    assert page.get_by_text('php bin/cajeer migration:wordpress-import '+'a'*32+' '+'b'*64+' --yes',exact=True).count()==1
+    print('PASS WordPress approved plan shows correct executable command')
     page.evaluate("state.identity.scopes=['migration:read'];render()");assert page.locator('[data-migration-mapping]').count()==0 and page.locator('[data-migration-plan]').count()==0 and page.locator('[data-migration-approve]').count()==0
     assert not errors,errors;print('PASS read-only access and no JavaScript errors')
     page.evaluate("state.identity.scopes=['migration:read','migration:write','migration:run','integrations:secrets','users:read'];project={...project,source:'dle-db'};")

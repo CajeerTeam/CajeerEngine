@@ -73,6 +73,12 @@ jobs:
           MIGRATION_TEST_MYSQL_PASSWORD: migration-fixture
         run: php tools/dle-migration-regression.php --require-db --require-mysql
       - run: python3 tools/dle-migration-sqlite-regression.py
+      - name: WordPress migration WXR, REST and MariaDB into SQLite
+        env:
+          MIGRATION_TEST_MYSQL: '1'
+          MIGRATION_TEST_MYSQL_PASSWORD: migration-fixture
+        run: php tools/wordpress-migration-regression.php --require-db --require-xml --require-mysql
+      - run: python3 tools/wordpress-migration-sqlite-regression.py
       - run: python3 tools/analytics-ga-upgrade-regression.py
       - run: php tools/search-webmaster-regression.php --require-db
       - run: php tools/alternative-analytics-regression.php --require-db

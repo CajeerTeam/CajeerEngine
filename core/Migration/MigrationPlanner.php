@@ -53,6 +53,9 @@ final class MigrationPlanner
                     if(($r['origin']??null)==='dle'){
             foreach($defs as $h=>$definition)if(($definition['type']??null)==='richtext'&&is_string($payload['data'][$h]??null))$payload['data'][$h]=DleContent::html($payload['data'][$h]);
         }
+        if(($r['origin']??null)==='wordpress'){
+            foreach($defs as $h=>$definition)if(($definition['type']??null)==='richtext'&&is_string($payload['data'][$h]??null))$payload['data'][$h]=WordPressContent::html($payload['data'][$h]);
+        }
         return (new ContentEntryValidator($type))->normalizeForCreate($payload);
     }
     public static function fingerprint(mixed $value):string {return self::hash($value);}

@@ -160,7 +160,12 @@ final class ContentEntryRepository
     /** Only the migration executor calls this; no HTTP payload can set historical metadata. */
     public function importDleEntry(string $typeHandle,array $payload,?string $targetId,?string $authorId,?string $sourceDate):array
     {
-        if (!$this->useDatabase() || !$this->pdo()->inTransaction()) throw new \LogicException('DLE import requires a database transaction.');
+        return $this->importMigrationEntry($typeHandle,$payload,$targetId,$authorId,$sourceDate);
+    }
+
+    public function importMigrationEntry(string $typeHandle,array $payload,?string $targetId,?string $authorId,?string $sourceDate):array
+    {
+        if (!$this->useDatabase() || !$this->pdo()->inTransaction()) throw new \LogicException('Content import requires a database transaction.');
         $entry=$targetId===null?$this->create($typeHandle,$payload):$this->update($typeHandle,$targetId,$payload);
         if($entry===null||$entry['slug']!==$payload['slug'])throw new RevisionConflict('Migration target changed during import.');
         $params=['id'=>$entry['id']];$sets=[];

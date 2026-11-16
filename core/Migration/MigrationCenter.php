@@ -21,7 +21,7 @@ final readonly class MigrationCenter
         }finally{OperationLock::release($lease);}
     }
     private function get(string $id):array {$p=$this->path($id);if(!is_file($p))throw new \RuntimeException('Проект миграции не найден.');return F::read($p);}
-    private function public(array $p):array {unset($p['credential'],$p['wxr_ref']);if($p['source']==='dle-db'&&$p['status']==='approved'&&($receipt=$this->dle?->receipt($p['id']))!==null){$p['execution']=$receipt;$p['status']='completed';}return $p;}
+    private function public(array $p):array {unset($p['credential'],$p['wxr_ref']);if($p['status']==='approved'&&($receipt=$this->dle?->receipt($p['id'],$p['source']))!==null){$p['execution']=$receipt;$p['status']='completed';}return $p;}
     private function wxrPath(string $id,string $ref):string {if(!preg_match('/^[a-f0-9]{32}$/D',$ref))throw new \RuntimeException('Invalid WXR storage reference.');$this->path($id);return F::path($this->root,'storage/app/migration/'.$id.'-'.$ref.'.wxr.enc');}
     private function cleanupWxr(string $id,?string $keep=null):void {foreach(glob(dirname($this->path($id)).'/'.$id.'-*.wxr.enc')?:[] as $f){if($keep!==null&&$f===$this->wxrPath($id,$keep))continue;F::remove($f);}}
     public function list():array {return $this->locked(function($dir){$out=[];foreach(glob($dir.'/*.json')?:[] as $f){$id=basename($f,'.json');$out[]=$this->public($this->get($id));}usort($out,fn($a,$b)=>strcmp($b['updated_at'],$a['updated_at']));return ['projects'=>$out];});}
@@ -29,7 +29,7 @@ final readonly class MigrationCenter
     public function create(array $body):array{return $this->locked(function($dir)use($body){if(count(glob($dir.'/*.json')?:[])>=25)throw new \RuntimeException('Migration project limit reached (25).');$id=bin2hex(random_bytes(16));$p=$this->configure($id,$body);$p['revision']=1;$p['created_at']=$p['updated_at']=gmdate(DATE_ATOM);F::json($this->path($id),$p);return $this->public($p);});}
     public function update(string $id,array $body):array{return $this->locked(function()use($id,$body){$old=$this->get($id);$this->revision($old,$body['revision']??null);$p=$this->configure($id,$body);$p['revision']=$old['revision']+1;$p['created_at']=$old['created_at'];$p['updated_at']=gmdate(DATE_ATOM);F::json($this->path($id),$p);$this->cleanupWxr($id);return $this->public($p);});}
     public function delete(string $id,int $revision):void{$this->locked(function()use($id,$revision){$this->revision($this->get($id),$revision);F::remove($this->path($id));$this->cleanupWxr($id);});}
-    private function revision(array $p,mixed $revision):void {if($p['source']==='dle-db'&&$p['status']==='approved'&&$this->dle?->receipt($p['id'])!==null)throw new RevisionConflict('Completed migration is immutable; create a new project for a different import.');if(!is_int($revision)||$revision!==$p['revision'])throw new RevisionConflict('Migration project has changed; reload it.');}
+    private function revision(array $p,mixed $revision):void {if($p['status']==='approved'&&$this->dle?->receipt($p['id'],$p['source'])!==null)throw new RevisionConflict('Completed migration is immutable; create a new project for a different import.');if(!is_int($revision)||$revision!==$p['revision'])throw new RevisionConflict('Migration project has changed; reload it.');}
     private function configure(string $id,array $b):array {
         $name=trim((string)($b['name']??''));if($name===''||strlen($name)>150||!preg_match('//u',$name))throw new \InvalidArgumentException('Project name must contain 1–150 bytes.');
         $source=$b['source']??'';$config=$b['config']??[];$secret=$b['credential']??[];
@@ -54,8 +54,11 @@ final readonly class MigrationCenter
         return $this->locked(function()use($id,$revision){$p=$this->get($id);$this->revision($p,$revision);if(!$p['report']||$p['error']!==null||!isset($p['mapping']))throw new \InvalidArgumentException('Save a mapping after successful discovery.');if($p['source']==='wordpress-wxr'){$p['wxr']=file_get_contents($this->wxrPath($id,$p['wxr_ref']??''));if($p['wxr']===false)throw new \RuntimeException('Stored WXR is unavailable.');}return $p;});
     }
     private function calculate(array $p):array {
+        return $this->planning()->plan($this->inventory($p),$p['mapping']);
+    }
+    private function inventory(array $p):array {
         $id=$p['id'];if($p['source']==='wordpress-wxr'){$xml=$this->vault->open('migration:wxr:v1:'.$id,$p['wxr']);$inventory=(new PlanningSource())->wxr($xml);}else{$secret=json_decode($this->vault->open('migration:v1:'.$id.':'.$p['source'],$p['credential']),true,16,JSON_THROW_ON_ERROR);$inventory=$this->discovery->inventory($p['source'],$p['config'],$secret);}
-        return $this->planning()->plan($inventory,$p['mapping']);
+        return $inventory;
     }
     public function dryRun(string $id,int $revision):array {
         $p=$this->planningSnapshot($id,$revision);$plan=$this->calculate($p);
@@ -67,19 +70,21 @@ final readonly class MigrationCenter
         return $this->locked(function()use($id,$revision,$sha256){$p=$this->get($id);$this->revision($p,$revision);if(!hash_equals($p['plan']['sha256'],$sha256))throw new RevisionConflict('Plan has changed.');$p['plan']['approved_at']=gmdate(DATE_ATOM);$p['status']='approved';$p['revision']++;$p['updated_at']=gmdate(DATE_ATOM);F::json($this->path($id),$p);return $this->public($p);});
     }
     /** Operator-only execution; the exclusive lease drains HTTP and CLI writers before source revalidation. */
-    public function executeDle(string $id,string $sha256):array {
+    public function executeDle(string $id,string $sha256):array {return $this->executeContent($id,$sha256,false);}
+    public function executeWordPress(string $id,string $sha256):array {return $this->executeContent($id,$sha256,true);}
+    private function executeContent(string $id,string $sha256,bool $wp):array {
         if(!preg_match('/^[a-f0-9]{64}$/D',$sha256))throw new \InvalidArgumentException('Valid approved plan SHA-256 required.');
         $executor=$this->dle??throw new \RuntimeException('DLE execution is unavailable.');
         $lease=OperationLock::acquire($this->root,true);
         try{
             if(OperationLock::active($this->root)||is_file(F::path($this->root,'storage/app/backup-restore.json'))||is_file(F::path($this->root,'storage/app/extensions/deployment.json')))throw new \RuntimeException('Recovery or deployment is pending; finish it before import.');
-            return $this->locked(function()use($id,$sha256,$executor){
+            return $this->locked(function()use($id,$sha256,$executor,$wp){
             $p=$this->get($id);
-            if($p['source']!=='dle-db')throw new \InvalidArgumentException('Only DLE database projects can be executed in 1.4.3.');
-            if($prior=$executor->receipt($id)){if(!hash_equals($prior['plan_sha256'],$sha256))throw new RevisionConflict('Project already executed with a different plan.');return $prior;}
+            if(($p['source']!=='dle-db')!==$wp)throw new \InvalidArgumentException('Migration source does not match command.');
+            if($prior=$executor->receipt($id,$p['source'])){if(!hash_equals($prior['plan_sha256'],$sha256))throw new RevisionConflict('Project already executed with a different plan.');return $prior;}
             if($p['status']!=='approved'||empty($p['plan']['approved_at'])||!hash_equals($p['plan']['sha256']??'',$sha256))throw new RevisionConflict('Use the current approved plan SHA-256.');
-            $secret=json_decode($this->vault->open('migration:v1:'.$id.':'.$p['source'],$p['credential']),true,16,JSON_THROW_ON_ERROR);
-            $inventory=$this->discovery->inventory($p['source'],$p['config'],$secret);
+            if($p['source']==='wordpress-wxr'){$p['wxr']=file_get_contents($this->wxrPath($id,$p['wxr_ref']??''));if($p['wxr']===false)throw new \RuntimeException('Stored WXR is unavailable.');}
+            $inventory=$this->inventory($p);
             return $executor->execute($p,$inventory);
         },true);}finally{OperationLock::release($lease);}
     }

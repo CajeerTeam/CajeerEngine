@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.4 — WordPress Migration
+
+- Execute approved WordPress WXR, database and REST content plans through the shared transactional importer.
+- Preserve mapped metadata, authors, UTC publication dates and source IDs; password-protected content stays non-public and richtext is sanitized.
+- Add operator CLI, immutable execution receipts, replay protection, migration 0019 and production wizard result views. Existing DLE execution remains compatible.
+
 ## 1.4.3 — DLE Migration
 
 - Реальное выполнение подтверждённого DLE-плана через штатный репозиторий контента, с транзакционным обновлением маршрутов, поиска и SQL-квитанции.

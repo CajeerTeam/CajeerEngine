@@ -137,6 +137,7 @@ final readonly class SourceDiscovery
 
     public static function report(string $source,array $counts,array $types,array $statuses,array $fields,array $warnings,array $details=[]): array
     {
+        if(str_starts_with($source,'wordpress-'))$fields=array_values(array_unique(array_merge(['wp_date_gmt','wp_protected','wp_parent'],$fields)));
         $fields=array_values(array_filter($fields,fn($v)=>is_string($v)&&strlen($v)<=200&&preg_match('//u',$v)));
         if(count($fields)>100)$warnings[]='Field list capped at 100.';
         $compat=[];foreach($counts as $k=>$v)$compat[$k]=$v===null?'unavailable':(in_array($k,['posts','pages','categories','tags'],true)?'mapping_required':'later_migration_stage');
