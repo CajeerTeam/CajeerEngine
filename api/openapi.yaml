@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.3.5",
+    "version": "1.3.6",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -23486,6 +23486,174 @@
           }
         ]
       }
+    },
+    "/analytics/reports/{id}/webmaster": {
+      "post": {
+        "tags": [
+          "Analytics"
+        ],
+        "operationId": "post_AnalyticsWebmasterAction",
+        "summary": "POST /analytics/reports/{id}/webmaster",
+        "x-cajeer-route": "api.v1.analytics.reports.webmaster",
+        "x-cajeer-required-scopes": [
+          "analytics:write",
+          "analytics:run"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Требуется авторизация",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Недостаточно прав или CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Слишком большой запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Неподдерживаемый Content-Type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Сервис недоступен / maintenance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WebmasterActionResult"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebmasterAction"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -25396,7 +25564,9 @@
             "type": "string",
             "enum": [
               "metrika",
-              "ga4"
+              "ga4",
+              "webmaster",
+              "search_console"
             ]
           },
           "name": {
@@ -25406,7 +25576,10 @@
           },
           "resource": {
             "type": "string",
-            "pattern": "^[1-9][0-9]{0,19}$"
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies.",
+            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+)$"
           },
           "goal": {
             "anyOf": [
@@ -25520,7 +25693,9 @@
             "type": "string",
             "enum": [
               "metrika",
-              "ga4"
+              "ga4",
+              "webmaster",
+              "search_console"
             ]
           },
           "name": {
@@ -25530,7 +25705,10 @@
           },
           "resource": {
             "type": "string",
-            "pattern": "^[1-9][0-9]{0,19}$"
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies.",
+            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+)$"
           },
           "goal": {
             "anyOf": [
@@ -25648,7 +25826,9 @@
             "type": "string",
             "enum": [
               "metrika",
-              "ga4"
+              "ga4",
+              "webmaster",
+              "search_console"
             ]
           },
           "name": {
@@ -25658,7 +25838,10 @@
           },
           "resource": {
             "type": "string",
-            "pattern": "^[1-9][0-9]{0,19}$"
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies.",
+            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+)$"
           },
           "goal": {
             "anyOf": [
@@ -25809,7 +25992,10 @@
           "values": {
             "type": "array",
             "items": {
-              "type": "number"
+              "type": [
+                "number",
+                "null"
+              ]
             }
           }
         },
@@ -25857,12 +26043,17 @@
             "type": "string",
             "enum": [
               "metrika",
-              "ga4"
+              "ga4",
+              "webmaster",
+              "search_console"
             ]
           },
           "resource": {
             "type": "string",
-            "pattern": "^[1-9][0-9]{0,19}$"
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Numeric counter/property ID, Yandex host ID (https:example.com:443), or Search Console property (https://example.com/ or sc-domain:example.com). Provider-specific validation applies.",
+            "pattern": "^(?:[1-9][0-9]{0,19}|https?://[^\\s]+/|https?:[^\\s/:]+:(?:80|443)|sc-domain:[^\\s/:]+)$"
           },
           "from": {
             "type": "string",
@@ -25904,18 +26095,30 @@
               },
               "pages": {
                 "$ref": "#/components/schemas/AnalyticsReportSection"
+              },
+              "queries": {
+                "$ref": "#/components/schemas/AnalyticsReportSection"
+              },
+              "devices": {
+                "$ref": "#/components/schemas/AnalyticsReportSection"
+              },
+              "countries": {
+                "$ref": "#/components/schemas/AnalyticsReportSection"
               }
             },
             "required": [
               "overview",
-              "daily",
-              "channels",
-              "pages"
+              "daily"
             ],
             "additionalProperties": false
           },
           "fetched_at": {
             "type": "string"
+          },
+          "webmaster": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Current sitemap and indexing diagnostics, independent of historical report period."
           }
         },
         "required": [
@@ -25979,6 +26182,37 @@
           "periods"
         ],
         "additionalProperties": false
+      },
+      "WebmasterAction": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "inspect",
+              "submit_sitemap"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "revision",
+          "action",
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "WebmasterActionResult": {
+        "type": "object",
+        "additionalProperties": true
       }
     }
   }

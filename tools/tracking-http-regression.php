@@ -87,5 +87,12 @@ try {
     assertHttp($call('GET',$hubPath.'/'.$hubId.'/data',$hubRead)->getStatusCode()===200,'empty stored report readable');
     assertHttp($call('POST',$hubPath.'/'.$hubId.'/sync',$hubRead,['from'=>'2026-01-01','to'=>'2026-01-02'])->getStatusCode()===403&&$call('POST',$hubPath.'/'.$hubId.'/sync',$hubWrite,['from'=>'2026-01-01','to'=>'2026-01-02'])->getStatusCode()===202,'sync route enqueues with correct permission');
     assertHttp($call('PUT',$hubPath.'/'.$hubId,$hubWrite,$source+['revision'=>0])->getStatusCode()===422,'revision schema rejects invalid revision');
+    $searchSource=array_replace($source,['provider'=>'search_console','resource'=>'https://example.com/']);
+    $searchCreated=$call('POST',$hubPath,$hubWrite,$searchSource);assertHttp($searchCreated->getStatusCode()===201,'Search Console property created');$searchId=json_decode($searchCreated->getContent(),true)['data']['id'];
+    $actionPath=$hubPath.'/'.$searchId.'/webmaster';$action=['revision'=>1,'action'=>'inspect','url'=>'https://other.example/page'];
+    assertHttp($call('POST',$actionPath,$hubRead,$action)->getStatusCode()===403,'webmaster action requires write and run scopes');
+    assertHttp($call('POST',$actionPath,null,$action,$hubWrite)->getStatusCode()===403,'webmaster action CSRF required');
+    assertHttp($call('POST',$actionPath,$hubWrite,array_replace($action,['action'=>'invalid']))->getStatusCode()===422,'webmaster action validates operation');
+    assertHttp($call('DELETE',$hubPath.'/'.$searchId,$hubWrite,['revision'=>1])->getStatusCode()===200,'search source deletion');
     assertHttp($call('DELETE',$hubPath.'/'.$hubId,$hubWrite,['revision'=>1])->getStatusCode()===200,'source deletion');
 } finally { putenv('ANALYTICS_SERVER_TARGETS'); RecoveryBundle::cleanup($work); }

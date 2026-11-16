@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.6 — Search & Webmaster
+
+- Yandex Webmaster and Google Search Console real search performance reports, current sitemap and indexing diagnostics, sitemap submission and Google URL inspection.
+- Shared Analytics Hub credentials, SQL snapshots and queue; provider-specific site identifiers, migration 0016, admin workflows and synchronized SDK.
+
 ## 1.3.5 — Analytics Hub Core
 
 - Real Metrika Reporting API and GA4 Data API requests, encrypted credentials, SQL snapshots, hourly queue synchronization and admin report/CSV workflows.

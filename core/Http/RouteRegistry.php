@@ -57,6 +57,7 @@ final class RouteRegistry
             ['PUT', '/api/v1/analytics/reports/{id}', 'api.v1.analytics.reports.update', 'analyticsHub', 'update', ['analytics:write','integrations:secrets']],
             ['DELETE', '/api/v1/analytics/reports/{id}', 'api.v1.analytics.reports.delete', 'analyticsHub', 'delete', ['analytics:write','integrations:secrets']],
             ['POST', '/api/v1/analytics/reports/{id}/sync', 'api.v1.analytics.reports.sync', 'analyticsHub', 'sync', ['analytics:run']],
+            ['POST', '/api/v1/analytics/reports/{id}/webmaster', 'api.v1.analytics.reports.webmaster', 'analyticsHub', 'webmaster', ['analytics:write','analytics:run']],
             ['GET', '/api/v1/analytics/reports/{id}/data', 'api.v1.analytics.reports.data', 'analyticsHub', 'report', ['analytics:read']],
             ['GET', '/api/v1/tracking/events', 'api.v1.tracking.events.index', 'analyticsEvents', 'index', ['tracking:read']],
             ['PUT', '/api/v1/tracking/events', 'api.v1.tracking.events.update', 'analyticsEvents', 'update', ['tracking:write']],

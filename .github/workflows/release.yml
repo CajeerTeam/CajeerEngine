@@ -51,6 +51,7 @@ jobs:
       - run: php tools/tracking-regression.php
       - run: php tools/analytics-events-regression.php
       - run: php tools/analytics-hub-regression.php --require-db
+      - run: php tools/search-webmaster-regression.php --require-db
       - name: Consent browser regression (Chromium)
         run: |
           python3 -m venv /tmp/ce-consent-browser

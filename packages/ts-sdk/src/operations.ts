@@ -1095,6 +1095,18 @@ export const operations = {
         "parameters": [],
         "bodyRequired": true
     },
+    "post_AnalyticsWebmasterAction": {
+        "method": "POST",
+        "path": "/analytics/reports/{id}/webmaster",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
     "post_ApiTokensStore": {
         "method": "POST",
         "path": "/api-tokens",

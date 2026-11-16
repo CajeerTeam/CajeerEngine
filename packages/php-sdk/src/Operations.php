@@ -1434,6 +1434,21 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'post_AnalyticsWebmasterAction' => 
+  array (
+    'method' => 'POST',
+    'path' => '/analytics/reports/{id}/webmaster',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
   'post_ApiTokensStore' => 
   array (
     'method' => 'POST',

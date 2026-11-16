@@ -33,12 +33,13 @@ final readonly class ApiReports implements ReportProvider
         return $v;
     }
     private static function b64(string $v): string {return rtrim(strtr(base64_encode($v),'+/','-_'),'=');}
-    private function token(#[\SensitiveParameter] array $c): string
+    public function accessToken(#[\SensitiveParameter] array $c, string $scope = 'analytics.readonly'): string
     {
         $this->validateCredential($c);
+        if(!in_array($scope,['analytics.readonly','webmasters.readonly','webmasters'],true))throw new \InvalidArgumentException('Invalid OAuth scope');
         if($c['type']==='oauth_token')return $c['token'];
         if($c['type']==='service_account'){
-            $now=time();$jwt=self::b64('{"alg":"RS256","typ":"JWT"}').'.'.self::b64(json_encode(['iss'=>$c['client_email'],'scope'=>'https://www.googleapis.com/auth/analytics.readonly','aud'=>'https://oauth2.googleapis.com/token','iat'=>$now,'exp'=>$now+3600],JSON_THROW_ON_ERROR));
+            $now=time();$jwt=self::b64('{"alg":"RS256","typ":"JWT"}').'.'.self::b64(json_encode(['iss'=>$c['client_email'],'scope'=>'https://www.googleapis.com/auth/'.$scope,'aud'=>'https://oauth2.googleapis.com/token','iat'=>$now,'exp'=>$now+3600],JSON_THROW_ON_ERROR));
             if(!openssl_sign($jwt,$sig,$c['private_key'],OPENSSL_ALGO_SHA256))throw new \RuntimeException('Cannot sign service account assertion');
             $params=['grant_type'=>'urn:ietf:params:oauth:grant-type:jwt-bearer','assertion'=>$jwt.'.'.self::b64($sig)];
         }else{$params=['grant_type'=>'refresh_token','client_id'=>$c['client_id'],'client_secret'=>$c['client_secret'],'refresh_token'=>$c['refresh_token']];}
@@ -48,7 +49,7 @@ final readonly class ApiReports implements ReportProvider
     public function report(string $resource, #[\SensitiveParameter] array $credential,string $from,string $to,?string $goal): array
     {
         if(!preg_match('/^[1-9][0-9]{0,19}$/D',$resource)||($goal!==null&&!preg_match('/^[1-9][0-9]{0,19}$/D',$goal)))throw new \InvalidArgumentException('Invalid analytics resource');
-        $token=$this->token($credential);$ga=$this->provider==='ga4';
+        $token=$this->accessToken($credential);$ga=$this->provider==='ga4';
         $metrics=$ga?['activeUsers','sessions','screenPageViews','keyEvents']:['ym:s:users','ym:s:visits','ym:s:pageviews'];
         if(!$ga&&$goal!==null)$metrics[]='ym:s:goal'.$goal.'reaches';
         $labels=$ga?['Active users','Sessions','Views (web + app)','Key events']:['Users','Visits','Page views'];if(!$ga&&$goal!==null)$labels[]='Goal '.$goal.' reaches';

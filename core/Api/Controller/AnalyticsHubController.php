@@ -17,5 +17,6 @@ final readonly class AnalyticsHubController
     public function update(Request $r,array $p): JsonResponse {$v=$this->hub->save($p['id'],$r->attributes->get('json',[]));$this->record($r,'updated',$p['id']);return $this->response($v);}
     public function delete(Request $r,array $p): JsonResponse {$this->hub->delete($p['id'],$r->attributes->get('json',[])['revision']);$this->record($r,'deleted',$p['id']);return $this->response(['deleted'=>true]);}
     public function sync(Request $r,array $p): JsonResponse {$b=$r->attributes->get('json',[]);$v=$this->hub->enqueue($p['id'],$b['from']??null,$b['to']??null);$this->record($r,'queued',$p['id']);return $this->response($v,202);}
+    public function webmaster(Request $r,array $p): JsonResponse {$b=$r->attributes->get('json',[]);$v=$this->hub->webmasterAction($p['id'],$b['revision'],$b['action'],$b['url']);$this->record($r,'webmaster.'.$b['action'],$p['id']);return $this->response($v);}
     public function report(Request $r,array $p): JsonResponse {return $this->response($this->hub->report($p['id'],$r->query->get('from'),$r->query->get('to')));}
 }
