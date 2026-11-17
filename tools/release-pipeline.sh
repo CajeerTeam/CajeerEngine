@@ -37,6 +37,9 @@ php tools/cloudflare-analytics-regression.php --require-db
 php tools/advertising-regression.php
 php tools/migration-discovery-regression.php --require-xml
 php tools/migration-planning-regression.php --require-xml
+php tools/seo-url-migration-regression.php
+python3 tools/seo-url-migration-sqlite-regression.py
+php tools/seo-url-migration-integration.php --require-db
 php tools/dle-migration-regression.php --require-db
 php tools/identity-migration-regression.php --require-db
 python3 tools/identity-migration-sqlite-regression.py

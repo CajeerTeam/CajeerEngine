@@ -66,6 +66,21 @@ final class RedirectRepository
         $this->touch($r['id']);return $r;
     }
 
+    /** Only exact WordPress plain permalink keys at the root are eligible. */
+    public function legacyQueryTarget(string $key): ?string
+    {
+        if(!preg_match('/^(?:p|page_id):[1-9][0-9]{0,15}$/D',$key))return null;
+        if(!$this->useDatabase()||!$this->database()->tableExists('ce_migration_seo_query_urls'))return null;
+        $q=$this->pdo()->prepare('SELECT target_path FROM ce_migration_seo_query_urls WHERE query_key=:key');
+        $q->execute(['key'=>$key]);$target=$q->fetchColumn();
+        if(!is_string($target))return null;
+        try{
+            $path=PublicPath::content($target);$route=(new RouteIndex($this->rootPath,$this->database()))->lookup($path);
+            if(($route['kind']??'')==='alias'){$path=PublicPath::content((string)$route['target']);$route=(new RouteIndex($this->rootPath,$this->database()))->lookup($path);}
+            return ($route['kind']??'')==='page'?$path:null;
+        }catch(\InvalidArgumentException){return null;}
+    }
+
     private function assertNoLoop(array $r): void
     {
         $base=PublicPath::base((new ConfigRepository($this->rootPath))->string('app.url'));

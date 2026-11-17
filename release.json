@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.4.6",
+  "version": "1.4.7",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.4.6-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.4.6-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.4.7-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.4.7-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.4.6-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.4.7-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -76,7 +76,8 @@
     "1.4.3": "DLE Migration — real bounded content transfer and durable SQL execution receipt",
     "1.4.4": "WordPress Migration — real bounded content transfer through WXR, SQL and REST",
     "1.4.5": "Users & Identity Migration — transactional accounts, roles, author links and one-time operator activation",
-    "1.4.6": "Media & Attachments Migration — verified local uploads, URL rewrite, WordPress featured attachments, resumable media receipts"
+    "1.4.6": "Media & Attachments Migration — verified local uploads, URL rewrite, WordPress featured attachments, resumable media receipts",
+    "1.4.7": "SEO & URL Migration — verified legacy 301 redirects, WordPress query permalinks, SEO metadata, internal links and sitemap"
   },
   "stability": "stable"
 }

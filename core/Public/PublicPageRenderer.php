@@ -80,9 +80,9 @@ final readonly class PublicPageRenderer
     public function sitemap(): array
     {
         $theme=$this->themeConfig();if(!$theme['sitemap_enabled']||!$theme['robots_index'])return [];
-        $items=[];$base=$this->baseUrl();$routes=$this->routeIndex()->all();
+        $items=[];$base=$this->baseUrl();$routes=$this->routeIndex()->all();$migrationNoindex=(new \CajeerEngine\Migration\SeoMetadata($this->rootPath))->noindexIds();
         foreach($routes as $r){
-            if($r['kind']!=='page'||$r['noindex']||in_array($r['path'],[$theme['error_404_path'],$theme['error_410_path']],true))continue;
+            if($r['kind']!=='page'||$r['noindex']||isset($migrationNoindex[(string)($r['id']??'')])||in_array($r['path'],[$theme['error_404_path'],$theme['error_410_path']],true))continue;
             if($this->canonical($r['canonical'],$r['path'],$routes)!==$base.$r['path'])continue;
             $items[]=array_intersect_key($r,array_flip(['type','id','title','slug','path','locale','updated_at','translation_group']))+['priority'=>$r['path']==='/'?'1.0':'0.7','changefreq'=>$r['path']==='/'?'daily':'weekly'];
         }
@@ -192,20 +192,21 @@ final readonly class PublicPageRenderer
     {
         $data = is_array($entry['data'] ?? null) ? $entry['data'] : [];
         $themeSeo = is_array($theme['seo'] ?? null) ? $theme['seo'] : [];
-        $title = trim((string) ($data['seo_title'] ?? $data['meta_title'] ?? $entry['title'] ?? $themeSeo['default_title'] ?? $theme['site_name'] ?? 'CajeerEngine'));
+        $migrated=(new \CajeerEngine\Migration\SeoMetadata($this->rootPath))->get((string)($entry['id']??''));
+        $title = trim((string) (($data['seo_title'] ?? '') ?: ($data['meta_title'] ?? '') ?: ($migrated['title'] ?? '') ?: ($entry['title'] ?? '') ?: ($themeSeo['default_title'] ?? '') ?: ($theme['site_name'] ?? 'CajeerEngine')));
         $suffix = trim((string) ($themeSeo['title_suffix'] ?? ''));
         if ($suffix !== '' && !str_ends_with($title, $suffix)) {
             $title .= ' ' . $suffix;
         }
-        $description = trim((string) ($data['meta_description'] ?? $data['summary'] ?? $themeSeo['default_description'] ?? $theme['site_description'] ?? ''));
+        $description = trim((string) (($data['meta_description'] ?? '') ?: ($migrated['description'] ?? '') ?: ($data['summary'] ?? '') ?: ($themeSeo['default_description'] ?? '') ?: ($theme['site_description'] ?? '')));
         return [
             'title' => $title,
             'description' => $description,
-            'canonical_url' => $this->canonical((string)($data['canonical_url']??''),$path),
+            'canonical_url' => $this->canonical((string)(($data['canonical_url']??'') ?: ($migrated['canonical_url']??'')),$path),
             'og_title' => trim((string) ($data['og_title'] ?? $title)),
             'og_description' => trim((string) ($data['og_description'] ?? $description)),
             'og_image' => SafeHtml::url((string) ($data['og_image'] ?? $themeSeo['og_image'] ?? '')),
-            'robots' => (filter_var($data['seo_noindex'] ?? false, FILTER_VALIDATE_BOOLEAN)||!$theme['robots_index']) ? 'noindex,nofollow' : ($theme['robots_follow']?'index,follow':'index,nofollow'),
+            'robots' => (filter_var($data['seo_noindex'] ?? false, FILTER_VALIDATE_BOOLEAN)||!empty($migrated['noindex'])||!$theme['robots_index']) ? 'noindex,nofollow' : ($theme['robots_follow']?'index,follow':'index,nofollow'),
         ];
     }
 

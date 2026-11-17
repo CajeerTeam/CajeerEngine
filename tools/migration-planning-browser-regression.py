@@ -38,7 +38,13 @@ with sync_playwright() as p:
     page.evaluate("project={...project,media_migration:{status:'partially_or_fully_imported',imported_files:12,imported_bytes:4096,rewritten_entries:3,rewritten_links:5}}")
     page.evaluate("async()=>{await loadSilent('migrationProjects','/migration/projects');render()}")
     page.get_by_text('7. Медиа и вложения').wait_for()
-    assert 'migration:media-import '+('a'*32) in page.locator('pre').all_inner_texts()[-1]
+    assert any('migration:media-import '+('a'*32) in text for text in page.locator('pre').all_inner_texts())
     assert page.get_by_text('Загружено файлов: 12',exact=False).count() == 1
     assert not errors,errors;print('PASS migrated media receipt, manual operator command and progress shown')
+    page.evaluate("project={...project,seo_migration:{metadata_entries:1,new_redirects:2,new_query_redirects:1,rewritten_links:4}}")
+    page.evaluate("async()=>{await loadSilent('migrationProjects','/migration/projects');render()}")
+    page.get_by_text('8. SEO, старые URL и sitemap').wait_for()
+    assert any('migration:seo-import '+('a'*32) in text for text in page.locator('pre').all_inner_texts())
+    assert page.get_by_text('SEO-записей: 1',exact=False).count()==1
+    assert not errors,errors;print('PASS operator SEO stage and real migration report visible with escaped DOM')
     browser.close()

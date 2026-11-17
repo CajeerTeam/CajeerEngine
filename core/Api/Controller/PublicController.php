@@ -94,6 +94,16 @@ final readonly class PublicController
 
     public function renderByPath(Request $request, array $parameters): Response
     {
+        // WordPress plain permalinks have query-only identity: never redirect arbitrary query strings.
+        if($request->getPathInfo()==='/'&&count($request->query->all())===1){
+            foreach(['p','page_id'] as $param){
+                $value=$request->query->get($param);
+                if(is_string($value)&&preg_match('/^[1-9][0-9]{0,15}$/D',$value)){
+                    $target=$this->redirects->legacyQueryTarget($param.':'.$value);
+                    if($target!==null)return new RedirectResponse($target,301,['Cache-Control'=>'public, max-age=300']);
+                }
+            }
+        }
         $result=(new PublicRouteResolver($this->renderer->routeIndex(),$this->redirects))->resolve($request->getPathInfo());
         if(isset($result['target'])){
             $target=$result['target'];

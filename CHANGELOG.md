@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.7 — SEO & URL Migration
+
+- Operator-only `migration:seo-import` after DLE/WordPress content import; source records and approved receipt mapped to current public routes.
+- Read-only SEO metadata overlay from DLE and supported WordPress SEO plugin fields, respecting editor overrides and public indexing rules.
+- Atomic verified legacy 301 redirects (and WordPress plain query permalinks), internal-link rewrites with revision conflict protection, and SQL execution receipt.
+- `0022_seo_url_migration.sql` for SQLite, PostgreSQL, MySQL; SEO stage report in Migration Center and test suite.
+
 ## 1.4.6 — Media & Attachments Migration
 - Import local DLE / WordPress uploads into the real MediaRepository with MIME, size and SHA-256 verification; reuse existing physical assets on repeat runs.
 - Rewrite upload URLs inside only committed migration entries using revision checks and crash-recoverable intent receipts; report missing and unsupported assets explicitly.

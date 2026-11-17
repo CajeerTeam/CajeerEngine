@@ -10,7 +10,7 @@ use CajeerEngine\Update\OperationLock;
 /** Small, durable discovery projects. Network I/O is outside the registry lock; CAS prevents stale reports. */
 final readonly class MigrationCenter
 {
-    public function __construct(private string $root,private SecretVault $vault,private SourceDiscovery $discovery=new SourceDiscovery(),private WxrDiscovery $wxr=new WxrDiscovery(),private ?MigrationPlanner $planner=null,private ?DleImporter $dle=null,private ?MediaMigration $media=null) {}
+    public function __construct(private string $root,private SecretVault $vault,private SourceDiscovery $discovery=new SourceDiscovery(),private WxrDiscovery $wxr=new WxrDiscovery(),private ?MigrationPlanner $planner=null,private ?DleImporter $dle=null,private ?MediaMigration $media=null,private ?SeoMigration $seo=null) {}
     private function path(string $id):string {if(!preg_match('/^[a-f0-9]{32}$/D',$id))throw new \InvalidArgumentException('Invalid migration project ID.');return F::path($this->root,'storage/app/migration/'.$id.'.json');}
     private function locked(callable $fn,bool $exclusive=false):mixed {
         if($exclusive&&!OperationLock::exclusiveHeld($this->root))throw new \LogicException('Exclusive migration lease required.');
@@ -21,7 +21,7 @@ final readonly class MigrationCenter
         }finally{OperationLock::release($lease);}
     }
     private function get(string $id):array {$p=$this->path($id);if(!is_file($p))throw new \RuntimeException('Проект миграции не найден.');return F::read($p);}
-    private function public(array $p):array {unset($p['credential'],$p['wxr_ref']);if($p['status']==='approved'&&($receipt=$this->dle?->receipt($p['id'],$p['source']))!==null){$p['execution']=$receipt;$p['status']='completed';if($this->media!==null)$p['media_migration']=$this->media->report($p['id']);}return $p;}
+    private function public(array $p):array {unset($p['credential'],$p['wxr_ref']);if($p['status']==='approved'&&($receipt=$this->dle?->receipt($p['id'],$p['source']))!==null){$p['execution']=$receipt;$p['status']='completed';if($this->media!==null)$p['media_migration']=$this->media->report($p['id']);if($this->seo!==null)$p['seo_migration']=$this->seo->report($p['id']);}return $p;}
     private function wxrPath(string $id,string $ref):string {if(!preg_match('/^[a-f0-9]{32}$/D',$ref))throw new \RuntimeException('Invalid WXR storage reference.');$this->path($id);return F::path($this->root,'storage/app/migration/'.$id.'-'.$ref.'.wxr.enc');}
     private function cleanupWxr(string $id,?string $keep=null):void {foreach(glob(dirname($this->path($id)).'/'.$id.'-*.wxr.enc')?:[] as $f){if($keep!==null&&$f===$this->wxrPath($id,$keep))continue;F::remove($f);}}
     public function list():array {return $this->locked(function($dir){$out=[];foreach(glob($dir.'/*.json')?:[] as $f){$id=basename($f,'.json');$out[]=$this->public($this->get($id));}usort($out,fn($a,$b)=>strcmp($b['updated_at'],$a['updated_at']));return ['projects'=>$out];});}
@@ -66,6 +66,21 @@ final readonly class MigrationCenter
             }
             $secret=json_decode($this->vault->open('migration:v1:'.$id.':'.$p['source'],$p['credential']),true,16,JSON_THROW_ON_ERROR);
             return $this->discovery->wordpressMediaMetadata($p['source'],$p['config'],$secret);
+        },true);
+    }
+    /** Operator-only fresh SEO inventory; source credentials and the raw WXR never enter API responses. */
+    public function seoSourceInventory(string $id):array
+    {
+        if(!OperationLock::exclusiveHeld($this->root))throw new \LogicException('Exclusive operator lease required.');
+        return $this->locked(function()use($id){
+            $p=$this->get($id);
+            if($p['source']==='wordpress-wxr'){
+                $file=$this->wxrPath($id,(string)($p['wxr_ref']??''));
+                $sealed=file_get_contents($file);
+                if($sealed===false)throw new \RuntimeException('Original WXR export is unavailable.');
+                $p['wxr']=$sealed;
+            }
+            return $this->inventory($p);
         },true);
     }
     private function calculate(array $p):array {
