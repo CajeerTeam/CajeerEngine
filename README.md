@@ -16,7 +16,7 @@ php bin/cajeer admin:assets --check
 php bin/cajeer doctor
 ```
 
-## Production Stable 1.4.5
+## Production Stable 1.4.6
 
 Допуск к эксплуатации зависит от прохождения полного release CI, а не от номера версии. [Production certification](docs/production-certification.md): реальные TLS/FPM/PostgreSQL интеграции, нагрузочный профиль, security-приёмка, аудит зависимостей и привязка доказательств к артефактам.
 
@@ -33,7 +33,7 @@ node admin/scripts/publish-admin-assets.mjs --check
 php tools/release-regression.php
 # После коммита всех изменений и composer.lock:
 bash tools/release-pipeline.sh /tmp/cajeer-release
-bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.4.5-dist.zip sqlite
+bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.4.6-dist.zip sqlite
 ```
 
 Сборка использует чистый Git snapshot и проверяет каждую запись ZIP, checksum и sidecar manifest. Dist включает `vendor/`, production Admin assets, миграции и пустые runtime-маркеры. Никакие данные рабочей установки, загруженные медиа, секреты и установленные пользователем плагины не включаются. Публиковать dist только после успешных smoke tests; SHA256 проверяет целостность, но не заменяет подпись доверенного издателя.
@@ -51,6 +51,10 @@ ZIP export v3 переносит контент, медиа, CMS-конфигу�
 ## Расширения
 
 Поддерживает подписанные модули, плагины и темы, зависимости, расширяемые административные действия, очередь, scheduler и безопасный upgrade с резервным копированием. [Руководство Extension Platform](docs/extensions-platform.md); рабочие примеры находятся в `examples/extensions/`.
+### Media & Attachments Migration (1.4.6)
+
+After the approved DLE/WordPress content import, run `php bin/cajeer migration:media-import PROJECT_ID /srv/source/uploads --yes --origin=https://old.example.com` from the server operator shell. This copies validated files through the Media Library, reuses SHA-256 duplicates, rewrites the project's content links, and provides resumable SQL receipts. WordPress featured images can be mapped with `--featured-field=cover` when the target type contains a `media` field. See [Media Migration](docs/media-attachments-migration.md) and the supported file type/rollback limitations.
+
 ### Users & Identity Migration (1.4.5)
 
 DLE and WordPress imports create disabled accounts, link authors and support explicit viewer/editor roles. See [Identity Migration](docs/identity-migration.md).

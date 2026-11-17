@@ -41,6 +41,36 @@ final readonly class SourceDiscovery
         return ['url'=>$url];
     }
 
+    /** Read-only WordPress attachment metadata for an operator-approved media import. */
+    public function wordpressMediaMetadata(string $source,array $config,#[\SensitiveParameter] array $secret):array
+    {
+        if($source==='wordpress-db'){
+            return $this->database($source,self::dbConfig($config),$secret,static fn($pdo,$report)=>WordPressMediaMetadata::fromDatabase($pdo,(string)$report['details']['prefix']));
+        }
+        if($source!=='wordpress-rest')throw new \InvalidArgumentException('WordPress media metadata requires a WordPress source.');
+        $config=self::restConfig($config);$headers=['Accept'=>'application/json'];
+        if(($secret['username']??'')!=='')$headers['Authorization']='Basic '.base64_encode($secret['username'].':'.$secret['password']);
+        $assets=[];$featured=[];$started=microtime(true);
+        foreach(['media','posts','pages'] as $kind){
+            for($page=1;$page<=6;$page++){
+                if(microtime(true)-$started>25)throw new \RuntimeException('WordPress media metadata scan timed out.');
+                $fields=$kind==='media'?'id,source_url':'id,featured_media';
+                $url=$config['url'].'/wp-json/wp/v2/'.$kind.'?per_page=100&page='.$page.'&_fields='.$fields;
+                [$status,$body]=$this->http->request($url,'GET',$headers,'',2*1024*1024);
+                if($page>1&&$status===400&&in_array(json_decode($body,true)['code']??'',['rest_post_invalid_page_number','rest_user_invalid_page_number'],true))break;
+                if($status!==200)throw new \RuntimeException('WordPress media metadata collection unavailable (HTTP '.$status.').');
+                $rows=json_decode($body,true,64,JSON_THROW_ON_ERROR);
+                if(!is_array($rows)||!array_is_list($rows))throw new \RuntimeException('Invalid WordPress media metadata response.');
+                foreach($rows as $r){$id=$r['id']??null;if(!is_int($id)||$id<1)continue;
+                    if($kind==='media'&&is_string($r['source_url']??null))$assets[(string)$id]=$r['source_url'];
+                    elseif(is_int($r['featured_media']??null)&&$r['featured_media']>0)$featured[(string)$id]=(string)$r['featured_media'];}
+                if(count($assets)>500||count($featured)>500)throw new \RuntimeException('WordPress REST media metadata exceeds 500 records.');
+                if(count($rows)<100)break;
+            }
+        }
+        return ['attachments'=>$assets,'featured'=>$featured];
+    }
+
     public function scan(string $source,array $config, #[\SensitiveParameter] array $secret): array
     {
         return match($source) {

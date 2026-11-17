@@ -81,6 +81,8 @@ jobs:
       - run: python3 tools/wordpress-migration-sqlite-regression.py
       - run: php tools/identity-migration-regression.php --require-db
       - run: python3 tools/identity-migration-sqlite-regression.py
+      - run: php tools/media-migration-regression.php --require-db
+      - run: python3 tools/media-migration-sqlite-regression.py
       - run: python3 tools/analytics-ga-upgrade-regression.py
       - run: php tools/search-webmaster-regression.php --require-db
       - run: php tools/alternative-analytics-regression.php --require-db

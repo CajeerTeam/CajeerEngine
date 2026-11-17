@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.4.5",
+  "version": "1.4.6",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.4.5-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.4.5-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.4.6-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.4.6-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.4.5-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.4.6-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,7 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
-    "Transactional migration of DLE and WordPress identities, explicit safe role mapping, disabled accounts, author links and verified operator activation."
+    "Media and attachments migration: physical source uploads into MediaRepository, SHA-256 deduplication, revision-safe URL replacement, resumable SQL ledger, WordPress featured mapping and explicit diagnostics."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -75,7 +75,8 @@
     "1.4.2": "Mapping & Migration Planning — field/type/user mapping, conflict resolution and verified dry run",
     "1.4.3": "DLE Migration — real bounded content transfer and durable SQL execution receipt",
     "1.4.4": "WordPress Migration — real bounded content transfer through WXR, SQL and REST",
-    "1.4.5": "Users & Identity Migration — transactional accounts, roles, author links and one-time operator activation"
+    "1.4.5": "Users & Identity Migration — transactional accounts, roles, author links and one-time operator activation",
+    "1.4.6": "Media & Attachments Migration — verified local uploads, URL rewrite, WordPress featured attachments, resumable media receipts"
   },
   "stability": "stable"
 }

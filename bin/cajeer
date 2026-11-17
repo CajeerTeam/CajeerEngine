@@ -99,9 +99,9 @@ $autoload = $root . '/vendor/autoload.php';
 require_once $root . '/core/Update/OperationFiles.php';
 require_once $root . '/core/Update/OperationLock.php';
 require_once $root . '/core/Console/OperationsCli.php';
-if (in_array($argv[1]??'', ['migration:dle-import','migration:wordpress-import','migration:activate-user'],true)) {
+if (in_array($argv[1]??'', ['migration:dle-import','migration:wordpress-import','migration:activate-user','migration:media-import'],true)) {
     if (is_file($autoload)) require_once $autoload; else require_once $root.'/core/Console/NativeCli.php';
-    exit(\CajeerEngine\Migration\DleCli::run($root,$argv));
+    exit(($argv[1]??'')==='migration:media-import'?\CajeerEngine\Migration\MediaCli::run($root,$argv):\CajeerEngine\Migration\DleCli::run($root,$argv));
 }
 if (in_array($argv[1]??'', ['ops:check','ops:report','ops:metrics','ops:traces:flush'],true)) {
     if (is_file($autoload)) require_once $autoload; else require_once $root.'/core/Console/NativeCli.php';

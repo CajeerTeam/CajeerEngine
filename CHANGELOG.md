@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.6 — Media & Attachments Migration
+- Import local DLE / WordPress uploads into the real MediaRepository with MIME, size and SHA-256 verification; reuse existing physical assets on repeat runs.
+- Rewrite upload URLs inside only committed migration entries using revision checks and crash-recoverable intent receipts; report missing and unsupported assets explicitly.
+- Optional WordPress featured-media binding through WXR, read-only database or REST attachment metadata, without exposing source credentials.
+- Operator CLI, read-only Migration Center progress, three SQL migration 0021 variants, media and SQLite regression tests. Full-tree rollback requires a pre-migration backup.
+
 ## 1.4.5 — Users & Identity Migration
 
 - Transactional source user creation, author links, safe roles and one-time operator activation.

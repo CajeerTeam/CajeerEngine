@@ -34,4 +34,11 @@ with sync_playwright() as p:
     assert page.get_by_text('post:42',exact=True).count()==1 and page.locator('[data-migration-result-export]').count()==1
     assert page.locator('[data-migration-edit]').count()==0 and page.locator('[data-migration-delete]').count()==0 and page.locator('[data-migration-mapping]').count()==0
     assert page.get_by_text('23456789-1234-1234-1234-123456789abc',exact=True).count()==1 and page.get_by_text('pending',exact=True).count()==1
-    assert not errors,errors;print('PASS completed receipt refreshed, identity status and mutation controls removed');browser.close()
+    assert not errors,errors;print('PASS completed receipt refreshed, identity status and mutation controls removed')
+    page.evaluate("project={...project,media_migration:{status:'partially_or_fully_imported',imported_files:12,imported_bytes:4096,rewritten_entries:3,rewritten_links:5}}")
+    page.evaluate("async()=>{await loadSilent('migrationProjects','/migration/projects');render()}")
+    page.get_by_text('7. Медиа и вложения').wait_for()
+    assert 'migration:media-import '+('a'*32) in page.locator('pre').all_inner_texts()[-1]
+    assert page.get_by_text('Загружено файлов: 12',exact=False).count() == 1
+    assert not errors,errors;print('PASS migrated media receipt, manual operator command and progress shown')
+    browser.close()
