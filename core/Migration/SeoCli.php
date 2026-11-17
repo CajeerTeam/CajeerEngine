@@ -23,7 +23,7 @@ final class SeoCli
         try{
             OperationsCli::loadEnv($root);
             $lease=OperationLock::acquire($root,true);
-            if(OperationLock::active($root)||is_file($root.'/storage/app/backup-restore.json')||is_file($root.'/storage/app/extensions/deployment.json'))throw new \RuntimeException('Recovery or deployment is pending.');
+            if(OperationLock::maintenance($root)||is_file($root.'/storage/app/backup-restore.json')||is_file($root.'/storage/app/extensions/deployment.json'))throw new \RuntimeException('Recovery or deployment is pending.');
             $config=new ConfigRepository($root);$db=new DatabaseManager($config);$entries=new ContentEntryRepository($root,$db);
             $center=MigrationFactory::create($root,$db,new ContentTypeRepository($root,$db),$entries,new UserRepository($db,new RoleRepository($db)));
             $project=$center->show($argv[2]);if(($project['status']??'')!=='completed')throw new \RuntimeException('Complete content migration first.');

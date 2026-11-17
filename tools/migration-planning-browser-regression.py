@@ -20,15 +20,22 @@ with sync_playwright() as p:
     print('PASS dry run and report rendering')
     page.on('dialog',lambda d:d.accept());page.locator('[data-migration-approve]').click();page.get_by_text('Подтверждён: 2026-11-16').wait_for();assert page.evaluate("requests.some(r=>r.path.endsWith('/approve')&&r.body.revision===4&&r.body.sha256==='b'.repeat(64))")
     print('PASS revision and hash guarded approval')
-    assert page.get_by_text('php bin/cajeer migration:wordpress-import '+'a'*32+' '+'b'*64+' --yes',exact=True).count()==1
+    assert page.get_by_text('php bin/cajeer migration:execute '+'a'*32+' '+'b'*64+' --yes --batch=50',exact=True).count()==1
     print('PASS WordPress approved plan shows correct executable command')
     page.evaluate("state.identity.scopes=['migration:read'];render()");assert page.locator('[data-migration-mapping]').count()==0 and page.locator('[data-migration-plan]').count()==0 and page.locator('[data-migration-approve]').count()==0
     assert not errors,errors;print('PASS read-only access and no JavaScript errors')
     page.evaluate("state.identity.scopes=['migration:read','migration:write','migration:run','integrations:secrets','users:read'];project={...project,source:'dle-db'};")
     page.evaluate("async()=>{await loadSilent('migrationProjects','/migration/projects');render()}")
     page.get_by_text('6. Выполнение DLE').wait_for()
-    assert page.get_by_text('php bin/cajeer migration:dle-import '+'a'*32+' '+'b'*64+' --yes',exact=True).count()==1
+    assert page.get_by_text('php bin/cajeer migration:execute '+'a'*32+' '+'b'*64+' --yes --batch=50',exact=True).count()==1
     print('PASS approved DLE plan exposes exact operator command')
+    page.evaluate("project={...project,batch_execution:{state:'paused',cursor_index:2,total:5,percent:40,backup_id:'20261117-000000-aaaaaaaaaaaaaaaa'}}")
+    page.evaluate("async()=>{await loadSilent('migrationProjects','/migration/projects');render()}")
+    page.get_by_text('6. Пакетный перенос DLE').wait_for()
+    assert any('migration:resume '+('a'*32) in value for value in page.locator('pre').all_inner_texts())
+    assert any('migration:rollback '+('a'*32) in value for value in page.locator('pre').all_inner_texts())
+    print('PASS paused checkpoint, resume and verified backup restore operator guidance')
+    page.evaluate('project={...project,batch_execution:null}')
     page.evaluate("project={...project,status:'completed',execution:{project_id:project.id,plan_sha256:project.plan.sha256,completed_at:'2026-11-16',counts:{create:1,update:0,skip:0},records:[{source_type:'post',source_id:'42',target_type:'articles',target_id:'12345678-1234-1234-1234-123456789abc',action:'create'}],users:[{source_id:'writer',target_id:'23456789-1234-1234-1234-123456789abc',action:'create',role:'editor',activation:'pending'}],warnings:[]}}")
     page.locator('[data-migration-refresh]').click();page.get_by_text('6. Перенос DLE завершён').wait_for()
     assert page.get_by_text('post:42',exact=True).count()==1 and page.locator('[data-migration-result-export]').count()==1

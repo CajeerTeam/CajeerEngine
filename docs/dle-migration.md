@@ -25,3 +25,7 @@ The command acquires an exclusive application lease; busy servers return a retry
 * Mapping strategies: `fail`, `skip`, `update`, `create` (new slug). Unresolved conflicts block execution. Each result records source type/id, target UUID, action, slug and revision; skipped rows are recorded without writing.
 
 Limits inherit planning: 500 content records, 500 users, 500 categories, 16 MiB of inventory, 10,000 target rows per mapped type. A large source fails closed instead of silently importing a prefix. Standalone taxonomy, media, comments, SEO redirects, incremental sync, full site rollback and cross-project deduplication are not part of 1.4.3. Use the existing operator backup for restoration after a successful import. No automatic backup/restore is attempted by this command.
+
+## 1.4.8 checkpointed alternative
+
+For multi-batch execution with verified pre-import backup and a durable checkpoint, use `php bin/cajeer migration:execute PROJECT_ID PLAN_SHA256 --yes --batch=50`. See [Migration Execution & Recovery](migration-execution-recovery.md) for pause, resume and full restore. This supersedes the single-transaction CLI workflow for larger approved projects.

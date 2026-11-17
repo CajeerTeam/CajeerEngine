@@ -1,3 +1,10 @@
+## 1.4.8 — Migration Execution & Recovery
+
+- Real operator-only batch importer for approved DLE/WordPress plans, with SQL checkpoints, idempotent resumes and complete receipts.
+- Verified pre-execution backup, site maintenance, controlled full backup rollback, and crash recovery.
+- Raised bounded source inventories to 5,000 content items / users and 64 MiB. WXR up to 32 MiB.
+- Added operator CLI commands, progress in Migration Center, SQL migrations and regressions.
+
 # Changelog
 
 ## 1.4.7 — SEO & URL Migration

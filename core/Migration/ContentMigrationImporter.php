@@ -66,6 +66,63 @@ readonly class ContentMigrationImporter
             return $result;
         });
     }
+    /** A checkpoint, its corresponding content changes and the final receipt commit atomically. */
+    public function executeBatch(array $project,array $inventory,int $offset,int $limit):array
+    {
+        if(!\CajeerEngine\Update\OperationLock::exclusiveHeld($this->root))throw new \LogicException('Exclusive migration lease required.');
+        $id=$project['id'];$plan=$project['plan'];$source=$project['source'];$table=self::table($source);
+        if($limit<1||$limit>100)throw new \InvalidArgumentException('Batch must contain 1–100 records.');
+        if(!class_exists(\DOMDocument::class))throw new \RuntimeException('PHP DOM required for safe HTML import.');
+        $actions=$plan['records'];$total=count($actions);
+        if($offset<0||$offset>$total)throw new \InvalidArgumentException('Invalid checkpoint cursor.');
+        $records=[];foreach($inventory['records'] as $r)$records[$r['type'].':'.$r['id']]=$r;
+        return (new RouteIndex($this->root,$this->db))->mutate(function()use($project,$inventory,$id,$plan,$source,$table,$offset,$limit,$actions,$total,$records){
+            $pdo=$this->db->connection();
+            $q=$pdo->prepare('SELECT cursor_index,total,plan_sha256,source,identities,state FROM ce_migration_execution WHERE project_id=:id');
+            $q->execute(['id'=>$id]);$checkpoint=$q->fetch(\PDO::FETCH_ASSOC);
+            if(!$checkpoint||!in_array($checkpoint['state'],['running','paused'],true)||!hash_equals($checkpoint['plan_sha256'],$plan['sha256'])||$checkpoint['source']!==$source||(int)$checkpoint['total']!==$total||(int)$checkpoint['cursor_index']!==$offset)
+                throw new RevisionConflict('Execution checkpoint was changed or became stale.');
+            if($checkpoint['identities']===null){
+                if($offset!==0)throw new \RuntimeException('Identity checkpoint missing.');
+                $roles=new \CajeerEngine\Database\Repository\RoleRepository($this->db);
+                $identities=(new IdentityMigration($this->db,new \CajeerEngine\Database\Repository\UserRepository($this->db,$roles),$roles))->import($id,$inventory,$plan['users']);
+            }else $identities=json_decode($checkpoint['identities'],true,64,JSON_THROW_ON_ERROR);
+            $finish=min($total,$offset+$limit);
+            $insert=$pdo->prepare('INSERT INTO ce_migration_execution_items(project_id,ordinal,source_type,source_id,target_id,result) VALUES(:project,:ordinal,:type,:source,:target,:result)');
+            for($i=$offset;$i<$finish;$i++){
+                $a=$actions[$i];$key=$a['source_type'].':'.$a['source_id'];$r=$records[$key]??throw new RevisionConflict('Approved record disappeared.');
+                $row=['source_type'=>$a['source_type'],'source_id'=>$a['source_id'],'target_type'=>$a['target_type'],'target_id'=>$a['target_id'],'action'=>$a['action'],'slug'=>$a['slug'],'source_author'=>$r['author'],'source_date'=>$r['fields']['date']];
+                if($a['action']!=='skip'){
+                    if(!in_array($a['action'],['create','update'],true))throw new \LogicException('Unresolved planned action.');
+                    $rule=$project['mapping']['types'][$r['type']]??throw new RevisionConflict('Source mapping disappeared.');
+                    $type=$this->types->find($rule['target'])??throw new RevisionConflict('Target type disappeared.');
+                    $status=$project['mapping']['statuses'][$r['status']]??'draft';
+                    $payload=MigrationPlanner::payload($r,$rule,$type,$project['mapping']['locale'],$status);$payload['slug']=$a['slug'];
+                    if(!hash_equals($a['payload_sha256'],MigrationPlanner::fingerprint($payload)))throw new RevisionConflict('Approved payload changed for '.$key.'.');
+                    $date=$source==='dle-db'?self::date($r['fields']['date']):WordPressContent::date((string)($r['fields']['meta:wp_date_gmt']??''));
+                    $author=$identities['map'][$r['author']]??$a['author_id'];
+                    $entry=$this->entries->importMigrationEntry($rule['target'],$payload,$a['action']==='update'?$a['target_id']:null,$author,$date);
+                    $row['target_id']=$entry['id'];$row['slug']=$entry['slug'];$row['author_id']=$author;$row['revision']=$entry['revision'];
+                }
+                $insert->execute(['project'=>$id,'ordinal'=>$i,'type'=>$a['source_type'],'source'=>$a['source_id'],'target'=>$row['target_id'],'result'=>json_encode($row,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
+            }
+            $complete=$finish===$total;
+            $newStatus=$complete?'completed':'running';
+            $q=$pdo->prepare('UPDATE ce_migration_execution SET cursor_index=:cursor,state=:state,identities=:identities,updated_at=:at WHERE project_id=:id AND cursor_index=:previous');
+            $q->execute(['cursor'=>$finish,'state'=>$newStatus,'identities'=>json_encode($identities,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),'at'=>gmdate(DATE_ATOM),'id'=>$id,'previous'=>$offset]);
+            if($q->rowCount()!==1)throw new RevisionConflict('Execution cursor was concurrently updated.');
+            if($complete){
+                $rows=$pdo->prepare('SELECT result FROM ce_migration_execution_items WHERE project_id=:id ORDER BY ordinal');$rows->execute(['id'=>$id]);
+                $result=['project_id'=>$id,'plan_sha256'=>$plan['sha256'],'completed_at'=>gmdate(DATE_ATOM),'counts'=>['create'=>0,'update'=>0,'skip'=>0],'records'=>[],'users'=>$identities['users'],'warnings'=>['Imported in checkpointed SQL batches. Use the verified pre-import backup for full rollback; media and SEO are separate stages.']];
+                while($raw=$rows->fetchColumn()){$row=json_decode($raw,true,32,JSON_THROW_ON_ERROR);$result['counts'][$row['action']]++;$result['records'][]=$row;}
+                if(count($result['records'])!==$total)throw new \RuntimeException('Missing execution journal items; rollback required.');
+                $receipt=$pdo->prepare('INSERT INTO '.$table.'(project_id,plan_sha256,completed_at,result) VALUES(:id,:sha,:at,:result)');
+                $receipt->execute(['id'=>$id,'sha'=>$plan['sha256'],'at'=>$result['completed_at'],'result'=>json_encode($result,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
+            }
+            return ['project_id'=>$id,'cursor'=>$finish,'total'=>$total,'completed'=>$complete];
+        });
+    }
+
     public static function date(string $raw):?string
     {
         if(preg_match('/^[1-9][0-9]{0,9}$/D',$raw)&&(float)$raw<=4102444800)return gmdate('Y-m-d H:i:s',(int)$raw);

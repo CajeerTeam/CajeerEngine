@@ -29,3 +29,7 @@ Limits: 500 content records, 500 users, 16 MiB inventory; WXR 8 MiB. PHP DOM is 
 ## Tests
 
 `php tools/wordpress-migration-regression.php --require-db --require-xml --require-mysql` (requires MariaDB test service, `MIGRATION_TEST_MYSQL=1`, `MIGRATION_TEST_MYSQL_PASSWORD`), `python3 tools/wordpress-migration-sqlite-regression.py` and the migration wizard browser regression. Production release CI runs these checks; actual source installations and plugin-specific content still require acceptance testing.
+
+## 1.4.8 checkpointed alternative
+
+For multi-batch execution with verified pre-import backup and a durable checkpoint, use `php bin/cajeer migration:execute PROJECT_ID PLAN_SHA256 --yes --batch=50`. WordPress WXR input is now capped at 32 MiB; PHP HTTP upload limits must be configured separately. See [Migration Execution & Recovery](migration-execution-recovery.md) for pause, resume and full restore. This supersedes the single-transaction CLI workflow for larger approved projects.

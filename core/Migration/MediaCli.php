@@ -33,7 +33,7 @@ final class MediaCli
             if($source===false||!is_dir($source)||is_link($argv[3]))throw new \InvalidArgumentException('Source uploads directory is missing.');
             foreach([$root.'/public/uploads',$root.'/storage/app/media-private'] as $dest){$dest=realpath($dest);if($dest!==false&&($source===$dest||str_starts_with($source,$dest.DIRECTORY_SEPARATOR)))throw new \InvalidArgumentException('Source uploads must not be the target media library.');}
             $lease=OperationLock::acquire($root,true);
-            if(OperationLock::active($root)||is_file($root.'/storage/app/backup-restore.json')||is_file($root.'/storage/app/extensions/deployment.json'))throw new \RuntimeException('Maintenance or recovery pending; finish it before media import.');
+            if(OperationLock::maintenance($root)||is_file($root.'/storage/app/backup-restore.json')||is_file($root.'/storage/app/extensions/deployment.json'))throw new \RuntimeException('Maintenance or recovery pending; finish it before media import.');
             $config=new ConfigRepository($root);$db=new DatabaseManager($config);
             $types=new ContentTypeRepository($root,$db);$entries=new ContentEntryRepository($root,$db);
             $users=new UserRepository($db,new RoleRepository($db));

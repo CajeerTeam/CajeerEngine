@@ -23,7 +23,7 @@ final readonly class MigrationController
     public function approve(Request $r,array $p):JsonResponse{$b=$r->attributes->get('json',[]);$v=$this->center->approve($p['id'],$b['revision'],$b['sha256']);$this->record($r,'approved',$p['id']);return $this->response($v);}
     public function upload(Request $r,array $p):JsonResponse{
         $file=$r->files->get('file');$rev=$r->request->get('revision');
-        if(!$file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile||!$file->isValid()||$file->getSize()>WxrDiscovery::MAX_BYTES||!is_string($rev)||!ctype_digit($rev)||strlen($rev)>10)throw new \InvalidArgumentException('Valid WXR file (max 8 MiB) and revision required.');
+        if(!$file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile||!$file->isValid()||$file->getSize()>WxrDiscovery::MAX_BYTES||!is_string($rev)||!ctype_digit($rev)||strlen($rev)>10)throw new \InvalidArgumentException('Valid WXR file (max 32 MiB) and revision required.');
         $xml=file_get_contents($file->getPathname(),false,null,0,WxrDiscovery::MAX_BYTES+1);if($xml===false)throw new \RuntimeException('Cannot read WXR upload.');
         $v=$this->center->scan($p['id'],(int)$rev,$xml);$this->record($r,$v['status'],$p['id']);return $this->response($v);
     }

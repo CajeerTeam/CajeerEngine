@@ -5,10 +5,10 @@ namespace CajeerEngine\Migration;
 /** Bounded XMLReader scan: namespaces are checked, no DTD, no external entities. */
 final class WxrDiscovery
 {
-    public const MAX_BYTES=8*1024*1024;
+    public const MAX_BYTES=32*1024*1024;
     public function scan(#[\SensitiveParameter] string $xml): array
     {
-        if(strlen($xml)>self::MAX_BYTES||$xml==='')throw new \InvalidArgumentException('WXR must be 1 byte to 8 MiB.');
+        if(strlen($xml)>self::MAX_BYTES||$xml==='')throw new \InvalidArgumentException('WXR must be 1 byte to 32 MiB.');
         if(str_contains($xml,"\0")||preg_match('/<!\s*(?:DOCTYPE|ENTITY)\b/i',$xml))throw new \InvalidArgumentException('WXR DTD and entities are forbidden. Use UTF-8 WXR.');
         if(!class_exists(\XMLReader::class))throw new \RuntimeException('WXR discovery requires ext-xmlreader.');
         $old=libxml_use_internal_errors(true);libxml_clear_errors();$r=new \XMLReader();

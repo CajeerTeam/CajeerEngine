@@ -19,3 +19,7 @@ Save mapping, run Dry Run, resolve all conflicts, repeat Dry Run and approve. Ap
 ## API and permissions
 
 `GET /api/v1/migration/catalog` (`migration:read`), `PUT /api/v1/migration/projects/{id}/mapping` (`migration:write`), `POST .../plan` (`migration:run`, `users:read`), `POST .../approve` (`migration:run`, `migration:write`, `users:read`). All mutations use revision and CSRF/session policy. The mapping body contains `revision` and `mapping`: `types` (source type -> `{target,fields}`), `statuses`, `users`, `locale`, `conflict`. Each field rule is `{from,transform}`. Approval takes `revision` and `sha256`. All reports are no-store. Existing 1.4.1 projects continue to work without modification.
+
+## 1.4.8 execution limits and checkpointing
+
+Version 1.4.8 increases the bounded inventory ceiling to 5,000 content items and 5,000 users (64 MiB normalized JSON, up to 32 MiB WXR input). These are hard validation caps, not streaming/unlimited imports. Use the new `migration:execute`/`migration:resume` operator CLI and read [Migration Execution & Recovery](migration-execution-recovery.md) before running. Legacy atomic CLI execution remains available for compatibility, but it does not produce resumable checkpoints.
