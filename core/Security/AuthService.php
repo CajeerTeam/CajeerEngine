@@ -7,6 +7,7 @@ namespace CajeerEngine\Security;
 use CajeerEngine\Database\Repository\ApiTokenRepository;
 use CajeerEngine\Database\Repository\AuditLogRepository;
 use CajeerEngine\Database\Repository\UserRepository;
+use CajeerEngine\Database\Repository\UserSessionRepository;
 use CajeerEngine\Runtime\ConfigRepository;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -19,6 +20,7 @@ final readonly class AuthService
         private AuditLogRepository $audit,
         private PasswordHasher $passwords,
         private TwoFactorTotp $totp,
+        private ?UserSessionRepository $sessions = null,
     ) {
     }
 
@@ -46,7 +48,7 @@ final readonly class AuthService
 
         $scopes = $this->users->permissionsForUser((string) $user['id']);
         $ttlDays = max(1, $this->config->int('security.sessions.ttl_days', 14));
-        $token = $this->tokens->create((string) $user['id'], 'admin-session', $scopes, new \DateTimeImmutable('+' . $ttlDays . ' days'));
+        $token = $this->issueSession((string) $user['id'], $scopes, $ttlDays, 'local', $request);
         $this->users->markLogin((string) $user['id']);
         $this->audit->record('auth.login_success', (string) $user['id'], ['email' => $user['email'], 'token_id' => $token['id']], $request->getClientIp(), $request->headers->get('User-Agent'));
 
@@ -72,7 +74,7 @@ final readonly class AuthService
         }
         $scopes = $this->users->permissionsForUser($userId);
         $ttlDays = max(1, $this->config->int('security.sessions.ttl_days', 14));
-        $token = $this->tokens->create($userId, 'admin-session', $scopes, new \DateTimeImmutable('+' . $ttlDays . ' days'));
+        $token = $this->issueSession($userId, $scopes, $ttlDays, 'skif4er', $request, $verifiedClaims);
         $this->users->markLogin($userId);
         $this->audit->record('auth.oidc_login_success', $userId, ['provider'=>'skif4er', 'token_id'=>$token['id']], $request->getClientIp(), $request->headers->get('User-Agent'));
         $public = $this->users->findById($userId) ?? $user;
@@ -104,6 +106,8 @@ final readonly class AuthService
         $user = isset($record['user_id']) && $record['user_id'] !== null ? $this->users->findById((string) $record['user_id']) : null;
         if ($user === null || ($user['status'] ?? '') !== 'active') { return null; }
         if ($cookie && $record['name'] !== 'admin-session') { return null; }
+        if ($record['name'] === 'admin-session' && $this->sessions !== null
+            && !$this->sessions->validate($record, $request, max(5, $this->config->int('security.sessions.idle_minutes', 720)))) { return null; }
         $scopes = $record['scopes'];
         if (is_string($scopes)) {
             $decoded = json_decode($scopes, true);
@@ -124,6 +128,85 @@ final readonly class AuthService
             'user_id' => $record['user_id'] ?? null,
             'scopes' => is_array($scopes) ? array_values($scopes) : [],
         ];
+    }
+
+    /** @param list<string> $scopes @param array<string,mixed> $claims */
+    private function issueSession(string $userId, array $scopes, int $ttlDays, string $provider, Request $request, array $claims = []): array
+    {
+        $expiresAt = new \DateTimeImmutable('+' . $ttlDays . ' days', new \DateTimeZone('UTC'));
+        $token = $this->tokens->create($userId, 'admin-session', $scopes, $expiresAt);
+        if ($this->sessions !== null) {
+            try { $this->sessions->register($token['id'], $userId, $provider, $request, $token['expires_at'], $claims); }
+            catch (\Throwable $e) { $this->tokens->revoke($token['id']); throw $e; }
+        }
+        return $token;
+    }
+
+    /** Only a current same-origin browser session may enumerate or revoke sessions. */
+    public function sessionList(array $identity): array
+    {
+        $this->requireBrowserSession($identity);
+        return $this->requireSessions()->activeForUser((string)$identity['user_id'], (string)$identity['token_id'], max(5,$this->config->int('security.sessions.idle_minutes', 720)));
+    }
+
+    public function revokeSession(array $identity, string $sessionId): bool
+    {
+        $this->requireBrowserSession($identity);
+        if (!preg_match('/^[0-9a-fA-F-]{36}$/D', $sessionId)) return false;
+        $done = $this->requireSessions()->revoke($sessionId, (string)$identity['user_id']);
+        if ($done) $this->audit->record('auth.session_revoked', (string)$identity['user_id'], ['session_id'=>$sessionId]);
+        return $done;
+    }
+
+    public function revokeAllSessions(array $identity): int
+    {
+        $this->requireBrowserSession($identity);
+        $count = $this->requireSessions()->revokeOthers((string)$identity['user_id'], null);
+        $this->audit->record('auth.all_sessions_revoked', (string)$identity['user_id'], ['count'=>$count]);
+        return $count;
+    }
+
+    public function revokeOtherSessions(array $identity): int
+    {
+        $this->requireBrowserSession($identity);
+        $count = $this->requireSessions()->revokeOthers((string)$identity['user_id'], (string)$identity['token_id']);
+        $this->audit->record('auth.other_sessions_revoked', (string)$identity['user_id'], ['count'=>$count]);
+        return $count;
+    }
+
+    /** Atomically replace a browser cookie credential, preserving external/local provenance. */
+    public function rotateSession(array $identity, Request $request): array
+    {
+        $this->requireBrowserSession($identity);
+        $sessions = $this->requireSessions();
+        $oldId = (string)$identity['token_id']; $uid = (string)$identity['user_id'];
+        $old = $sessions->find($oldId);
+        if ($old === null || $old['revoked_at'] !== null) throw new \RuntimeException('Session is not active.');
+        $scopes = $this->users->permissionsForUser($uid);
+        // A failed transaction leaves the original session untouched.
+        $database = $sessions->database();
+        $token = $database->transaction(function (\PDO $pdo) use ($sessions, $old, $oldId, $uid, $scopes, $request): array {
+            $ttlDays = max(1, $this->config->int('security.sessions.ttl_days', 14));
+            $new = $this->issueSession($uid, $scopes, $ttlDays, (string)$old['provider'], $request, ['sid_hash'=>$old['oidc_sid_hash']]);
+            if (!$sessions->revoke($oldId, $uid)) throw new \RuntimeException('Session changed during rotation.');
+            return $new;
+        });
+        $this->audit->record('auth.session_rotated', $uid, ['old_token_id'=>$oldId, 'token_id'=>$token['id']]);
+        return ['access_token'=>$token['plain_token'], 'expires_at'=>$token['expires_at'], 'csrf_token'=>self::csrfToken($token['plain_token'])];
+    }
+
+    private function requireBrowserSession(array $identity): void
+    {
+        if (($identity['session'] ?? false) !== true || ($identity['cookie'] ?? false) !== true
+            || !is_string($identity['user_id'] ?? null) || !is_string($identity['token_id'] ?? null)) {
+            throw new \RuntimeException('An authenticated browser session is required.');
+        }
+    }
+
+    private function requireSessions(): UserSessionRepository
+    {
+        if ($this->sessions === null) throw new \RuntimeException('Session registry unavailable.');
+        return $this->sessions;
     }
 
     public static function csrfToken(string $token): string
@@ -168,7 +251,9 @@ final readonly class AuthService
         if (!is_array($identity) || !isset($identity['token_id'])) {
             return false;
         }
-        $this->tokens->revoke((string) $identity['token_id']);
+        if ($this->sessions !== null && ($identity['session'] ?? false) && is_string($identity['user_id'] ?? null)) {
+            $this->sessions->revoke((string)$identity['token_id'], (string)$identity['user_id']);
+        } else { $this->tokens->revoke((string)$identity['token_id']); }
         $this->audit->record('auth.logout', isset($identity['user_id']) ? (string) $identity['user_id'] : null, ['token_id' => $identity['token_id']], $request->getClientIp(), $request->headers->get('User-Agent'));
         return true;
     }

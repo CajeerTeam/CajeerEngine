@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.5.2'
+const ADMIN_VERSION = '1.5.3'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -174,7 +174,7 @@ async function routeLoad(route) {
     if (route === 'media') await loadSilent('media', mediaQuery())
     if (route === 'cms') await Promise.allSettled([loadSilent('cmsOverview', '/cms'), loadSilent('theme', '/cms/theme'), loadSilent('navigation', '/cms/navigation'), loadSilent('redirects', '/cms/redirects'), loadSilent('publicRoutes', `/cms/routes?limit=100&offset=${state.forms.routeOffset || 0}`)])
     if (route === 'users') await Promise.allSettled([loadSilent('users', '/users'), loadSilent('roles', '/roles'), loadSilent('tokens', '/api-tokens')])
-    if (route === 'identity') await loadSilent('identity', '/identity/account')
+    if (route === 'identity') await Promise.allSettled([loadSilent('identity', '/identity/account'), loadSilent('sessions', '/auth/sessions')])
     if (route === 'tracking') await loadSilent('tracking', '/tracking/counters')
     if (route === 'analytics-hub') {await loadSilent('analyticsHub','/analytics/reports');const previous=dataOf(state.cache.analyticsHubReport,{});if(previous.connection?.id){const r=state.forms.hubPeriod;await loadSilent('analyticsHubReport',`/analytics/reports/${encodeURIComponent(previous.connection.id)}/data${r?'?'+new URLSearchParams(r):''}`)}}
     if (route === 'analytics-events') await Promise.allSettled([loadSilent('analyticsEvents','/tracking/events'),loadSilent('analyticsJournal','/tracking/events/journal')])
@@ -841,14 +841,42 @@ bootstrap()
 
 function identityView() {
   const cached = state.cache.identity
-  if (cached?.error) return `<div class="notice error">${escapeHtml(cached.error.message)}</div>`
   const data = dataOf(cached)
-  if (!data) return '<div class="card">Загрузка статуса SkiF4er ID…</div>'
-  if (!data.enabled) return '<div class="card"><h2>SkiF4er ID</h2><p>Провайдер отключён. Локальный вход продолжает работать.</p></div>'
-  const linked = data.linked === true
-  return `<div class="card"><h2>SkiF4er ID</h2><p>${linked ? 'Внешняя учётная запись привязана.' : 'Внешняя учётная запись не привязана.'}</p>${data.provisioned ? '<p>Аккаунт создан через SkiF4er ID. Для отвязки необходимо сначала настроить проверенный локальный способ входа.</p>' : ''}${data.created_at ? `<p class="muted">Дата привязки: ${escapeHtml(data.created_at)}</p>` : ''}<form class="form" data-identity-form><div class="form-row"><label>Текущий пароль CajeerEngine</label><input class="input" name="password" type="password" autocomplete="current-password" required maxlength="1024"></div><div class="form-row"><label>Код 2FA (если включён)</label><input class="input" name="two_factor_code" autocomplete="one-time-code" maxlength="128"></div><div class="toolbar">${linked ? `<button class="btn danger" type="submit" ${data.provisioned ? 'disabled' : ''}>Отвязать SkiF4er ID</button>` : '<button class="btn" type="submit">Привязать через SkiF4er ID</button>'}</div></form><p class="muted">Подтвердите локальные credentials, затем войдите в SkiF4er ID. Связывание по совпадающему email запрещено.</p></div>`
+  const entries = dataOf(state.cache.sessions, [])
+  const sessions = Array.isArray(entries) ? entries : []
+  const identityPanel = !data ? '<div class="card">Загрузка статуса SkiF4er ID…</div>' : !data.enabled
+    ? '<div class="card"><h2>SkiF4er ID</h2><p>Провайдер отключён. Локальный вход продолжает работать.</p></div>'
+    : `<div class="card"><h2>SkiF4er ID</h2><p>${data.linked ? 'Внешняя учётная запись привязана.' : 'Внешняя учётная запись не привязана.'}</p>${data.provisioned ? '<p>Аккаунт создан через SkiF4er ID. Для отвязки сначала настройте локальный вход.</p>' : ''}${data.created_at ? `<p class="muted">Дата привязки: ${escapeHtml(data.created_at)}</p>` : ''}<form class="form" data-identity-form><div class="form-row"><label>Текущий пароль CajeerEngine</label><input class="input" name="password" type="password" autocomplete="current-password" required maxlength="1024"></div><div class="form-row"><label>Код 2FA (если включён)</label><input class="input" name="two_factor_code" autocomplete="one-time-code" maxlength="128"></div><div class="toolbar">${data.linked ? `<button class="btn danger" type="submit" ${data.provisioned ? 'disabled' : ''}>Отвязать SkiF4er ID</button>` : '<button class="btn" type="submit">Привязать через SkiF4er ID</button>'}</div></form><p class="muted">Привязка требует локальный пароль и подтверждение SkiF4er ID. Email не используется для объединения аккаунтов.</p></div>`
+  const sessionsPanel = `<div class="card"><h2>Активные сессии</h2><p>Отзыв немедленно блокирует доступ на выбранном устройстве. Обычные API-токены не затрагиваются.</p>${state.cache.sessions?.error ? `<p class="notice error">${escapeHtml(state.cache.sessions.error.message)}</p>` : ''}<div style="overflow-x:auto"><table class="table"><thead><tr><th>Устройство</th><th>Источник</th><th>Последняя активность</th><th>Срок действия</th><th></th></tr></thead><tbody>${sessions.map(session => `<tr><td>${escapeHtml(session.device || 'Браузер')} ${session.current ? '<strong>(текущая)</strong>' : ''}<br><span class="muted">${escapeHtml(session.network || '')}</span></td><td>${escapeHtml(session.provider)}</td><td>${escapeHtml(session.last_seen_at)}</td><td>${escapeHtml(session.expires_at || '—')}</td><td><button class="btn secondary" type="button" data-session-revoke="${escapeHtml(session.id)}">Завершить</button></td></tr>`).join('') || '<tr><td colspan="5">Активных сессий нет</td></tr>'}</tbody></table></div><div class="toolbar"><button class="btn secondary" data-session-rotate>Обновить текущую сессию</button><button class="btn secondary" data-session-others>Завершить остальные</button><button class="btn danger" data-session-all>Завершить все</button></div></div>`
+  return identityPanel + sessionsPanel
+}
+function bindSessionActions() {
+  const refresh = async () => { await loadSilent('sessions','/auth/sessions'); render() }
+  const exit = () => { state.token='';state.csrf='';state.identity=null;state.cache={};go('login') }
+  document.querySelectorAll('[data-session-revoke]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Завершить выбранную сессию?')) return
+    b.disabled=true
+    try { const current = dataOf(state.cache.sessions,[]).find(s=>s.id===b.dataset.sessionRevoke)?.current
+      await api('/auth/sessions/'+encodeURIComponent(b.dataset.sessionRevoke),{method:'DELETE'})
+      if (current) exit(); else await refresh()
+    } catch(e) { setNotice('error',e.message);b.disabled=false;render() }
+  }))
+  document.querySelector('[data-session-others]')?.addEventListener('click',async () => {
+    if (!confirm('Завершить все другие браузерные сессии?')) return
+    try { await api('/auth/sessions/revoke-others',{method:'POST',body:'{}'});await refresh() } catch(e){setNotice('error',e.message);render()}
+  })
+  document.querySelector('[data-session-all]')?.addEventListener('click',async () => {
+    if (!confirm('Завершить ВСЕ браузерные сессии, включая текущую?')) return
+    try { await api('/auth/sessions/revoke-all',{method:'POST',body:'{}'});exit() } catch(e){setNotice('error',e.message);render()}
+  })
+  document.querySelector('[data-session-rotate]')?.addEventListener('click',async () => {
+    try { const result=dataOf(await api('/auth/sessions/rotate',{method:'POST',body:'{}'}));
+      state.csrf=result.csrf_token;await refresh()
+    } catch(e){setNotice('error',e.message);render()}
+  })
 }
 function bindIdentity() {
+  bindSessionActions()
   const form = document.querySelector('[data-identity-form]')
   if (!form) return
   form.addEventListener('submit', async e => {

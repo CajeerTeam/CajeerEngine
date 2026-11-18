@@ -16,6 +16,10 @@ php bin/cajeer admin:assets --check
 php bin/cajeer doctor
 ```
 
+## Unified Session Management (1.5.3)
+
+The Identity page now lists local and SkiF4er ID browser sessions and lets the account owner revoke one, the others, or all. New sessions are registered in SQL; existing active sessions are imported on their next valid request. Session rotation replaces the cookie and CSRF credential. Configure `SESSION_IDLE_MINUTES` (default 720) and run migration `0028_unified_sessions.sql` before using the new build. External SSO back-channel logout is scheduled for 1.5.4; local revocation does not terminate a Keycloak SSO browser session. See `docs/unified-session-management.md`.
+
 ## SkiF4er ID Account Linking & Provisioning (1.5.2)
 
 The existing OIDC login now supports safe self-service linking from `/admin/#/identity` after local password/2FA confirmation, and optional new-user provisioning with a verified email. Matching email **never** merges accounts. Enable registration explicitly with `SKIF4ER_ID_AUTO_PROVISION=true`; default is disabled. Provisioned users cannot self-unlink until a verified local login alternative exists. Apply SQL migration `0027_oidc_account_linking.sql`. See [Account linking guide](docs/identity-account-linking.md).

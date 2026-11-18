@@ -42,6 +42,18 @@ export const operations = {
         ],
         "bodyRequired": false
     },
+    "delete_ApiV1AuthSessionsRevoke": {
+        "method": "DELETE",
+        "path": "/auth/sessions/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
     "delete_CmsNavigationMenu": {
         "method": "DELETE",
         "path": "/cms/navigation/{handle}",
@@ -256,6 +268,12 @@ export const operations = {
     "get_ApiTokensIndex": {
         "method": "GET",
         "path": "/api-tokens",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "get_ApiV1AuthSessionsIndex": {
+        "method": "GET",
+        "path": "/auth/sessions",
         "parameters": [],
         "bodyRequired": false
     },
@@ -1158,6 +1176,24 @@ export const operations = {
     "post_ApiTokensStore": {
         "method": "POST",
         "path": "/api-tokens",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "post_ApiV1AuthSessionsRevokeAll": {
+        "method": "POST",
+        "path": "/auth/sessions/revoke-all",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "post_ApiV1AuthSessionsRevokeOthers": {
+        "method": "POST",
+        "path": "/auth/sessions/revoke-others",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "post_ApiV1AuthSessionsRotate": {
+        "method": "POST",
+        "path": "/auth/sessions/rotate",
         "parameters": [],
         "bodyRequired": false
     },

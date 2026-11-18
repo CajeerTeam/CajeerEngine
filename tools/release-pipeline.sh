@@ -25,6 +25,8 @@ export TZ=UTC
 composer validate --strict
 composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
 composer check-platform-reqs --no-dev
+python3 tools/unified-sessions-sqlite-regression.py
+php tools/unified-sessions-regression.php --require-db
 php tools/integration-http-regression.php
 php tools/consent-regression.php
 php tools/tracking-regression.php

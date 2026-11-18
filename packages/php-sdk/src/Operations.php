@@ -60,6 +60,21 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'delete_ApiV1AuthSessionsRevoke' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/auth/sessions/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'delete_CmsNavigationMenu' => 
   array (
     'method' => 'DELETE',
@@ -334,6 +349,15 @@ final class Operations {
   array (
     'method' => 'GET',
     'path' => '/api-tokens',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_ApiV1AuthSessionsIndex' => 
+  array (
+    'method' => 'GET',
+    'path' => '/auth/sessions',
     'parameters' => 
     array (
     ),
@@ -1519,6 +1543,33 @@ final class Operations {
   array (
     'method' => 'POST',
     'path' => '/api-tokens',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'post_ApiV1AuthSessionsRevokeAll' => 
+  array (
+    'method' => 'POST',
+    'path' => '/auth/sessions/revoke-all',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'post_ApiV1AuthSessionsRevokeOthers' => 
+  array (
+    'method' => 'POST',
+    'path' => '/auth/sessions/revoke-others',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'post_ApiV1AuthSessionsRotate' => 
+  array (
+    'method' => 'POST',
+    'path' => '/auth/sessions/rotate',
     'parameters' => 
     array (
     ),

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.3 — Unified Session Management
+
+- Local and SkiF4er OIDC sessions now have a durable per-device SQL registry. Existing 1.5.2 `admin-session` credentials are backfilled on first valid use.
+- Session management in both admin frontends: current device, timestamps, masked network, logout one, others or all, and cookie rotation with new CSRF.
+- Browser-authenticated session endpoints reject bearer-only API tokens and require CSRF for modifications. Token revocation is atomic with session state.
+- Configurable 12-hour idle timeout, absolute expiry, no access/refresh tokens in browser-facing reports, and unchanged external IdP session/logout semantics.
+- Migration `0028_unified_sessions.sql` for SQLite/PostgreSQL/MySQL; tests and release assets updated.
+
 ## 1.5.2 — SkiF4er ID Account Linking & Provisioning
 
 - Self-service OIDC account linking: local session, password + optional 2FA reauthentication, short-lived PKCE redirect and atomic `(issuer, sub)` link. Callback refuses expired or revoked initiating sessions.

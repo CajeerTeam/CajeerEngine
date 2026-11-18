@@ -18,6 +18,7 @@ return [
     ],
     'sessions' => [
         'ttl_days' => (int) (getenv('SESSION_TTL_DAYS') ?: 14),
+        'idle_minutes' => (int) (getenv('SESSION_IDLE_MINUTES') ?: 720),
     ],
     'api_tokens' => [
         'prefix' => 'ce_',

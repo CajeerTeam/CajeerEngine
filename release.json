@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.5.2-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.5.2-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.5.3-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.5.3-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.5.2-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.5.3-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,7 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
-    "SkiF4er ID Account Linking & Provisioning 1.5.2: browser-initiated verified OIDC linking, unlinking with local reauthentication, opt-in verified-email user provisioning, fixed viewer permissions policy, session-bound callback and account status interface."
+    "SkiF4er ID Unified Session Management 1.5.3: live local and OIDC browser sessions, user-owned device list, session revocation, revoke-all, idle expiry, credential rotation, atomic SQL registry, legacy session compatibility."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -80,7 +80,8 @@
     "1.4.7": "SEO & URL Migration — verified legacy 301 redirects, WordPress query permalinks, SEO metadata, internal links and sitemap",
     "1.4.8": "Migration Execution & Recovery — checkpointed DLE/WordPress content transfer, resumable batch journal, verified full backup rollback",
     "1.5.1": "Migration Validation & Cutover — source/target integrity verification, staged delta synchronization and guarded local activation",
-    "1.5.2": "SkiF4er ID — secure account linking/unlinking and opt-in verified-email provisioning"
+    "1.5.2": "SkiF4er ID — secure account linking/unlinking and opt-in verified-email provisioning",
+    "1.5.3": "Unified browser session registry, selective revocation, idle expiration and credential rotation, local and SkiF4er ID sign-ins."
   },
   "stability": "stable"
 }

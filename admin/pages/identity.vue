@@ -5,11 +5,40 @@ const password = ref('')
 const twoFactorCode = ref('')
 const error = ref('')
 const busy = ref(false)
+type Session = {id:string;provider:string;device:string;network:string;current:boolean;created_at:string;last_seen_at:string;expires_at:string|null}
+const sessions = ref<Session[]>([])
+const sessionError = ref('')
+const loadSessions = async () => {
+  try { sessions.value = (await api.request<{data:Session[]}>('/auth/sessions')).data;sessionError.value='' }
+  catch(e) { sessionError.value = e instanceof Error ? e.message : 'Не удалось получить сессии.' }
+}
+const revokeSession = async (s:Session) => {
+  if (!confirm('Завершить сессию?')) return
+  try { await api.request('/auth/sessions/'+encodeURIComponent(s.id),{method:'DELETE'});
+    if(s.current) {await navigateTo('/login');return} await loadSessions() }
+  catch(e) { sessionError.value=e instanceof Error ? e.message : 'Ошибка отзыва.' }
+}
+const revokeOthers = async () => {
+  if (!confirm('Завершить все остальные сессии?')) return
+  try { await api.request('/auth/sessions/revoke-others',{method:'POST',body:'{}'});await loadSessions() }
+  catch(e) { sessionError.value=e instanceof Error ? e.message : 'Ошибка отзыва.' }
+}
+const revokeAll = async () => {
+  if (!confirm('Завершить все сессии, включая текущую?')) return
+  try { await api.request('/auth/sessions/revoke-all',{method:'POST',body:'{}'});await navigateTo('/login') }
+  catch(e) { sessionError.value=e instanceof Error ? e.message : 'Ошибка отзыва.' }
+}
+const rotate = async () => {
+  try { const result=await api.request<{data:{csrf_token:string}}>('/auth/sessions/rotate',{method:'POST',body:'{}'});
+    api.setCsrf(result.data.csrf_token);await loadSessions() }
+  catch(e) { sessionError.value=e instanceof Error ? e.message : 'Ошибка ротации.' }
+}
+
 const load = async () => {
   try { status.value = (await api.request<{data: typeof status.value}>('/identity/account')).data }
   catch (e) { error.value = e instanceof Error ? e.message : 'Не удалось получить статус.' }
 }
-onMounted(load)
+onMounted(() => { load(); loadSessions() })
 const submit = async () => {
   if (!status.value || busy.value) return
   const linked = status.value.linked
@@ -45,5 +74,16 @@ const submit = async () => {
     </template>
     <p v-else-if="status">SkiF4er ID отключён.</p>
     <p v-else>Загрузка…</p>
+    <section class="ce-panel">
+      <h2>Активные сессии</h2>
+      <p>Завершение сессии блокирует доступ на указанном устройстве. API-токены сохраняются.</p>
+      <p v-if="sessionError" class="ce-error">{{ sessionError }}</p>
+      <table><thead><tr><th>Устройство</th><th>Источник</th><th>Последняя активность</th><th></th></tr></thead>
+        <tbody><tr v-for="s in sessions" :key="s.id"><td>{{ s.device }} <strong v-if="s.current">(текущая)</strong><small>{{ s.network }}</small></td><td>{{ s.provider }}</td><td>{{ s.last_seen_at }}</td><td><button type="button" @click="revokeSession(s)">Завершить</button></td></tr></tbody>
+      </table>
+      <button type="button" @click="rotate">Обновить текущую сессию</button>
+      <button type="button" @click="revokeOthers">Завершить остальные</button>
+      <button type="button" @click="revokeAll">Завершить все</button>
+    </section>
   </section>
 </template>

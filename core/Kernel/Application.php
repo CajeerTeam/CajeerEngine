@@ -67,6 +67,7 @@ use CajeerEngine\Cms\PreviewTokenService;
 use CajeerEngine\Cms\RedirectRepository;
 use CajeerEngine\Cms\ThemeConfigRepository;
 use CajeerEngine\Database\Repository\ApiTokenRepository;
+use CajeerEngine\Database\Repository\UserSessionRepository;
 use CajeerEngine\Database\Repository\AuditLogRepository;
 use CajeerEngine\Database\Repository\RoleRepository;
 use CajeerEngine\Database\Repository\UserRepository;
@@ -163,7 +164,7 @@ final class Application
         $response->headers->set('traceparent',$trace->header());
         $response->headers->set('X-Runtime-Ms',(string)round($duration*1000));
         $this->container->get(RuntimeLogger::class)->info('HTTP request handled',$trace->fields()+['request_id'=>(string)$request->attributes->get('request_id',''),'method'=>$request->getMethod(),'route'=>$route,'status'=>$response->getStatusCode(),'duration_ms'=>round($duration*1000,3)]);
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.5.2'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.5.3'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -217,6 +218,7 @@ final class Application
         $container->set(RoleRepository::class, fn (ServiceContainer $c): RoleRepository => new RoleRepository($c->get(DatabaseManager::class)));
         $container->set(UserRepository::class, fn (ServiceContainer $c): UserRepository => new UserRepository($c->get(DatabaseManager::class), $c->get(RoleRepository::class), $c->get(PasswordHasher::class)));
         $container->set(ApiTokenRepository::class, fn (ServiceContainer $c): ApiTokenRepository => new ApiTokenRepository($c->get(DatabaseManager::class)));
+        $container->set(UserSessionRepository::class, fn (ServiceContainer $c): UserSessionRepository => new UserSessionRepository($c->get(DatabaseManager::class)));
         $container->set(AuditLogRepository::class, fn (ServiceContainer $c): AuditLogRepository => new AuditLogRepository($c->get(DatabaseManager::class)));
         $container->set(PasswordHasher::class, fn (ServiceContainer $c): PasswordHasher => new PasswordHasher($c->get(ConfigRepository::class)));
         $container->set(TwoFactorTotp::class, fn (): TwoFactorTotp => new TwoFactorTotp());
@@ -228,6 +230,7 @@ final class Application
             $c->get(AuditLogRepository::class),
             $c->get(PasswordHasher::class),
             $c->get(TwoFactorTotp::class),
+            $c->get(UserSessionRepository::class),
         ));
         $container->set(ContentTypeRepository::class, fn (ServiceContainer $c): ContentTypeRepository => new ContentTypeRepository($rootPath, $c->get(DatabaseManager::class)));
         $container->set(ContentEntryRepository::class, fn (ServiceContainer $c): ContentEntryRepository => new ContentEntryRepository($rootPath, $c->get(DatabaseManager::class)));

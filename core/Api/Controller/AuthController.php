@@ -51,6 +51,61 @@ final readonly class AuthController
         return $response;
     }
 
+    public function sessions(Request $request): JsonResponse
+    {
+        try {
+            $items = $this->auth->sessionList((array)$request->attributes->get('auth', []));
+            return new JsonResponse(['data'=>$items, 'meta'=>['total'=>count($items)]], 200, ['Cache-Control'=>'no-store']);
+        } catch (\RuntimeException) { return $this->error('session_required','Требуется браузерная сессия.',403); }
+    }
+
+    /** @param array<string,string> $parameters */
+    public function revokeSession(Request $request, array $parameters): JsonResponse
+    {
+        try {
+            $identity = (array)$request->attributes->get('auth', []);
+            $id = (string)($parameters['id'] ?? '');
+            $ok = $this->auth->revokeSession($identity, $id);
+            $response = new JsonResponse(['data'=>['revoked'=>$ok]], $ok ? 200 : 404, ['Cache-Control'=>'no-store']);
+            if ($ok && $id === (string)($identity['token_id'] ?? '')) $this->clearSessionCookie($response, $request);
+            return $response;
+        } catch (\RuntimeException) { return $this->error('session_required','Требуется браузерная сессия.',403); }
+    }
+
+    public function revokeOthers(Request $request): JsonResponse
+    {
+        try {
+            $count = $this->auth->revokeOtherSessions((array)$request->attributes->get('auth', []));
+            return new JsonResponse(['data'=>['revoked_count'=>$count]],200,['Cache-Control'=>'no-store']);
+        } catch (\RuntimeException) { return $this->error('session_required','Требуется браузерная сессия.',403); }
+    }
+
+    public function revokeAll(Request $request): JsonResponse
+    {
+        try {
+            $count = $this->auth->revokeAllSessions((array)$request->attributes->get('auth', []));
+            $response = new JsonResponse(['data'=>['revoked_count'=>$count]],200,['Cache-Control'=>'no-store']);
+            $this->clearSessionCookie($response, $request);
+            return $response;
+        } catch (\RuntimeException) { return $this->error('session_required','Требуется браузерная сессия.',403); }
+    }
+
+    public function rotateSession(Request $request): JsonResponse
+    {
+        try {
+            $rotated = $this->auth->rotateSession((array)$request->attributes->get('auth', []), $request);
+            $token = $rotated['access_token']; unset($rotated['access_token']);
+            $response = new JsonResponse(['data'=>$rotated],200,['Cache-Control'=>'no-store']);
+            $response->headers->setCookie(Cookie::create('ce_session', $token, new \DateTimeImmutable((string)$rotated['expires_at']), '/api/v1', null, $request->isSecure(), true, false, Cookie::SAMESITE_STRICT));
+            return $response;
+        } catch (\RuntimeException) { return $this->error('rotation_failed','Не удалось безопасно обновить сессию.',409); }
+    }
+
+    private function clearSessionCookie(JsonResponse $response, Request $request): void
+    {
+        $response->headers->clearCookie('ce_session','/api/v1',null,$request->isSecure(),true,Cookie::SAMESITE_STRICT);
+    }
+
     public function me(Request $request): JsonResponse
     {
         $identity = $request->attributes->get('auth');
