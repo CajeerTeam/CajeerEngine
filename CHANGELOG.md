@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.4] — AI Translation Studio (2026-11-18)
+
+- Production AI translation of CMS text, rich text and block fields, terminology glossary, draft localization approval, revision checks, stale-source detection and separate admin interfaces.
+- Shared token budgets, reviewable proposals, preserved markup/URLs/placeholders, strict ownership/CSRF and database migrations.
+- Durable bounded batch translation using existing queue workers, per-job idempotent proposals, worker recovery, approval after background generation and user-scoped rate limits.
+
 ## [1.6.3] — AI SEO Assistant (2026-11-18)
 
 - Real content-backed SEO audit for existing CMS entries, public routes, metadata, heading structure, images and root-relative internal links.

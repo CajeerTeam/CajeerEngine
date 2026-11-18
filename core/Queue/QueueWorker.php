@@ -10,9 +10,15 @@ final class QueueWorker
 {
     private JobHandlerRegistry $handlers;
     private bool $stopping=false;
-    public function __construct(private readonly ManagedQueueDriverInterface $queue,private readonly SearchIndexer $searchIndexer,private readonly WebhookRepository $webhooks,private readonly WebhookDispatcher $dispatcher,private readonly ?\CajeerEngine\Extension\Runtime\PlatformServices $platform=null,private readonly ?\CajeerEngine\Analytics\ServerEvents $analytics=null,private readonly ?\CajeerEngine\Analytics\Reporting\AnalyticsHub $analyticsHub=null)
+    public function __construct(private readonly ManagedQueueDriverInterface $queue,private readonly SearchIndexer $searchIndexer,private readonly WebhookRepository $webhooks,private readonly WebhookDispatcher $dispatcher,private readonly ?\CajeerEngine\Extension\Runtime\PlatformServices $platform=null,private readonly ?\CajeerEngine\Analytics\ServerEvents $analytics=null,private readonly ?\CajeerEngine\Analytics\Reporting\AnalyticsHub $analyticsHub=null,private readonly ?\CajeerEngine\AI\AiTranslationStudio $translationStudio=null)
     {
         $this->handlers=new JobHandlerRegistry();
+        $this->handlers->register('ai.translation.propose', function ($payload, JobContext $ctx): void {
+            if ($this->translationStudio === null || !is_string($payload['item_id'] ?? null)) throw new \RuntimeException('AI Translation Studio job unavailable');
+            $ctx->heartbeat();
+            $this->translationStudio->runBatchItem($payload['item_id'], $ctx->job->attempts, $ctx->job->maxAttempts);
+            $ctx->heartbeat();
+        });
         $this->handlers->register('analytics.report_sync',function($p){if($this->analyticsHub===null)throw new \RuntimeException('Analytics reporting unavailable');$this->analyticsHub->sync($p);});
         $this->handlers->register('analytics.deliver',fn($p,$c)=>($this->analytics??\CajeerEngine\Analytics\ServerEvents::fromRoot($this->webhooks->rootPath(),$this->queue))->deliver($p));
         $this->handlers->register('log.message',fn($p,$c)=>$this->logMessage($p,$c));

@@ -7,6 +7,7 @@ namespace CajeerEngine\Api\Controller;
 use CajeerEngine\AI\AiChat;
 use CajeerEngine\AI\AiContentEditor;
 use CajeerEngine\AI\AiSeoAssistant;
+use CajeerEngine\AI\AiTranslationStudio;
 use CajeerEngine\AI\AiProviderException;
 use CajeerEngine\AI\AiSettings;
 use CajeerEngine\Audit\AuditLogger;
@@ -19,7 +20,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /** Admin-only chat endpoints. Authorization/CSRF/step-up also run in the core middleware. */
 final readonly class AiController
 {
-    public function __construct(private AiChat $chat, private AiSettings $settings, private AuditLogger $audit, private RateLimiter $limiter, private AiContentEditor $editor, private AiSeoAssistant $seo) {}
+    public function __construct(private AiChat $chat, private AiSettings $settings, private AuditLogger $audit, private RateLimiter $limiter, private AiContentEditor $editor, private AiSeoAssistant $seo, private AiTranslationStudio $translations, private \CajeerEngine\Queue\ManagedQueueDriverInterface $queue) {}
 
     private function user(Request $request): string
     {
@@ -142,6 +143,84 @@ final readonly class AiController
         } catch (AiProviderException $e) {
             return new JsonResponse(['error' => ['code' => 'ai_provider_unavailable', 'message' => $e->getMessage()]], $e->httpStatus, ['Cache-Control'=>'no-store']);
         }
+    }
+
+    public function translationOverview(Request $request): JsonResponse
+    {
+        $this->user($request);
+        return $this->ok($this->translations->overview((string)$request->query->get('type', ''), (string)$request->query->get('entry_id', '')));
+    }
+
+    public function translationGlossary(Request $request): JsonResponse
+    {
+        $this->user($request);
+        return $this->ok($this->translations->glossary((string)$request->query->get('type', ''), (string)$request->query->get('source_locale', ''), (string)$request->query->get('target_locale', '')));
+    }
+
+    public function translationSaveTerm(Request $request): JsonResponse
+    {
+        $uid = $this->user($request); $body = $this->body($request);
+        if (array_diff(array_keys($body), ['type', 'source_locale', 'target_locale', 'term', 'translation']) !== [])
+            throw new \InvalidArgumentException('Invalid glossary request.');
+        foreach (['type', 'source_locale', 'target_locale', 'term', 'translation'] as $key)
+            if (!is_string($body[$key] ?? null)) throw new \InvalidArgumentException('Invalid glossary field.');
+        $result = $this->translations->saveTerm($body['type'], $body['source_locale'], $body['target_locale'], $body['term'], $body['translation']);
+        $this->audit->record('ai.translation.glossary_saved', $uid, ['type' => $body['type'], 'source_locale' => $body['source_locale'], 'target_locale' => $body['target_locale']]);
+        return $this->ok($result);
+    }
+
+    public function translationDeleteTerm(Request $request, array $params): JsonResponse
+    {
+        $uid = $this->user($request);
+        $result = $this->translations->deleteTerm((string)$params['id']);
+        $this->audit->record('ai.translation.glossary_deleted', $uid, ['id' => $params['id'], 'deleted' => $result]);
+        return $this->ok(['deleted' => $result]);
+    }
+
+    public function translationPropose(Request $request): JsonResponse
+    {
+        $uid = $this->user($request);
+        $hit = $this->limiter->hit('ai-translation-user', $uid, 4, 60);
+        if (!$hit['allowed']) return new JsonResponse(['error' => ['code' => 'ai_translation_rate_limit', 'message' => 'Лимит: 4 перевода в минуту.']], 429,
+            ['Retry-After' => (string)$hit['retry_after'], 'Cache-Control' => 'no-store']);
+        try {
+            $result = $this->translations->propose($uid, $this->body($request));
+            $this->audit->record('ai.translation.proposed', $uid, ['proposal_id' => $result['id'], 'type' => $result['type'], 'source_id' => $result['source_entry_id'], 'target_locale' => $result['target_locale']]);
+            return $this->ok($result);
+        } catch (AiProviderException $e) {
+            return new JsonResponse(['error' => ['code' => 'ai_provider_unavailable', 'message' => $e->getMessage()]], $e->httpStatus, ['Cache-Control' => 'no-store']);
+        }
+    }
+
+    public function translationApply(Request $request, array $params): JsonResponse
+    {
+        $uid = $this->user($request); $body = $this->body($request);
+        if (array_diff(array_keys($body), ['confirm_published']) !== [] || (isset($body['confirm_published']) && !is_bool($body['confirm_published'])))
+            throw new \InvalidArgumentException('Invalid approval.');
+        $result = $this->translations->apply($uid, (string)$params['id'], $body['confirm_published'] ?? false);
+        $this->audit->record('ai.translation.applied', $uid, ['proposal_id' => $params['id'], 'entry_id' => $result['entry']['id'], 'revision' => $result['entry']['revision'], 'created' => $result['created']]);
+        return $this->ok($result);
+    }
+
+    public function translationBatchCreate(Request $request): JsonResponse
+    {
+        $uid = $this->user($request);
+        $hit = $this->limiter->hit('ai-translation-batch-user', $uid, 2, 60);
+        if (!$hit['allowed']) return new JsonResponse(['error' => ['code' => 'ai_translation_batch_rate_limit', 'message' => 'Лимит: 2 пакетных перевода в минуту.']], 429,
+            ['Retry-After' => (string)$hit['retry_after'], 'Cache-Control' => 'no-store']);
+        $result = $this->translations->enqueueBatch($uid, $this->body($request), $this->queue);
+        $this->audit->record('ai.translation.batch_queued', $uid, ['batch_id' => $result['id'], 'total' => $result['total']]);
+        return $this->ok($result);
+    }
+
+    public function translationBatchShow(Request $request, array $params): JsonResponse
+    {
+        return $this->ok($this->translations->batchStatus($this->user($request), (string)$params['id']));
+    }
+
+    public function translationProposalShow(Request $request, array $params): JsonResponse
+    {
+        return $this->ok($this->translations->proposal($this->user($request), (string)$params['id']));
     }
 
     private function throttle(string $uid): ?JsonResponse

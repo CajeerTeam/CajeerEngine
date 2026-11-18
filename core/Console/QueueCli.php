@@ -50,7 +50,9 @@ final class QueueCli
             $index=new SearchIndexer(new ContentTypeRepository($root,$db),new ContentEntryRepository($root,$db),(new SearchFactory($root,$cfg,$db))->make());
             $runtime=NativeCli::extensionRuntime($root,$cfg);$runtime->boot();$platform=$runtime->platform();
             $hub=new \CajeerEngine\Analytics\Reporting\AnalyticsHub($db,\CajeerEngine\Integration\SecretVault::fromEnvironment(),$q,$cfg);
-            $worker=new QueueWorker($q,$index,$wh,$wd,$platform,null,$hub);if($command==='queue:work')return $worker->work($name,isset($o['once'])?1:(int)($o['limit']??$cfg->int('queue.workers.default_limit',10)));$scheduler=new SchedulerRunner($root,$index,$wh,$wd,$q,$platform,\CajeerEngine\Scheduler\TaskRunStore::fromConfig($root,$cfg,$db),$hub);
+            // Source distributions also process AI translation jobs without Composer.
+            $translation=new \CajeerEngine\AI\AiTranslationStudio($db,new \CajeerEngine\AI\AiSettings($root),new \CajeerEngine\AI\OpenAiClient(),new ContentEntryRepository($root,$db),new ContentTypeRepository($root,$db));
+            $worker=new QueueWorker($q,$index,$wh,$wd,$platform,null,$hub,$translation);if($command==='queue:work')return $worker->work($name,isset($o['once'])?1:(int)($o['limit']??$cfg->int('queue.workers.default_limit',10)));$scheduler=new SchedulerRunner($root,$index,$wh,$wd,$q,$platform,\CajeerEngine\Scheduler\TaskRunStore::fromConfig($root,$cfg,$db),$hub);
         }
         if(str_ends_with($command,':due'))return ['ok'=>true,'data'=>$scheduler->tasks()];
         return $scheduler->run();

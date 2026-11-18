@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.6.3'
+const ADMIN_VERSION = '1.6.4'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -15,6 +15,7 @@ const nav = [
   ['identity', '🔑', 'Identity Center', 'SkiF4er ID: привязки, пользователи и сессии'],
   ['ai', '◈', 'AI Assistant', 'ChatGPT через OpenAI API'],
   ['seo', '🔎', 'AI SEO Assistant', 'Аудит страниц и SEO-оптимизация'],
+  ['translations', '🌐', 'AI Translation Studio', 'Переводы и локализации'],
   ['tracking', '📈', 'Счётчики', 'Яндекс Метрика, GA4, GTM, Matomo и Plausible'],
   ['analytics-hub', '📊', 'Analytics Hub', 'Отчёты трафика и поисковой статистики'],
   ['analytics-events', '📊', 'События', 'Правила, цели и диагностика аналитики'],
@@ -48,6 +49,7 @@ const state = {
     user: { name: '', email: '', password: '', roles: 'admin' },
     identitySearch: '', identityLinked: 'all', identityOffset: 0, identitySelected: '',
     seo: {type:'',entry:'',field:'seo_title',instructions:'',audit:null,batch:null,proposal:null,busy:false},
+    translation: {type:'',entry:'',locale:'en',instructions:'',updateExisting:false,overview:null,glossary:[],proposal:null,busy:false,batch:null,batchSelection:[],batchUpdateExisting:false},
     aiSelected: null, aiMessages: [], aiBusy: false, aiEditor: {field:'title',mode:'generate',instructions:'',selection:'',busy:false,proposal:null},
     role: { handle: '', name: '', permissions: 'content:read,content:write' },
     token: { name: 'Admin token', scopes: 'content:read,content:write' },
@@ -207,6 +209,22 @@ async function routeLoad(route) {
       if(!available.some(t=>t.handle===state.forms.seo.type))state.forms.seo.type=available[0]?.handle||''
       if(state.forms.seo.type)await loadSilent('seoEntries','/content/'+encodeURIComponent(state.forms.seo.type)+'?status=all&limit=200&offset=0')
     }
+    if (route === 'translations') {
+      await loadSilent('translationTypes','/content-types')
+      const f=state.forms.translation,types=asArray(state.cache.translationTypes)
+      if(!types.some(t=>t.handle===f.type))f.type=types[0]?.handle||''
+      if(f.type){
+        await loadSilent('translationEntries','/content/'+encodeURIComponent(f.type)+'?status=all&limit=200&offset=0')
+        const entries=asArray(state.cache.translationEntries)
+        if(!entries.some(e=>e.id===f.entry))f.entry=entries[0]?.id||''
+        if(f.entry){
+          await loadSilent('translationOverview','/ai/translations/overview?'+new URLSearchParams({type:f.type,entry_id:f.entry}))
+          f.overview=dataOf(state.cache.translationOverview)
+          if(f.overview)await loadSilent('translationGlossary','/ai/translations/glossary?'+new URLSearchParams({type:f.type,source_locale:f.overview.source.locale,target_locale:f.locale}))
+          f.glossary=asArray(state.cache.translationGlossary)
+        }
+      }
+    }
     if (route === 'tracking') await loadSilent('tracking', '/tracking/counters')
     if (route === 'analytics-hub') {await loadSilent('analyticsHub','/analytics/reports');const previous=dataOf(state.cache.analyticsHubReport,{});if(previous.connection?.id){const r=state.forms.hubPeriod;await loadSilent('analyticsHubReport',`/analytics/reports/${encodeURIComponent(previous.connection.id)}/data${r?'?'+new URLSearchParams(r):''}`)}}
     if (route === 'analytics-events') await Promise.allSettled([loadSilent('analyticsEvents','/tracking/events'),loadSilent('analyticsJournal','/tracking/events/journal')])
@@ -270,6 +288,7 @@ function render() {
   else if (state.route === 'identity') body = identityView()
   else if (state.route === 'ai') body = aiView()
   else if (state.route === 'seo') body = seoView()
+  else if (state.route === 'translations') body = translationsView()
   else if (state.route === 'tracking') body = trackingView()
   else if (state.route === 'analytics-hub') body = analyticsHubView()
   else if (state.route === 'analytics-events') body = analyticsEventsView()
@@ -540,6 +559,7 @@ function bindForms() {
   bindContentTypes()
   bindContent()
   bindSeo()
+  bindTranslations()
   bindMedia()
   bindCms()
   bindUsers()
@@ -1246,4 +1266,102 @@ function bindIdentity() {
     } catch (error) { setNotice('error', error.message, error.payload) }
     finally { btn.disabled = false }
   })
+}
+
+function translationsView() {
+  const f=state.forms.translation;
+  const types=asArray(state.cache.translationTypes), entries=asArray(state.cache.translationEntries);
+  const source=f.overview?.source, peers=f.overview?.localizations||[];
+  const found=peers.find(x=>x.locale===f.locale);
+  const options=(list,selected)=>list.map(([value,title])=>`<option value="${escapeHtml(value)}" ${selected===value?'selected':''}>${escapeHtml(title)}</option>`).join('');
+  const label=(name,html)=>`<label>${name}${html}</label>`;
+  const toolbar=`<form class="form" data-translations-select><div class="split">${label('Тип контента',`<select class="input" name="type">${options(types.map(x=>[x.handle,x.name||x.handle]),f.type)}</select>`)}${label('Источник',`<select class="input" name="entry">${options(entries.map(x=>[x.id,`${x.title} · ${x.locale} · ${x.status}`]),f.entry)}</select>`)}</div><div class="split">${label('Язык источника',`<input class="input" value="${escapeHtml(source?.locale||'')}" disabled>`)}${label('Язык перевода',`<select class="input" name="locale">${options(['ru','en','de','fr','es','it','pl','pt','tr','uk','zh','ja','ko'].filter(x=>x!==source?.locale).map(x=>[x,x]),f.locale)}</select>`)}</div>${found?`<p>Найден перевод: ${escapeHtml(found.title)} · ${escapeHtml(found.status)} · rev ${Number(found.revision)} ${found.stale?'· Требует обновления':''}</p><label><input type="checkbox" name="update_existing" ${f.updateExisting?'checked':''}> Обновить существующий перевод</label>`:''}${label('Пожелания к переводу',`<textarea class="input" name="instructions" rows="3" maxlength="1500">${escapeHtml(f.instructions)}</textarea>`)}<button class="btn" type="submit" ${f.busy||!source||source.locale===f.locale||(!!found!==!!f.updateExisting)?'disabled':''}>${f.busy?'Перевод…':'Сформировать перевод'}</button></form>`;
+  const peerTable=source?`<section class="card"><h2>Группа локализаций</h2>${table(['Язык','Название','Статус / ревизия','Актуальность'],peers.map(x=>`<tr><td>${escapeHtml(x.locale)}</td><td>${escapeHtml(x.title)}</td><td>${escapeHtml(x.status)} · ${Number(x.revision)}</td><td>${x.stale===true?'Исходник изменён':x.stale===false?'Актуально':'Без AI-метаданных'}</td></tr>`))}</section>`:'';
+  const glossary=source?`<section class="card"><h2>Глоссарий ${escapeHtml(source.locale)} → ${escapeHtml(f.locale)}</h2><form class="form" data-translation-term><div class="split">${label('Термин',`<input class="input" name="term" maxlength="160" required>`)}${label('Перевод',`<input class="input" name="translation" maxlength="250" required>`)}</div><button class="btn secondary" ${f.busy?'disabled':''}>Сохранить термин</button></form>${f.glossary.length?table(['Термин','Перевод',''],f.glossary.map(t=>`<tr><td>${escapeHtml(t.source_term)}</td><td>${escapeHtml(t.translated_term)}</td><td><button class="btn small secondary" data-translation-remove="${escapeHtml(t.id)}">Удалить</button></td></tr>`)):'<p>Глоссарий для этой пары языков пуст.</p>'}</section>`:'';
+  const selected=f.batchSelection||[];
+  const batch=`<section class="card"><h2>Пакетный перевод через очередь</h2><p>Выберите до 20 материалов; предложения подготавливаются в worker и не публикуются автоматически.</p><div class="form" style="max-height:240px;overflow:auto">${entries.map(x=>`<label style="display:block"><input type="checkbox" data-translation-check="${escapeHtml(x.id)}" ${selected.includes(x.id)?'checked':''} ${(!selected.includes(x.id)&&selected.length>=20)||x.locale===f.locale?'disabled':''}> ${escapeHtml(x.title||x.id)} · ${escapeHtml(x.locale)}</label>`).join('')}</div><label><input type="checkbox" data-translation-batch-update ${f.batchUpdateExisting?'checked':''}> Обновить существующие локализации вместо создания новых</label><button class="btn secondary" data-translation-batch ${!selected.length||selected.length>20||f.busy?'disabled':''}>Поставить в очередь (${selected.length})</button>${f.batch?`<p>Пакет ${escapeHtml(f.batch.id)} · готово ${Number(f.batch.ready)}/${Number(f.batch.total)} · ошибок ${Number(f.batch.failed)} <button class="btn small secondary" data-translation-refresh>Обновить статус</button></p>${table(['Материал','Статус',''],f.batch.items.map(x=>`<tr><td>${escapeHtml(entries.find(e=>e.id===x.source_entry_id)?.title||x.source_entry_id)}</td><td>${escapeHtml(x.status)} ${escapeHtml(x.error_message||'')}</td><td>${x.proposal_id&&x.status==='ready'?`<button class="btn small secondary" data-translation-open="${escapeHtml(x.proposal_id)}" data-entry="${escapeHtml(x.source_entry_id)}">Проверить перевод</button>`:''}</td></tr>`))}`:''}</section>`;
+  const p=f.proposal;
+  const preview=p?`<section class="card"><h2>Предварительный просмотр · ${escapeHtml(p.source_locale)} → ${escapeHtml(p.target_locale)}</h2><p>Ревизия источника: ${Number(p.source_revision)}${p.segment_count===null?'':' · Сегменты: '+Number(p.segment_count)}${p.usage?.input_tokens==null?'':' · Токены: '+Number(p.usage.input_tokens)+'/'+Number(p.usage.output_tokens)}</p><div class="ai-editor-compare"><div><strong>Оригинал</strong><pre class="ai-editor-text">${escapeHtml(p.original_title)}</pre></div><div><strong>Перевод</strong><pre class="ai-editor-text">${escapeHtml(p.translated_title)}</pre></div></div><details open><summary>Переведённые поля и блоки</summary><pre class="json" style="max-height:440px;overflow:auto">${escapeHtml(JSON.stringify(p.translated_data,null,2))}</pre></details><p>AI не изменяет опубликованный материал до подтверждения.</p><div class="toolbar"><button class="btn" data-translation-accept>${p.target_entry_id?'Применить как ревизию':'Создать черновик локализации'}</button><button class="btn secondary" data-translation-reject>Отклонить</button></div></section>`:'';
+  return `<section class="card"><h2>AI Translation Studio</h2><p>OpenAI переводит редактируемый контент; HTML-теги, ссылки и плейсхолдеры остаются неизменными. Результат сохраняется только после проверки.</p>${toolbar}</section>${peerTable}${glossary}${batch}${preview}`;
+}
+
+function bindTranslations() {
+  if(state.route!=='translations')return;
+  const f=state.forms.translation;
+  async function overview(){
+    f.proposal=null;f.overview=null;f.glossary=[];
+    if(f.type&&f.entry){
+      f.overview=dataOf(await api('/ai/translations/overview?'+new URLSearchParams({type:f.type,entry_id:f.entry})));
+      await refreshGlossary();
+    }
+  }
+  async function refreshGlossary(){
+    if(!f.overview)return;
+    f.glossary=asArray(await api('/ai/translations/glossary?'+new URLSearchParams({type:f.type,source_locale:f.overview.source.locale,target_locale:f.locale})));
+  }
+  const form=document.querySelector('[data-translations-select]');
+  form?.elements.type.addEventListener('change',async e=>{
+    f.type=e.target.value;f.entry='';f.overview=null;f.proposal=null;f.glossary=[];
+    try{await loadSilent('translationEntries','/content/'+encodeURIComponent(f.type)+'?status=all&limit=200&offset=0');f.entry=asArray(state.cache.translationEntries)[0]?.id||'';await overview()}
+    catch(err){setNotice('error',err.message,err.payload)}finally{render()}
+  });
+  form?.elements.entry.addEventListener('change',async e=>{f.entry=e.target.value;try{await overview()}catch(err){setNotice('error',err.message,err.payload)}finally{render()}});
+  form?.elements.locale.addEventListener('change',async e=>{f.locale=e.target.value;f.updateExisting=false;f.proposal=null;try{await refreshGlossary()}catch(err){setNotice('error',err.message,err.payload)}finally{render()}});
+  form?.elements.instructions.addEventListener('input',()=>{f.instructions=form.elements.instructions.value;f.proposal=null});
+  form?.elements.update_existing?.addEventListener('change',e=>{f.updateExisting=e.target.checked;f.proposal=null;render()});
+  form?.addEventListener('submit',async e=>{
+    e.preventDefault();if(f.busy)return;
+    f.busy=true;f.proposal=null;render();
+    try{f.proposal=dataOf(await api('/ai/translations/proposals',{method:'POST',body:JSON.stringify({type:f.type,entry_id:f.entry,target_locale:f.locale,update_existing:f.updateExisting,instructions:f.instructions})}));setNotice('ok','Перевод готов для проверки.')}
+    catch(err){setNotice('error',err.message,err.payload)}finally{f.busy=false;render()}
+  });
+  document.querySelector('[data-translation-term]')?.addEventListener('submit',async e=>{
+    e.preventDefault();if(f.busy||!f.overview)return;const d=new FormData(e.currentTarget);f.busy=true;
+    try{f.glossary=asArray(await api('/ai/translations/glossary',{method:'POST',body:JSON.stringify({type:f.type,source_locale:f.overview.source.locale,target_locale:f.locale,term:d.get('term'),translation:d.get('translation')})}));f.proposal=null;setNotice('ok','Термин сохранён.')}
+    catch(err){setNotice('error',err.message,err.payload)}finally{f.busy=false;render()}
+  });
+  document.querySelectorAll('[data-translation-remove]').forEach(b=>b.addEventListener('click',async()=>{
+    if(f.busy)return;f.busy=true;
+    try{await api('/ai/translations/glossary/'+encodeURIComponent(b.dataset.translationRemove),{method:'DELETE'});await refreshGlossary();f.proposal=null;setNotice('ok','Термин удалён.')}
+    catch(err){setNotice('error',err.message,err.payload)}finally{f.busy=false;render()}
+  }));
+  document.querySelectorAll('[data-translation-check]').forEach(b=>b.addEventListener('change',e=>{
+    f.batchSelection=e.target.checked?[...new Set([...f.batchSelection,b.dataset.translationCheck])]:f.batchSelection.filter(id=>id!==b.dataset.translationCheck);
+    render();
+  }));
+  document.querySelector('[data-translation-batch-update]')?.addEventListener('change',e=>{f.batchUpdateExisting=e.target.checked;});
+  document.querySelector('[data-translation-batch]')?.addEventListener('click',async()=>{
+    if(f.busy||!f.batchSelection.length)return;f.busy=true;
+    try{
+      f.batch=dataOf(await api('/ai/translations/batches',{method:'POST',body:JSON.stringify({type:f.type,entry_ids:f.batchSelection,target_locale:f.locale,update_existing:f.batchUpdateExisting,instructions:f.instructions})}));
+      setNotice('ok','Переводы поставлены в очередь. Обновите статус после обработки worker.');
+    }catch(err){setNotice('error',err.message,err.payload)}finally{f.busy=false;render()}
+  });
+  document.querySelector('[data-translation-refresh]')?.addEventListener('click',async()=>{
+    if(f.busy||!f.batch)return;f.busy=true;
+    try{f.batch=dataOf(await api('/ai/translations/batches/'+encodeURIComponent(f.batch.id)));setNotice('ok','Статус очереди обновлён.')}
+    catch(err){setNotice('error',err.message,err.payload)}finally{f.busy=false;render()}
+  });
+  document.querySelectorAll('[data-translation-open]').forEach(b=>b.addEventListener('click',async()=>{
+    try{
+      const proposal=dataOf(await api('/ai/translations/proposals/'+encodeURIComponent(b.dataset.translationOpen)));
+      f.entry=b.dataset.entry;f.locale=proposal.target_locale;f.updateExisting=!!proposal.target_entry_id;
+      f.overview=dataOf(await api('/ai/translations/overview?'+new URLSearchParams({type:f.type,entry_id:f.entry})));
+      await refreshGlossary();f.proposal=proposal;render();
+    }catch(err){setNotice('error',err.message,err.payload)}
+  }));
+  document.querySelector('[data-translation-reject]')?.addEventListener('click',()=>{f.proposal=null;render()});
+  document.querySelector('[data-translation-accept]')?.addEventListener('click',async()=>{
+    if(f.busy||!f.proposal)return;
+    const target=f.overview?.localizations?.find(e=>e.locale===f.locale);
+    const published=target?.status==='published';
+    if(published&&!confirm('Опубликованный перевод будет изменён. Подтвердить обновление публичной страницы?'))return;
+    if(!confirm('Применить проверенный перевод?'))return;
+    f.busy=true;
+    try{
+      const result=dataOf(await api('/ai/translations/proposals/'+encodeURIComponent(f.proposal.id)+'/apply',{method:'POST',body:JSON.stringify({confirm_published:!!published})}));
+      await loadSilent('translationEntries','/content/'+encodeURIComponent(f.type)+'?status=all&limit=200&offset=0');
+      await overview();setNotice('ok',result.created?'Черновик локализации создан.':'Перевод обновлён новой ревизией.');
+    }catch(err){setNotice('error',err.message,err.payload)}finally{f.busy=false;render()}
+  });
 }

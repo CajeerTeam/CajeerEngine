@@ -171,6 +171,141 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'api_v1_ai_translation_apply' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/translations/proposals/{id}/apply',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_translation_batch_create' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/translations/batches',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_translation_batch_show' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/translations/batches/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_translation_glossary' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/translations/glossary',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'query',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'source_locale',
+        'in' => 'query',
+        'required' => true,
+      ),
+      2 => 
+      array (
+        'name' => 'target_locale',
+        'in' => 'query',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_translation_glossary_delete' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/ai/translations/glossary/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_translation_glossary_save' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/translations/glossary',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_translation_overview' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/translations/overview',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'query',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'entry_id',
+        'in' => 'query',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_translation_proposal_show' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/translations/proposals/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_translation_propose' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/translations/proposals',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
   'api_v1_identity_admin_link' => 
   array (
     'method' => 'POST',

@@ -17,6 +17,7 @@ onMounted(() => auth.load())
         <NuxtLink to="/identity">SkiF4er ID</NuxtLink>
         <NuxtLink to="/ai">AI Assistant</NuxtLink>
         <NuxtLink to="/seo">AI SEO Assistant</NuxtLink>
+        <NuxtLink to="/translations">AI Translation Studio</NuxtLink>
         <NuxtLink to="/api-tokens">API tokens</NuxtLink>
         <NuxtLink to="/extensions">Расширения</NuxtLink>
         <NuxtLink to="/import-export">Import / Export</NuxtLink>

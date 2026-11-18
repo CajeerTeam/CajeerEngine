@@ -124,6 +124,111 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "api_v1_ai_translation_apply": {
+        "method": "POST",
+        "path": "/ai/translations/proposals/{id}/apply",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_ai_translation_batch_create": {
+        "method": "POST",
+        "path": "/ai/translations/batches",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_ai_translation_batch_show": {
+        "method": "GET",
+        "path": "/ai/translations/batches/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_translation_glossary": {
+        "method": "GET",
+        "path": "/ai/translations/glossary",
+        "parameters": [
+            {
+                "name": "type",
+                "in": "query",
+                "required": true
+            },
+            {
+                "name": "source_locale",
+                "in": "query",
+                "required": true
+            },
+            {
+                "name": "target_locale",
+                "in": "query",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_translation_glossary_delete": {
+        "method": "DELETE",
+        "path": "/ai/translations/glossary/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_translation_glossary_save": {
+        "method": "POST",
+        "path": "/ai/translations/glossary",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_ai_translation_overview": {
+        "method": "GET",
+        "path": "/ai/translations/overview",
+        "parameters": [
+            {
+                "name": "type",
+                "in": "query",
+                "required": true
+            },
+            {
+                "name": "entry_id",
+                "in": "query",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_translation_proposal_show": {
+        "method": "GET",
+        "path": "/ai/translations/proposals/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_translation_propose": {
+        "method": "POST",
+        "path": "/ai/translations/proposals",
+        "parameters": [],
+        "bodyRequired": true
+    },
     "api_v1_identity_admin_link": {
         "method": "POST",
         "path": "/identity/admin/users/{id}/link",

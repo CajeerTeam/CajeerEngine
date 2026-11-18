@@ -350,6 +350,7 @@ final class Application
             $c->get(ExtensionRuntime::class)->platform(),
             new \CajeerEngine\Analytics\ServerEvents($rootPath,$c->get(IntegrationCenter::class),$c->get(ManagedQueueDriverInterface::class)),
             $c->get(\CajeerEngine\Analytics\Reporting\AnalyticsHub::class),
+            $c->get(\CajeerEngine\AI\AiTranslationStudio::class),
         ));
         $container->set(SchedulerRunner::class, fn (ServiceContainer $c): SchedulerRunner => new SchedulerRunner(
             $rootPath,
@@ -444,9 +445,13 @@ final class Application
         $container->set(AiSeoAssistant::class, fn (ServiceContainer $c): AiSeoAssistant => new AiSeoAssistant(
             $c->get(ContentEntryRepository::class), $c->get(ContentTypeRepository::class), new \CajeerEngine\Public\RouteIndex($rootPath, $c->get(DatabaseManager::class))
         ));
+        $container->set(\CajeerEngine\AI\AiTranslationStudio::class, fn (ServiceContainer $c): \CajeerEngine\AI\AiTranslationStudio => new \CajeerEngine\AI\AiTranslationStudio(
+            $c->get(DatabaseManager::class), $c->get(AiSettings::class), $c->get(OpenAiClient::class),
+            $c->get(ContentEntryRepository::class), $c->get(ContentTypeRepository::class)
+        ));
         $container->set('controller.ai', fn (ServiceContainer $c): AiController => new AiController(
             $c->get(AiChat::class), $c->get(AiSettings::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class),
-            $c->get(AiContentEditor::class), $c->get(AiSeoAssistant::class)
+            $c->get(AiContentEditor::class), $c->get(AiSeoAssistant::class), $c->get(\CajeerEngine\AI\AiTranslationStudio::class), $c->get(ManagedQueueDriverInterface::class)
         ));
         $container->set('controller.integrations', fn (ServiceContainer $c): IntegrationController => new IntegrationController($c->get(IntegrationCenter::class), $c->get(AuditLogger::class)));
         $container->set('controller.webhooks', fn (ServiceContainer $c): WebhookController => new WebhookController($c->get(WebhookRepository::class), $c->get(WebhookDispatcher::class)));
