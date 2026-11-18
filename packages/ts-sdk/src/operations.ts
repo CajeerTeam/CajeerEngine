@@ -142,6 +142,12 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "api_v1_ai_tools": {
+        "method": "GET",
+        "path": "/ai/tools",
+        "parameters": [],
+        "bodyRequired": false
+    },
     "api_v1_ai_translation_apply": {
         "method": "POST",
         "path": "/ai/translations/proposals/{id}/apply",

@@ -195,6 +195,15 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'api_v1_ai_tools' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/tools',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
   'api_v1_ai_translation_apply' => 
   array (
     'method' => 'POST',

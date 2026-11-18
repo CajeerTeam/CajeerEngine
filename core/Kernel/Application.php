@@ -18,6 +18,7 @@ use CajeerEngine\Api\Controller\OidcController;
 use CajeerEngine\Api\Controller\IdentityAdminController;
 use CajeerEngine\Api\Controller\AiController;
 use CajeerEngine\AI\AiChat;
+use CajeerEngine\AI\AiTools;
 use CajeerEngine\AI\AiKnowledgeChat;
 use CajeerEngine\AI\AiContentEditor;
 use CajeerEngine\AI\AiSeoAssistant;
@@ -311,8 +312,14 @@ final class Application
         ));
         $container->set(AiSettings::class, fn (): AiSettings => new AiSettings($rootPath));
         $container->set(OpenAiClient::class, fn (): OpenAiClient => new OpenAiClient());
+        $container->set(AiTools::class, fn (ServiceContainer $c): AiTools => new AiTools(
+            $c->get(ContentTypeRepository::class), $c->get(ContentEntryRepository::class),
+            $c->get(AiSeoAssistant::class), $c->get(\CajeerEngine\AI\AiCmsDiagnostics::class),
+            $c->get(\CajeerEngine\AI\AiKnowledgeBase::class),
+            $c->get(\CajeerEngine\Analytics\Reporting\AnalyticsHub::class), $c->get(AuditLogger::class)
+        ));
         $container->set(AiChat::class, fn (ServiceContainer $c): AiChat => new AiChat(
-            $c->get(DatabaseManager::class), $c->get(AiSettings::class), $c->get(OpenAiClient::class)
+            $c->get(DatabaseManager::class), $c->get(AiSettings::class), $c->get(OpenAiClient::class), $c->get(AiTools::class)
         ));
         $container->set(ProviderRegistry::class, fn (): ProviderRegistry => ProviderRegistry::defaults());
         $container->set(IntegrationCenter::class, fn (ServiceContainer $c): IntegrationCenter => new IntegrationCenter(
@@ -475,7 +482,7 @@ final class Application
         $container->set('controller.ai', fn (ServiceContainer $c): AiController => new AiController(
             $c->get(AiChat::class), $c->get(AiSettings::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class),
             $c->get(AiContentEditor::class), $c->get(AiSeoAssistant::class), $c->get(\CajeerEngine\AI\AiTranslationStudio::class), $c->get(ManagedQueueDriverInterface::class),
-            $c->get(\CajeerEngine\AI\AiCmsDiagnostics::class)
+            $c->get(\CajeerEngine\AI\AiCmsDiagnostics::class), $c->get(AiTools::class)
         ));
         $container->set('controller.integrations', fn (ServiceContainer $c): IntegrationController => new IntegrationController($c->get(IntegrationCenter::class), $c->get(AuditLogger::class)));
         $container->set('controller.webhooks', fn (ServiceContainer $c): WebhookController => new WebhookController($c->get(WebhookRepository::class), $c->get(WebhookDispatcher::class)));

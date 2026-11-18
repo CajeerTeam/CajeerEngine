@@ -86,6 +86,10 @@ jobs:
         run: php tools/identity-session-acceptance-integration.php --require-db
       - name: Identity 1.6.0 GA production SSO, self-link, transaction rollback, revocation (real PDO)
         run: php tools/identity-ga-integration.php --require-db
+      - name: AI Tools real Responses function calling and scope security
+        run: php tools/ai-tools-regression.php
+      - name: AI Tools PDO Knowledge Base execution, tool history and budget acceptance
+        run: php tools/ai-tools-integration.php --require-db
       - name: OpenAI AI Chat credential encryption and rotation
         run: php tools/ai-vault-regression.php
       - name: AI Chat real PDO SQLite persistence, ownership and budget acceptance

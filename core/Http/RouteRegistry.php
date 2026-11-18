@@ -198,6 +198,7 @@ final class RouteRegistry
             ['POST', '/api/v1/knowledge/chat/messages/{id}/feedback', 'api.v1.knowledge.chat.feedback', 'knowledge', 'chatFeedback', ['content:read']],
             ['GET', '/api/v1/ai/status', 'api.v1.ai.status', 'ai', 'status', ['content:read']],
             ['PUT', '/api/v1/ai/settings', 'api.v1.ai.settings', 'ai', 'configure', ['system:write', 'integrations:secrets']],
+            ['GET', '/api/v1/ai/tools', 'api.v1.ai.tools', 'ai', 'tools', ['content:read']],
             ['GET', '/api/v1/ai/conversations', 'api.v1.ai.conversations', 'ai', 'index', ['content:read']],
             ['POST', '/api/v1/ai/chat', 'api.v1.ai.chat', 'ai', 'send', ['content:read']],
             ['POST', '/api/v1/ai/chat/stream', 'api.v1.ai.chat.stream', 'ai', 'stream', ['content:read']],

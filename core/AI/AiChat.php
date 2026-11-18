@@ -10,7 +10,7 @@ use PDO;
 /** Database-owned chat history and serialized per-conversation OpenAI generations. */
 final readonly class AiChat
 {
-    public function __construct(private DatabaseManager $db, private AiSettings $settings, private OpenAiClient $client) {}
+    public function __construct(private DatabaseManager $db, private AiSettings $settings, private OpenAiClient $client, private ?AiTools $tools = null) {}
 
     public function list(string $userId): array
     {
@@ -24,7 +24,16 @@ final readonly class AiChat
         $this->owned($this->db->connection(), $userId, $id);
         $stmt = $this->db->connection()->prepare('SELECT id, role, content, created_at, model, input_tokens, output_tokens FROM ce_ai_messages WHERE conversation_id = ? ORDER BY created_at ASC, id ASC LIMIT 200');
         $stmt->execute([$id]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $traces = $this->db->connection()->prepare('SELECT assistant_message_id, tool_name, status, duration_ms FROM ce_ai_tool_calls WHERE conversation_id = ? ORDER BY created_at ASC, id ASC');
+        $traces->execute([$id]);
+        $byMessage = [];
+        foreach ($traces->fetchAll(PDO::FETCH_ASSOC) as $tool) {
+            $byMessage[$tool['assistant_message_id']][] = ['name'=>$tool['tool_name'], 'status'=>$tool['status'], 'duration_ms'=>(int)$tool['duration_ms']];
+        }
+        foreach ($messages as &$item) $item['tools'] = $byMessage[$item['id']] ?? [];
+        unset($item);
+        return $messages;
     }
 
     public function rename(string $userId, string $id, string $title): array
@@ -48,20 +57,21 @@ final readonly class AiChat
     }
 
     /** @return array<string,mixed> */
-    public function send(string $userId, ?string $id, string $message, ?callable $onDelta = null): array
+    public function send(string $userId, ?string $id, string $message, ?callable $onDelta = null, bool $toolsEnabled = false, array $scopes = [], ?callable $onTool = null): array
     {
         $message = trim($message);
         if ($message === '' || strlen($message) > 12000 || !preg_match('//u', $message)) throw new \InvalidArgumentException('Message must be valid UTF-8 and 1–12000 bytes.');
         if ($id !== null && !preg_match('/^[a-f0-9-]{32,36}$/D', $id)) throw new \InvalidArgumentException('Invalid conversation identifier.');
+        $definitions = ($toolsEnabled && $this->tools !== null) ? $this->tools->definitions($scopes) : [];
         $settings = $this->settings->status();
         if (!$settings['configured']) throw new \DomainException('OpenAI API key is not configured.');
         $key = $this->settings->key();
         $newId = $id === null;
         $id ??= self::uuid();
-        $now = time(); $busyUntil = $now + 180;
+        $now = time(); $busyUntil = $now + ($definitions === [] ? 180 : 600);
         $month = gmdate('Y-m');
         // Reserve a deliberately conservative upper bound before the external call.
-        $prepared = $this->db->transaction(function (PDO $pdo) use ($userId, $id, $newId, $message, $settings, $now, $busyUntil, $month): array {
+        $prepared = $this->db->transaction(function (PDO $pdo) use ($userId, $id, $newId, $message, $settings, $now, $busyUntil, $month, $definitions): array {
             // Reclaim reservations abandoned by dead PHP workers after the 180s lease expires.
             $expiredQuery = 'SELECT id, reserved_tokens, reservation_period FROM ce_ai_conversations WHERE user_id = ? AND busy_until > 0 AND busy_until < ? AND reserved_tokens > 0';
             if (in_array($this->db->driver(), ['mysql', 'pgsql'], true)) $expiredQuery .= ' FOR UPDATE';
@@ -92,7 +102,11 @@ final readonly class AiChat
             $input[] = ['role' => 'user', 'content' => $message];
             $bytes = strlen(json_encode($input, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
             if ($bytes > 48000) throw new \DomainException('Conversation context is too large. Start a new conversation.');
-            $reservation = $bytes + (int)$settings['max_output_tokens'] + 64;
+            // Tool loops need several provider round trips and can grow with tool outputs.
+            // Reserve the worst-case request budget before making a chargeable request.
+            $reservation = $definitions === []
+                ? $bytes + (int)$settings['max_output_tokens'] + 64
+                : 4 * ($bytes + (int)$settings['max_output_tokens'] + 12000);
             $driver = $this->db->driver();
             $insert = $driver === 'mysql'
                 ? 'INSERT IGNORE INTO ce_ai_usage (user_id, period, used_tokens, reserved_tokens) VALUES (?, ?, 0, 0)'
@@ -106,20 +120,32 @@ final readonly class AiChat
             return ['input' => $input, 'reservation' => $reservation, 'title' => $row['title']];
         });
         try {
-            $result = $this->client->complete($key, $settings['model'], $prepared['input'], $settings['max_output_tokens'], $onDelta);
+            $result = $definitions === []
+                ? $this->client->complete($key, $settings['model'], $prepared['input'], $settings['max_output_tokens'], $onDelta)
+                : $this->client->completeWithTools($key, $settings['model'], $prepared['input'], $settings['max_output_tokens'], $definitions,
+                    fn(string $name, array $args): array => $this->tools->execute($name, $args, $scopes, $userId), $onDelta, $onTool);
+            $result['tools'] ??= [];
+            if (count($result['tools']) > 8) throw new \RuntimeException('Too many tool calls.');
             $created = (int)round(microtime(true) * 1000000);
             $this->db->transaction(function (PDO $pdo) use ($id, $userId, $message, $result, $settings, $prepared, $month, $created, $busyUntil): void {
                 $this->owned($pdo, $userId, $id, true);
                 $insert = $pdo->prepare('INSERT INTO ce_ai_messages (id, conversation_id, role, content, created_at, model, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
                 $insert->execute([self::uuid(), $id, 'user', $message, $created, null, 0, 0]);
-                $insert->execute([self::uuid(), $id, 'assistant', $result['text'], $created + 1, $settings['model'], $result['usage']['input_tokens'], $result['usage']['output_tokens']]);
+                $assistantMessageId = self::uuid();
+                $insert->execute([$assistantMessageId, $id, 'assistant', $result['text'], $created + 1, $settings['model'], $result['usage']['input_tokens'], $result['usage']['output_tokens']]);
+                if ($result['tools'] !== []) {
+                    $trace = $pdo->prepare('INSERT INTO ce_ai_tool_calls (id, conversation_id, assistant_message_id, tool_name, status, duration_ms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                    foreach ($result['tools'] as $index=>$tool) {
+                        $trace->execute([self::uuid(), $id, $assistantMessageId, $tool['name'], $tool['status'], (int)$tool['duration_ms'], $created + 2 + $index]);
+                    }
+                }
                 $update = $pdo->prepare('UPDATE ce_ai_conversations SET updated_at = ?, busy_until = 0, reserved_tokens = 0, reservation_period = NULL, total_input_tokens = total_input_tokens + ?, total_output_tokens = total_output_tokens + ? WHERE id = ? AND user_id = ? AND busy_until = ?');
                 $update->execute([time(), $result['usage']['input_tokens'], $result['usage']['output_tokens'], $id, $userId, $busyUntil]);
                 if ($update->rowCount() !== 1) throw new \RuntimeException('Conversation generation lease expired.');
                 $usage = $pdo->prepare('UPDATE ce_ai_usage SET reserved_tokens = reserved_tokens - ?, used_tokens = used_tokens + ? WHERE user_id = ? AND period = ?');
                 $usage->execute([$prepared['reservation'], $result['usage']['input_tokens'] + $result['usage']['output_tokens'], $userId, $month]);
             });
-            return ['conversation_id' => $id, 'title' => $prepared['title'], 'text' => $result['text'], 'usage' => $result['usage'], 'model' => $settings['model']];
+            return ['conversation_id' => $id, 'title' => $prepared['title'], 'text' => $result['text'], 'usage' => $result['usage'], 'model' => $settings['model'], 'tools' => $result['tools']];
         } catch (\Throwable $error) {
             try {
                 $this->db->transaction(function (PDO $pdo) use ($userId, $id, $busyUntil, $month, $prepared, $newId): void {

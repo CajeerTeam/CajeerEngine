@@ -11,6 +11,7 @@ use CajeerEngine\AI\AiSeoAssistant;
 use CajeerEngine\AI\AiTranslationStudio;
 use CajeerEngine\AI\AiProviderException;
 use CajeerEngine\AI\AiSettings;
+use CajeerEngine\AI\AiTools;
 use CajeerEngine\Audit\AuditLogger;
 use CajeerEngine\Security\RateLimiter;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -21,7 +22,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /** Admin-only chat endpoints. Authorization/CSRF/step-up also run in the core middleware. */
 final readonly class AiController
 {
-    public function __construct(private AiChat $chat, private AiSettings $settings, private AuditLogger $audit, private RateLimiter $limiter, private AiContentEditor $editor, private AiSeoAssistant $seo, private AiTranslationStudio $translations, private \CajeerEngine\Queue\ManagedQueueDriverInterface $queue, private AiCmsDiagnostics $diagnostics) {}
+    public function __construct(private AiChat $chat, private AiSettings $settings, private AuditLogger $audit, private RateLimiter $limiter, private AiContentEditor $editor, private AiSeoAssistant $seo, private AiTranslationStudio $translations, private \CajeerEngine\Queue\ManagedQueueDriverInterface $queue, private AiCmsDiagnostics $diagnostics, private AiTools $tools) {}
 
     private function user(Request $request): string
     {
@@ -56,6 +57,18 @@ final readonly class AiController
         $data = $this->settings->update($this->body($request));
         $this->audit->record('ai.settings.updated', $uid, ['model' => $data['model'], 'configured' => $data['configured']]);
         return $this->ok($data);
+    }
+
+    public function tools(Request $request): JsonResponse
+    {
+        $this->user($request);
+        return $this->ok($this->tools->catalog($this->scopes($request)));
+    }
+
+    private function scopes(Request $request): array
+    {
+        $identity = $request->attributes->get('auth');
+        return is_array($identity) && is_array($identity['scopes'] ?? null) ? $identity['scopes'] : [];
     }
 
     public function index(Request $request): JsonResponse { return $this->ok($this->chat->list($this->user($request))); }
@@ -267,16 +280,19 @@ final readonly class AiController
         $id = $body['conversation_id'] ?? null;
         $message = $body['message'] ?? null;
         if (($id !== null && !is_string($id)) || !is_string($message)) throw new \InvalidArgumentException('Message or conversation ID invalid.');
-        return [$id, $message];
+        if (array_diff(array_keys($body), ['conversation_id','message','tools_enabled']) !== [] ||
+            (array_key_exists('tools_enabled', $body) && !is_bool($body['tools_enabled'])))
+            throw new \InvalidArgumentException('Unknown or invalid chat options.');
+        return [$id, $message, $body['tools_enabled'] ?? false];
     }
 
     public function send(Request $request): JsonResponse
     {
         $uid = $this->user($request);
-        [$id, $message] = $this->validated($request);
+        [$id, $message, $toolsEnabled] = $this->validated($request);
         if (($denied = $this->throttle($uid)) !== null) return $denied;
         try {
-            $result = $this->chat->send($uid, $id, $message);
+            $result = $this->chat->send($uid, $id, $message, null, $toolsEnabled, $this->scopes($request));
             $this->audit->record('ai.chat.completed', $uid, ['conversation_id' => $result['conversation_id'], 'model' => $result['model'], 'usage' => $result['usage']]);
             return $this->ok($result);
         } catch (AiProviderException $e) {
@@ -287,11 +303,12 @@ final readonly class AiController
     public function stream(Request $request): Response
     {
         $uid = $this->user($request);
-        [$id, $message] = $this->validated($request);
+        [$id, $message, $toolsEnabled] = $this->validated($request);
         if (($denied = $this->throttle($uid)) !== null) return $denied;
-        return new StreamedResponse(function () use ($uid, $id, $message): void {
+        return new StreamedResponse(function () use ($uid, $id, $message, $toolsEnabled, $request): void {
             try {
-                $result = $this->chat->send($uid, $id, $message, fn (string $delta) => $this->event('delta', ['text' => $delta]));
+                $result = $this->chat->send($uid, $id, $message, fn (string $delta) => $this->event('delta', ['text' => $delta]),
+                    $toolsEnabled, $this->scopes($request), fn(array $tool) => $this->event('tool', $tool));
                 $this->audit->record('ai.chat.completed', $uid, ['conversation_id' => $result['conversation_id'], 'model' => $result['model'], 'usage' => $result['usage']]);
                 $this->event('done', $result);
             } catch (AiProviderException $e) {

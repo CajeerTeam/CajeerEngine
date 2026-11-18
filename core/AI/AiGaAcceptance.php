@@ -23,7 +23,7 @@ final readonly class AiGaAcceptance
             $checks[] = ['check' => $name, 'status' => $ok ? 'pass' : 'fail', 'detail' => $reason];
         };
         $version = trim((string)@file_get_contents($this->root.'/VERSION'));
-        $record('release_version', $version === '1.7.0' && $this->config->string('app.version') === $version, 'Release and runtime versions must match 1.7.0.');
+        $record('release_version', $version === '1.7.1' && $this->config->string('app.version') === $version, 'Release and runtime versions must match 1.7.1.');
         if ($requireProduction) {
             $record('production_environment', strtolower((string)getenv('APP_ENV')) === 'production', 'Set APP_ENV=production.');
             $record('debug_disabled', !filter_var(getenv('APP_DEBUG') ?: 'false', FILTER_VALIDATE_BOOLEAN), 'Disable APP_DEBUG.');
@@ -50,7 +50,7 @@ final readonly class AiGaAcceptance
             $record('credential_decryption', false, 'OpenAI configuration or encrypted key cannot be read.');
         }
         $tables = [
-            'ce_ai_conversations', 'ce_ai_messages', 'ce_ai_usage', 'ce_ai_editor_jobs',
+            'ce_ai_conversations', 'ce_ai_messages', 'ce_ai_tool_calls', 'ce_ai_usage', 'ce_ai_editor_jobs',
             'ce_ai_editor_proposals', 'ce_ai_translation_proposals', 'ce_ai_translation_glossary',
             'ce_kb_categories', 'ce_kb_documents', 'ce_kb_chunks', 'ce_kb_terms',
             'ce_ai_kb_conversations', 'ce_ai_kb_messages', 'ce_support_tickets', 'ce_support_messages',
@@ -70,7 +70,7 @@ final readonly class AiGaAcceptance
             }
         } catch (\Throwable) {
             $record('database_connectivity', false, 'Database connection or schema cannot be read.');
-            $record('ai_sql_schema', false, 'Apply migrations 0031–0036 before enabling AI.');
+            $record('ai_sql_schema', false, 'Apply migrations 0031–0037 before enabling AI.');
         }
         if ($probeProvider) {
             // Explicit operator opt-in: this makes one billable outbound OpenAI request.

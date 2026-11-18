@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.1 — AI Tools & Function Calling
+
+- OpenAI Responses API function-call orchestration with stateless tool results, bounded rounds/calls and aggregate token accounting.
+- Read-only RBAC-scoped CMS content search/get, SEO audit, health diagnostics, Knowledge Base search and stored Analytics Hub reports.
+- AI Assistant tool toggle in Nuxt and static admin; SSE execution status and persisted per-answer tool trace.
+- No arbitrary HTTP/SQL/shell execution, secret leakage or automatic changes. Migration 0037 records tool names/status only.
+
 ## 1.7.0 — AI Assistant ChatGPT GA
 
 - **Race-safe Support:** guest replies, operator messages, and handoffs claim the expected ticket revision before adding transcript entries; closed tickets cannot be reopened by racing requests and write failures roll back atomically.

@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.7.0",
+    "version": "1.7.1",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -28666,7 +28666,7 @@
           "AI"
         ],
         "operationId": "api_v1_ai_chat",
-        "summary": "Send message to OpenAI and commit history on success",
+        "summary": "Send chat message with optional read-only CMS function calls, commit history and usage",
         "x-cajeer-route": "api.v1.ai.chat",
         "x-cajeer-required-scopes": [
           "content:read"
@@ -28804,6 +28804,11 @@
                   "message": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "tools_enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Allow only read-only CMS tools granted to the browser session; never writes."
                   }
                 },
                 "required": [
@@ -28834,7 +28839,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Server-sent events with event:delta, event:done and event:error",
+            "description": "Server-sent events delta/tool/done/error; tool events contain only name, status and duration.",
             "content": {
               "text/event-stream": {
                 "schema": {
@@ -28951,6 +28956,11 @@
                   "message": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "tools_enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Allow only read-only CMS tools granted to the browser session; never writes."
                   }
                 },
                 "required": [
@@ -36155,6 +36165,153 @@
                   }
                 },
                 "required": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/tools": {
+      "get": {
+        "tags": [
+          "AI"
+        ],
+        "operationId": "api_v1_ai_tools",
+        "summary": "List read-only CMS functions permitted by the active browser session",
+        "x-cajeer-route": "api.v1.ai.tools",
+        "x-cajeer-required-scopes": [
+          "content:read"
+        ],
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "description",
+                          "scope"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           }

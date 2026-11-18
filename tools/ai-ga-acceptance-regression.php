@@ -27,7 +27,7 @@ try {
     putenv('OPENAI_API_KEY=sk-test-ga-012345678901234567890123456789');
     $report = $service->run();
     $checks = array_column($report['checks'], 'status', 'check');
-    $check($report['version'] === '1.7.0', 'GA version is the actual release version');
+    $check($report['version'] === '1.7.1', 'GA version is the actual release version');
     $check($checks['release_version'] === 'pass' && $checks['admin_assets'] === 'pass', 'GA release and published admin assets match');
     $check($checks['openai_configuration'] === 'pass' && $checks['credential_decryption'] === 'pass', 'Credential readiness verifies decryption without exposing key');
     $check(!str_contains(json_encode($report, JSON_THROW_ON_ERROR), 'sk-test-ga-'), 'Acceptance never logs provider secrets');
@@ -43,12 +43,12 @@ try {
     }
     $pdo = (new DatabaseManager($cfg))->connection();
     $pdo->exec('PRAGMA foreign_keys = ON');
-    foreach (['0031_ai_chat','0032_ai_content_editor','0033_ai_translation_studio','0034_ai_knowledge_base','0035_ai_knowledge_chat','0036_ai_support_center'] as $name) {
+    foreach (['0031_ai_chat','0032_ai_content_editor','0033_ai_translation_studio','0034_ai_knowledge_base','0035_ai_knowledge_chat','0036_ai_support_center','0037_ai_tools'] as $name) {
         $pdo->exec((string)file_get_contents($root.'/migrations/sqlite/'.$name.'.sql'));
     }
     // The service must use this same connection to examine the schema.
     $db = new DatabaseManager($cfg); $connection = $db->connection();
-    foreach (['0031_ai_chat','0032_ai_content_editor','0033_ai_translation_studio','0034_ai_knowledge_base','0035_ai_knowledge_chat','0036_ai_support_center'] as $name)
+    foreach (['0031_ai_chat','0032_ai_content_editor','0033_ai_translation_studio','0034_ai_knowledge_base','0035_ai_knowledge_chat','0036_ai_support_center','0037_ai_tools'] as $name)
         $connection->exec((string)file_get_contents($root.'/migrations/sqlite/'.$name.'.sql'));
     $service = new AiGaAcceptance($root, $cfg, $db);
     $healthy = $service->run(); $healthyChecks = array_column($healthy['checks'], 'status', 'check');

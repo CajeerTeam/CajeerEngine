@@ -2,13 +2,17 @@
 const api = useAdminApi()
 const auth = useAdminAuth()
 type Conversation = { id: string; title: string; updated_at: number; total_input_tokens: number; total_output_tokens: number }
-type Message = { id: string; role: 'user' | 'assistant'; content: string; created_at: number }
+type ToolRun = { name: string; status: string; duration_ms: number }
+type Message = { id: string; role: 'user' | 'assistant'; content: string; created_at: number; tools?: ToolRun[] }
 type AiStatus = { configured: boolean; credential_source: string; model: string; max_output_tokens: number; monthly_token_limit: number }
 const settings = ref<AiStatus | null>(null)
 const conversations = ref<Conversation[]>([])
 const active = ref<string | null>(null)
 const messages = ref<Message[]>([])
 const prompt = ref('')
+const toolsEnabled = ref(false)
+const availableTools = ref<{ name: string; description: string; scope: string }[]>([])
+const workingTools = ref<ToolRun[]>([])
 const partial = ref('')
 const loading = ref(false)
 const sending = ref(false)
@@ -26,12 +30,14 @@ const canManage = computed(() => {
 const load = async () => {
   loading.value = true; error.value = ''
   try {
-    const [s, list] = await Promise.all([
+    const [s, list, tools] = await Promise.all([
       api.request<{ data: AiStatus }>('/ai/status'),
       api.request<{ data: Conversation[] }>('/ai/conversations'),
+      api.request<{ data: { name:string;description:string;scope:string }[] }>('/ai/tools'),
     ])
     settings.value = s.data
     conversations.value = list.data
+    availableTools.value = tools.data
     editingModel.value = s.data.model
     editingOutput.value = s.data.max_output_tokens
     editingBudget.value = s.data.monthly_token_limit
@@ -82,7 +88,7 @@ const removeKey = async () => {
 const submit = async () => {
   const text = prompt.value.trim()
   if (!text || sending.value || !settings.value?.configured) return
-  sending.value = true; error.value = ''; info.value = ''; partial.value = ''
+  sending.value = true; error.value = ''; info.value = ''; partial.value = ''; workingTools.value = []
   prompt.value = ''
   messages.value.push({id: 'pending-' + Date.now(), role: 'user', content: text, created_at: Date.now()})
   let done = false
@@ -90,7 +96,7 @@ const submit = async () => {
     const headers = new Headers({ Accept: 'text/event-stream', 'Content-Type': 'application/json' })
     if (api.csrf.value) headers.set('X-CSRF-Token', api.csrf.value)
     const response = await fetch(api.baseUrl + '/ai/chat/stream', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers,
-      body: JSON.stringify({ conversation_id: active.value, message: text }) })
+      body: JSON.stringify({ conversation_id: active.value, message: text, tools_enabled: toolsEnabled.value && availableTools.value.length > 0 }) })
     if (!response.ok || !response.body) {
       const payload = await response.json().catch(() => null)
       throw new Error(payload?.error?.message || 'Ошибка AI HTTP ' + response.status)
@@ -104,8 +110,9 @@ const submit = async () => {
       if (!data) return
       const value = JSON.parse(data)
       if (eventName === 'delta') partial.value += value.text || ''
+      if (eventName === 'tool' && value.name) workingTools.value.push({ name: value.name, status: value.status || 'ok', duration_ms: Number(value.duration_ms || 0) })
       if (eventName === 'error') throw new Error(value.message || 'Ошибка генерации.')
-      if (eventName === 'done') { done = true; active.value = value.conversation_id; partial.value = '' }
+      if (eventName === 'done') { done = true; active.value = value.conversation_id; partial.value = ''; workingTools.value = [] }
     }
     while (true) {
       const { value, done: eof } = await reader.read()
@@ -149,11 +156,13 @@ const openSaved = async () => {
       <div class="ce-ai-main">
         <div v-if="!settings?.configured" class="ce-ai-notice">OpenAI API-ключ не настроен. {{ canManage ? 'Укажите его ниже.' : 'Обратитесь к администратору.' }}</div>
         <div class="ce-ai-messages" aria-live="polite">
-          <article v-for="m in messages" :key="m.id" :class="['ce-ai-message', m.role]"><strong>{{ m.role === 'user' ? 'Вы' : 'ChatGPT' }}</strong><p>{{ m.content }}</p></article>
-          <article v-if="sending" class="ce-ai-message assistant"><strong>ChatGPT</strong><p>{{ partial || 'Генерация…' }}</p></article>
+          <article v-for="m in messages" :key="m.id" :class="['ce-ai-message', m.role]"><strong>{{ m.role === 'user' ? 'Вы' : 'ChatGPT' }}</strong><p>{{ m.content }}</p><p v-if="m.tools?.length" class="ce-ai-tool-trace">Инструменты: {{ m.tools.map(t => t.name + ' (' + t.status + ')').join(', ') }}</p></article>
+          <article v-if="sending" class="ce-ai-message assistant"><strong>ChatGPT</strong><p v-if="workingTools.length" class="ce-ai-tool-trace">{{ workingTools.map(t => t.name + ' (' + t.status + ')').join(', ') }}</p><p>{{ partial || 'Генерация…' }}</p></article>
           <p v-if="!messages.length && !sending">Создайте диалог и отправьте первое сообщение.</p>
         </div>
         <form class="ce-ai-compose" @submit.prevent="submit">
+          <label v-if="availableTools.length" class="ce-ai-tools-switch"><input v-model="toolsEnabled" type="checkbox" :disabled="sending"> Разрешить AI-инструментам читать данные CMS и передавать результаты в OpenAI</label>
+          <details v-if="availableTools.length"><summary>Доступные AI Tools ({{ availableTools.length }})</summary><ul><li v-for="tool in availableTools" :key="tool.name"><code>{{ tool.name }}</code> — {{ tool.description }}</li></ul></details>
           <textarea v-model="prompt" rows="4" maxlength="12000" placeholder="Введите сообщение для ChatGPT" :disabled="sending || !settings?.configured" />
           <button type="submit" :disabled="sending || !prompt.trim() || !settings?.configured">{{ sending ? 'Отправка…' : 'Отправить' }}</button>
           <small>Модель: {{ settings?.model || '—' }}. Ответы могут содержать ошибки.</small>

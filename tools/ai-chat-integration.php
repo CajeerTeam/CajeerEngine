@@ -49,6 +49,7 @@ try {
     $config->set('database.connections.sqlite.database', ':memory:');
     $db = new DatabaseManager($config);
     $db->connection()->exec((string)file_get_contents($root . '/migrations/sqlite/0031_ai_chat.sql'));
+    $db->connection()->exec((string)file_get_contents($root . '/migrations/sqlite/0037_ai_tools.sql'));
     $failNext = false;
     $client = new class($failNext) extends OpenAiClient {
         public function __construct(private bool &$failNext) {}
