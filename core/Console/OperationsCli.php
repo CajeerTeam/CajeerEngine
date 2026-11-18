@@ -13,7 +13,7 @@ use CajeerEngine\Update\UpdateManager;
 /** Operational CLI remains available without Composer; never execute through HTTP. */
 final class OperationsCli
 {
-    public const COMMANDS=['backup:create','stable:backup','backup:list','backup:verify','backup:restore','backup:keygen','backup:export','backup:import','backup:drill','release:keygen','release:sign','update:verify-signature','update:apply','update:rollback','update:stage','update:requests','update:run','update:status','maintenance:on','maintenance:off','maintenance:status','import:execute','import:requests'];
+    public const COMMANDS=['backup:create','stable:backup','backup:list','backup:verify','backup:restore','backup:keygen','backup:export','backup:import','backup:drill','release:keygen','release:sign','update:verify-signature','update:apply','update:rollback','update:stage','update:requests','update:run','update:status','maintenance:on','maintenance:off','maintenance:status','import:execute','import:requests','keys:status','keys:rekey','keys:generate'];
     public static function handles(array $argv): bool { return in_array($argv[1]??'',self::COMMANDS,true)||(($argv[1]??'')==='update'&&in_array('--apply',$argv,true)); }
     public static function run(string $root,array $argv): int
     {
@@ -29,12 +29,21 @@ final class OperationsCli
                 (new \CajeerEngine\Release\ReleaseArtifactVerifier())->verify($package,$manifest['mode'],$manifest['version']);
                 $result=ReleaseSignature::sign($package,self::externalKey($root,$required('secret-key')));
             }
+            elseif ($c==='keys:generate') {
+                $path=self::externalKey($root,$required('file'));
+                if (file_exists($path)||is_link($path)) throw new \RuntimeException('Key file must not already exist');
+                OperationFiles::write($path, 'base64:'.base64_encode(random_bytes(32)).PHP_EOL, 0600);
+                $result=['ok'=>true,'key_file'=>$path];
+            }
             elseif ($c==='backup:keygen') {
                 $path=self::externalKey($root,$required('key')); if (!str_starts_with($path,'/')||file_exists($path)||is_link($path)) throw new \RuntimeException('Provide a new absolute key path');
                 OperationFiles::write($path,base64_encode(random_bytes(32))."\n"); $result=['ok'=>true,'key_file'=>$path];
             } else {
                 self::loadEnv($root); $config=new ConfigRepository($root); $m=new UpdateManager($root,$config);
                 $result=match($c) {
+                    'keys:status','keys:rekey'=>(new \CajeerEngine\Security\KeyRotation(
+                        $root,\CajeerEngine\Integration\SecretVault::fromEnvironment(),\CajeerEngine\Integration\SecretVault::fromEnvironment('oidc')
+                    ))->run($c==='keys:rekey' && isset($o['yes']) && $o['yes']===true ? true : ($c==='keys:status' ? false : throw new \RuntimeException('Rekey changes live encrypted data; pass --yes after a verified backup'))),
                     'import:execute'=>(new \CajeerEngine\ImportExport\ImportExportService($root))->executeRequest($required('id')),
                     'import:requests'=>['ok'=>true,'requests'=>(new \CajeerEngine\ImportExport\ImportExportService($root))->requests()],
                     'backup:create','stable:backup'=> (new BackupManager($root,$config))->create(),

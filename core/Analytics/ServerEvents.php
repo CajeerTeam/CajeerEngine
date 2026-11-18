@@ -19,7 +19,7 @@ final readonly class ServerEvents
     public function __construct(private string $root,private IntegrationCenter $center,private ManagedQueueDriverInterface $queue) {}
     public static function fromRoot(string $root,ManagedQueueDriverInterface $queue): self
     {
-        return new self($root,new IntegrationCenter(new IntegrationStore($root),ProviderRegistry::defaults(),new SecretVault((string)(getenv('INTEGRATIONS_KEY')?:getenv('APP_KEY')?:'')),new ConfigRepository($root)),$queue);
+        return new self($root,new IntegrationCenter(new IntegrationStore($root),ProviderRegistry::defaults(),SecretVault::fromEnvironment(),new ConfigRepository($root)),$queue);
     }
     public static function targets(): array
     {
@@ -58,7 +58,7 @@ final readonly class ServerEvents
         if(array_intersect(['email_sha256','source_url','user_agent'],array_keys($input)))$fields=array_merge($fields,['email_sha256','source_url','user_agent']);
         if(count($input)!==count($fields)||array_diff($fields,array_keys($input))||!is_string($input['grant_id'])||!preg_match('/^[a-f0-9]{32}$/D',$input['grant_id'])||!is_string($input['id'])||!preg_match('/^[a-f0-9]{32}$/D',$input['id'])||!is_string($input['name'])||!in_array($input['name'],['purchase','refund','generate_lead','form_submit','sign_up','login'],true)||!is_string($input['integration_id'])||!is_int($input['revision'])||$input['revision']<1||(!is_int($input['value'])&&!is_float($input['value']))||!is_finite((float)$input['value'])||$input['value']<0||$input['value']>1e12||!is_string($input['currency'])||!preg_match('/^[A-Z]{3}$/D',$input['currency']))throw new \InvalidArgumentException('Invalid trusted analytics event');
     }
-    private function vault(): SecretVault {return new SecretVault((string)(getenv('INTEGRATIONS_KEY')?:getenv('APP_KEY')?:''));}
+    private function vault(): SecretVault {return SecretVault::fromEnvironment();}
     private function adContext(string $grant,string $key): string {return 'analytics-ad:v1:'.$grant.':'.$key;}
     private function adData(array $input,string $provider): array
     {

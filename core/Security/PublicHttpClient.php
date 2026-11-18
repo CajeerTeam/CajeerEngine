@@ -50,6 +50,9 @@ final class PublicHttpClient implements OutboundHttpTransport
     /** Same pinned transport, with final response headers for pagination metadata. */
     public function requestWithHeaders(string $url,string $method,#[\SensitiveParameter] array $headers=[],#[\SensitiveParameter] string $body='',int $maxBytes=1048576):array
     {
+        if (!in_array($method, ['GET', 'POST'], true) || ($method === 'GET' && $body !== '') || $maxBytes < 1 || $maxBytes > 8388608) {
+            throw new \InvalidArgumentException('Unsafe outbound HTTP method or response limit');
+        }
         if (!function_exists('curl_init')) { throw new \RuntimeException('Secure outbound HTTP requires ext-curl'); }
         [$host, $port, $ip] = self::target($url);
         $ch = curl_init($url);

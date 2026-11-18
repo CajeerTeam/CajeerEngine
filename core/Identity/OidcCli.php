@@ -39,7 +39,7 @@ final class OidcCli
         $config = new ConfigRepository($root);
         $db = new DatabaseManager($config);
         $users = new UserRepository($db, new RoleRepository($db), new PasswordHasher($config));
-        $vault = new SecretVault((string)(getenv('SKIF4ER_ID_TRANSACTION_KEY') ?: getenv('INTEGRATIONS_KEY') ?: getenv('APP_KEY') ?: ''));
+        $vault = SecretVault::fromEnvironment('oidc');
         $store = new OidcStore($db, $vault);
         $db->transaction(static function () use ($store, $userId, $subject, $users, $db): void {
             $store->link('https://id.skif4er.ru/realms/skif4er', $subject, $userId, $users);

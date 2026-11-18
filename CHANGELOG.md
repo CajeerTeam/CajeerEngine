@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.8 — Security & Resilience Hardening
+
+- Versioned authenticated encryption with key IDs and backwards-compatible decrypt-only keyring for legacy vault ciphertext, including OIDC PKCE state.
+- Offline operational rekey command performing real atomic/transactional migrations of integrations, migration project and WXR secrets, server analytics, analytics reporting SQL and OIDC SQL; dry-run and repeatable recovery.
+- Persistent integration circuit breaker with bounded half-open probes and fail-closed persistence; improved OIDC read-only endpoint transient retry and bounded HTTPS response streaming.
+- Safer public outbound HTTP validation, private rate-limit state, security key diagnostics, CI acceptance regression. Deployment / key retirement runbook in `docs/security-resilience-1.5.8.md`.
+
+
 ## 1.5.7 — Identity Center Admin UX
 
 - Working Identity Center in shipped static admin SPA and Nuxt UI: search/page/filter local identity accounts, inspect SSO sessions, link a verified Keycloak `sub`, unlink with safe local-login checks, revoke selected or all SSO sessions.

@@ -24,6 +24,8 @@ final readonly class SecurityHardener
             'protect_system_routes' => $this->config->bool('security.protect_system_routes', true),
             'debug_disabled' => !$this->config->bool('app.debug', false),
             'password_min_length_12' => $this->config->int('security.password.min_length', 12) >= 12,
+            'integration_vault_key_valid' => !$this->config->bool('integrations.enabled', true) || $this->vaultReady('integrations'),
+            'oidc_transaction_key_valid' => !filter_var(getenv('SKIF4ER_ID_ENABLED') ?: false, FILTER_VALIDATE_BOOLEAN) || $this->vaultReady('oidc'),
         ];
 
         $failures = [];
@@ -40,6 +42,15 @@ final readonly class SecurityHardener
             'checks' => $checks,
             'failures' => $failures,
         ];
+    }
+
+    private function vaultReady(string $purpose): bool
+    {
+        try {
+            $vault = \CajeerEngine\Integration\SecretVault::fromEnvironment($purpose);
+            $sealed = $vault->seal('security:diagnostics', 'checked');
+            return $vault->open('security:diagnostics', $sealed) === 'checked';
+        } catch (\Throwable) { return false; }
     }
 
     /** @return array<string, mixed> */

@@ -18,12 +18,16 @@ final readonly class RateLimiter
         $identityHash = hash('sha256', $identity);
         $dir = $this->rootPath . '/storage/rate-limits';
         if (!is_dir($dir)) {
-            @mkdir($dir, 0775, true);
+            @mkdir($dir, 0700, true);
         }
         $file = $dir . '/' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $bucket) . '-' . $identityHash . '.json';
         $now = time();
         $state = ['hits' => 0, 'reset_at' => $now + $windowSeconds];
 
+        // Deny symlink substitution and keep identity bucket state owner-private.
+        if (is_link($dir) || is_link($file)) {
+            return ['allowed' => false, 'limit' => $limit, 'remaining' => 0, 'reset_at' => $now + $windowSeconds, 'retry_after' => $windowSeconds, 'key' => $bucket . ':' . $identityHash];
+        }
         $handle = @fopen($file, 'c+');
         if ($handle === false) {
             return ['allowed' => false, 'limit' => $limit, 'remaining' => 0, 'reset_at' => $now + $windowSeconds, 'retry_after' => $windowSeconds, 'key' => $bucket . ':' . $identityHash];
@@ -31,6 +35,7 @@ final readonly class RateLimiter
 
         try {
             if (!flock($handle, LOCK_EX)) { throw new \RuntimeException('Rate limit lock failed'); }
+            if (!chmod($file, 0600)) throw new \RuntimeException('Rate limit permissions failed');
             // Read the clock after acquiring the inter-process lock.
             $now = time();
             $state = ['hits' => 0, 'reset_at' => $now + $windowSeconds];

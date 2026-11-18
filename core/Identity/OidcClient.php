@@ -249,9 +249,19 @@ final class OidcClient
 
     private function requestOk(string $method, string $url): string
     {
-        $response = $this->request($method, $url, null, ['Accept: application/json']);
-        if ($response['status'] !== 200) throw new \RuntimeException('OIDC endpoint unavailable.');
-        return $response['body'];
+        // Retrying read-only discovery/JWKS is safe; token exchange and introspection
+        // are deliberately never retried (authorization codes are single-use).
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            try {
+                $response = $this->request($method, $url, null, ['Accept: application/json']);
+                if ($response['status'] === 200) return $response['body'];
+                if (!in_array($response['status'], [408, 425, 429, 500, 502, 503, 504], true)) break;
+            } catch (\RuntimeException) {
+                if ($attempt === 1) throw new \RuntimeException('OIDC endpoint unavailable.');
+            }
+            if ($attempt === 0) usleep(random_int(80000, 150000));
+        }
+        throw new \RuntimeException('OIDC endpoint unavailable.');
     }
 
     /** @return array{status:int,body:string} */
@@ -263,12 +273,17 @@ final class OidcClient
         $handle = curl_init($url);
         if ($handle === false) throw new \RuntimeException('Cannot initialize OIDC HTTP transport.');
         try {
-            curl_setopt_array($handle, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_FOLLOWLOCATION=>false, CURLOPT_CONNECTTIMEOUT=>5, CURLOPT_TIMEOUT=>10,
+            $content = '';
+            curl_setopt_array($handle, [CURLOPT_FOLLOWLOCATION=>false, CURLOPT_CONNECTTIMEOUT=>5, CURLOPT_TIMEOUT=>10,
                 CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2, CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,
-                CURLOPT_HTTPHEADER=>$headers, CURLOPT_USERAGENT=>'CajeerEngine-OIDC/1.5.5', CURLOPT_MAXREDIRS=>0]);
+                CURLOPT_HTTPHEADER=>$headers, CURLOPT_USERAGENT=>'CajeerEngine-OIDC/1.5.8', CURLOPT_MAXREDIRS=>0,
+                CURLOPT_PROXY=>'', CURLOPT_WRITEFUNCTION=>static function ($ch, string $chunk) use (&$content): int {
+                    if (strlen($content) + strlen($chunk) > 262144) return 0;
+                    $content .= $chunk;
+                    return strlen($chunk);
+                }]);
             if ($method === 'POST') curl_setopt_array($handle, [CURLOPT_POST=>true, CURLOPT_POSTFIELDS=>$body]);
-            $content = curl_exec($handle);
-            if ($content === false || strlen($content) > 262144) throw new \RuntimeException('OIDC network request failed or response too large.');
+            if (curl_exec($handle) === false) throw new \RuntimeException('OIDC network request failed or response too large.');
             return ['status'=>(int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE), 'body'=>$content];
         } finally { curl_close($handle); }
     }

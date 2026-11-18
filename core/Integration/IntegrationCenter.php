@@ -125,12 +125,18 @@ final readonly class IntegrationCenter
         if($provider instanceof \CajeerEngine\Integration\Provider\AdvertisingProvider&&($test||$eventId===null))throw new \InvalidArgumentException('Advertising API delivery requires a trusted consent-checked server event');
         $secret=isset($item['credential']) ? $this->vault->open($this->context($item),$item['credential']) : '';
         if($eventId!==null&&!preg_match('/^[a-f0-9]{32}$/D',$eventId))throw new \InvalidArgumentException('Invalid event id');
-        $eventId??=Uuid::v4(); $start=microtime(true); $status=0;
-        try { $status=$provider->execute($item['config'],$secret,$event,$payload,$eventId); }
-        catch (\Throwable) { /* Never expose provider errors, remote bodies or credentials. */ }
+        $eventId??=Uuid::v4(); $start=microtime(true); $status=0; $failure='transport_failed';
+        $breaker = $test ? null : DeliveryCircuitBreaker::configured($this->store->rootPath());
+        try {
+            $ticket = $breaker?->claim($id);
+            try { $status=$provider->execute($item['config'],$secret,$event,$payload,$eventId); }
+            catch (\Throwable) { $status=0; /* Never expose provider errors, remote bodies or credentials. */ }
+            $breaker?->record($id,$ticket,$status);
+        } catch (CircuitOpen) { $failure='circuit_open'; }
+        catch (\Throwable) { $status=0; /* Breaker persistence failures also fail closed. */ }
         finally { if ($secret!=='') sodium_memzero($secret); }
         $result=['event_id'=>$eventId,'event'=>$event,'test'=>$test,'ok'=>$status>=200 && $status<300,'status_code'=>$status,
-            'error'=>$status===0?'transport_failed':($status>=200 && $status<300?null:'remote_rejected'), 'duration_ms'=>round((microtime(true)-$start)*1000,2), 'created_at'=>gmdate(DATE_ATOM),'actor_id'=>$actor];
+            'error'=>$status===0?$failure:($status>=200 && $status<300?null:'remote_rejected'), 'duration_ms'=>round((microtime(true)-$start)*1000,2), 'created_at'=>gmdate(DATE_ATOM),'actor_id'=>$actor];
         $this->store->transaction(function (array &$items) use ($id,$item,$result): void {
             if (($items[$id]['revision'] ?? null)===$item['revision']) $items[$id]['last_run']=$result;
         },true);

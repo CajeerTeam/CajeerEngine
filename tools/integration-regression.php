@@ -39,8 +39,9 @@ try {
     $sealed=$vault->seal('one','my-secret'); check($vault->open('one',$sealed)==='my-secret','vault round trip');
     reject(fn()=> $vault->open('two',$sealed),RuntimeException::class,'ciphertext context binding');
     reject(fn()=> (new SecretVault('base64:'.base64_encode(random_bytes(32))))->open('one',$sealed),RuntimeException::class,'wrong key rejected');
-    $raw=base64_decode($sealed); $raw[30]=chr(ord($raw[30])^1);
-    reject(fn()=> $vault->open('one',base64_encode($raw)),RuntimeException::class,'tampered ciphertext rejected');
+    $separator=strrpos($sealed,':');$prefix=substr($sealed,0,$separator+1);
+    $raw=base64_decode(substr($sealed,$separator+1),true);$raw[30]=chr(ord($raw[30])^1);
+    reject(fn()=> $vault->open('one',$prefix.base64_encode($raw)),RuntimeException::class,'tampered ciphertext rejected');
     reject(fn()=> (new SecretVault(''))->seal('one','x'),RuntimeException::class,'missing key fails closed');
     $registry=new ProviderRegistry();$registry->register(new HttpProvider(false,$http));$registry->register(new HttpProvider(true,$http));
     reject(fn()=> $registry->register(new HttpProvider(false,$http)),InvalidArgumentException::class,'duplicate provider rejected');

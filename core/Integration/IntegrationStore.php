@@ -11,6 +11,8 @@ final readonly class IntegrationStore
 {
     public function __construct(private string $root) {}
 
+    public function rootPath(): string { return $this->root; }
+
     public function transaction(callable $callback, bool $write = false): mixed
     {
         $dir = F::path($this->root, 'storage/app/integrations');

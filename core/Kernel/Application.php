@@ -168,7 +168,7 @@ final class Application
         $response->headers->set('traceparent',$trace->header());
         $response->headers->set('X-Runtime-Ms',(string)round($duration*1000));
         $this->container->get(RuntimeLogger::class)->info('HTTP request handled',$trace->fields()+['request_id'=>(string)$request->attributes->get('request_id',''),'method'=>$request->getMethod(),'route'=>$route,'status'=>$response->getStatusCode(),'duration_ms'=>round($duration*1000,3)]);
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.5.7'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.5.8'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -305,10 +305,10 @@ final class Application
         $container->set(ProviderRegistry::class, fn (): ProviderRegistry => ProviderRegistry::defaults());
         $container->set(IntegrationCenter::class, fn (ServiceContainer $c): IntegrationCenter => new IntegrationCenter(
             new IntegrationStore($rootPath), $c->get(ProviderRegistry::class),
-            new SecretVault((string)(getenv('INTEGRATIONS_KEY') ?: getenv('APP_KEY') ?: '')), $c->get(ConfigRepository::class),
+            SecretVault::fromEnvironment(), $c->get(ConfigRepository::class),
         ));
         $container->set(\CajeerEngine\Analytics\Reporting\AnalyticsHub::class, fn (ServiceContainer $c) => new \CajeerEngine\Analytics\Reporting\AnalyticsHub(
-            $c->get(DatabaseManager::class), new SecretVault((string)(getenv('INTEGRATIONS_KEY') ?: getenv('APP_KEY') ?: '')),
+            $c->get(DatabaseManager::class), SecretVault::fromEnvironment(),
             $c->get(ManagedQueueDriverInterface::class), $c->get(ConfigRepository::class),
         ));
         $container->set(WebhookRepository::class, fn (): WebhookRepository => new WebhookRepository($rootPath));
@@ -379,7 +379,7 @@ final class Application
                     throw new \RuntimeException('OIDC runtime extensions unavailable.');
                 }
                 $client = new OidcClient($clientId, $secret, $base . '/auth/oidc/callback');
-                $vault = new SecretVault((string)(getenv('SKIF4ER_ID_TRANSACTION_KEY') ?: getenv('INTEGRATIONS_KEY') ?: getenv('APP_KEY') ?: ''));
+                $vault = SecretVault::fromEnvironment('oidc');
                 $vault->seal('oidc:startup-check', 'ok'); // Fail closed on missing/invalid protected key.
                 return new OidcController($cfg, new OidcLogin(
                     $client, new OidcStore($c->get(DatabaseManager::class), $vault), $c->get(AuthService::class),

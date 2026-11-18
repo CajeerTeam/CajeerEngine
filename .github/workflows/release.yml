@@ -86,6 +86,8 @@ jobs:
         run: |
           python3 tools/unified-sessions-sqlite-regression.py
           php tools/unified-sessions-regression.php --require-db
+      - name: Security & Resilience real encrypted data rotation with PDO SQLite
+        run: php tools/security-resilience-regression.php --require-db
       - run: php tools/security-regression.php
       - run: php tools/integration-regression.php
       - run: php tools/consent-regression.php
