@@ -84,6 +84,10 @@ jobs:
         run: php tools/identity-center-integration.php --require-db
       - name: Identity 1.5.9 acceptance, resumable session migration and strict cutover (real PDO)
         run: php tools/identity-session-acceptance-integration.php --require-db
+      - name: Identity 1.6.0 GA production SSO, self-link, transaction rollback, revocation (real PDO)
+        run: php tools/identity-ga-integration.php --require-db
+      - name: Identity GA SQL rollback and selective revocation (SQLite)
+        run: python3 tools/identity-ga-sqlite-regression.py
       - name: Unified Session Management PDO / SQLite integration
         run: |
           python3 tools/unified-sessions-sqlite-regression.py

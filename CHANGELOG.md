@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.0] — Identity SkiF4er ID GA (2026-11-18)
+
+- Reworked verified OIDC login finalization to lock the persisted issuer/subject mapping while creating a revocable session; a concurrent unlink cannot leave a valid orphaned SSO cookie.
+- Made self-service unlink transactional with revocation of all SSO browser credentials. Ordinary local logins, legacy sessions and personal/API integration tokens are preserved.
+- Rejected account-link callbacks whenever the original browser session is absent or revoked in the session registry, even if the historical opaque token remains live.
+- Added explicit current-session invalidation/cookie clearance to the Identity API and both admin interfaces after self-unlink.
+- Tightened signed ID-token subject/issuance/lifetime validation and external MFA evidence type validation; required a real RS256/PKCE application-level acceptance test in release CI.
+- Retained the existing 1.5.9 migration, strict-registry cutover, audit, RBAC, CSRF and Keycloak logout mechanisms. No new SQL schema or API routes.
+
+
 ## [1.5.9] — Identity Acceptance & Migration (2026-11-18)
 
 - Migrated pre-registry browser sessions using resumable bounded real SQL writes without extending TTL or inferring external identity, with stale/disabled token revocation and API credential isolation.

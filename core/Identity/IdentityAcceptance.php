@@ -21,7 +21,7 @@ final readonly class IdentityAcceptance
             $checks[$name] = ['ok'=>$ok,'detail'=>$detail];
         };
         $version = trim((string)@file_get_contents($this->config->rootPath().'/VERSION'));
-        $check('version', $version === '1.5.9', 'Expected release 1.5.9');
+        $check('version', $version === '1.6.0', 'Expected release 1.6.0');
         $driver = $this->database->driver();
         $check('database_driver', in_array($driver, ['pgsql','mysql','sqlite'],true), $driver);
         $migration = new IdentitySessionMigration($this->database, max(5,$this->config->int('security.sessions.idle_minutes',720)));
@@ -69,7 +69,7 @@ final readonly class IdentityAcceptance
         if ($probeSite) {
             try {
                 $this->verifyDeployedSite($oidc,$strict);
-                $check('deployed_site',true,'HTTPS served by 1.5.9 with matching Identity settings');
+                $check('deployed_site',true,'HTTPS served by 1.6.0 with matching Identity settings');
             } catch (\Throwable $e) { $check('deployed_site',false,$e->getMessage()); }
         }
         $fail = array_keys(array_filter($checks,static fn(array $result):bool=>!$result['ok']));
@@ -109,10 +109,10 @@ final readonly class IdentityAcceptance
             }
         } finally { curl_close($ch); }
         $decoded=json_decode($body,true);
-        if ($version!=='1.5.9' || !is_array($decoded) || !is_array($decoded['data']??null)
+        if ($version!=='1.6.0' || !is_array($decoded) || !is_array($decoded['data']??null)
             || ($decoded['data']['enabled']??null)!==$oidcEnabled
             || ($decoded['data']['session_strict']??null)!==$strict) {
-            throw new \RuntimeException('Running PHP workers differ from 1.5.9 Identity configuration; reload all workers.');
+            throw new \RuntimeException('Running PHP workers differ from 1.6.0 Identity configuration; reload all workers.');
         }
     }
 }

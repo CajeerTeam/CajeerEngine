@@ -40,6 +40,27 @@ final readonly class UserSessionRepository
         ]);
     }
 
+    /**
+     * Revoke only SkiF4er browser credentials for a user. The caller may supply the
+     * active PDO transaction so an unlink and the revocation commit atomically.
+     * Machine tokens and local/legacy browser sessions are never affected.
+     */
+    public function revokeSsoSessionsForUser(string $userId, ?PDO $connection = null): int
+    {
+        $apply = static function (PDO $pdo) use ($userId): int {
+            $stmt = $pdo->prepare("UPDATE ce_api_tokens SET revoked_at = CURRENT_TIMESTAMP
+                WHERE user_id = :uid AND name = 'admin-session' AND revoked_at IS NULL
+                  AND id IN (SELECT token_id FROM ce_user_sessions
+                             WHERE user_id = :owner AND provider = 'skif4er' AND revoked_at IS NULL)");
+            $stmt->execute(['uid' => $userId, 'owner' => $userId]);
+            $stmt = $pdo->prepare("UPDATE ce_user_sessions SET revoked_at = CURRENT_TIMESTAMP
+                WHERE user_id = :uid AND provider = 'skif4er' AND revoked_at IS NULL");
+            $stmt->execute(['uid' => $userId]);
+            return $stmt->rowCount();
+        };
+        return $connection !== null ? $apply($connection) : $this->database->transaction($apply);
+    }
+
     /** Backfill existing 1.5.2 sessions when encountered, without resetting their token expiry. */
     public function validate(array $token, Request $request, int $idleMinutes = 720): bool
     {

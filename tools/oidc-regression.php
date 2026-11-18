@@ -33,6 +33,10 @@ $transport=static function(string $method,string $url,?string $body,array $heade
         if($mode==='bad-issuer')$claims['iss']='https://evil.example';
         if($mode==='bad-audience')$claims['aud']='other-client';
         if($mode==='expired')$claims['exp']=time()-100;
+        if($mode==='oversized-id-token-lifetime')$claims['exp']=$claims['iat']+90000;
+        if($mode==='invalid-id-token-sub')$claims['sub']="bad\nsubject";
+        if($mode==='zero-issued-at')$claims['iat']=0;
+
         $signed=$jwt($claims);
         if($mode==='tampered')$signed=substr($signed,0,-5).'XXXXX';
         return ['status'=>200,'body'=>json_encode(['id_token'=>$signed,'access_token'=>'hidden-secret','refresh_token'=>'hidden-refresh'])];
@@ -50,7 +54,7 @@ $claims=$client->finish('valid-code',$tx['verifier'],$tx['nonce']);
 $check($claims['sub']==='skif4er-test-sub','RS256 signature and claims accepted');
 $check(str_contains($seenBody,'code_verifier='),'real token exchange uses code verifier');
 $check(str_contains($seenBody,'client_secret=test-client-secret'),'confidential client authentication');
-foreach(['bad-nonce','bad-issuer','bad-audience','expired','tampered'] as $bad) {
+foreach(['bad-nonce','bad-issuer','bad-audience','expired','tampered','oversized-id-token-lifetime','invalid-id-token-sub','zero-issued-at'] as $bad) {
     $mode=$bad;
     try { $client->finish('valid-code',$tx['verifier'],$tx['nonce']); throw new RuntimeException('accepted bad token '.$bad); }
     catch(RuntimeException $e) { if(str_starts_with($e->getMessage(),'accepted bad'))throw $e; }

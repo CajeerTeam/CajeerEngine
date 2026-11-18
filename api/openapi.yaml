@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.5.9",
+    "version": "1.6.0",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -25806,7 +25806,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Requires an authenticated HttpOnly browser session; mutating operations additionally require valid CSRF, local password and 2FA if enabled.",
+        "description": "Cookie-authenticated browser POST with CSRF, local password and enabled TOTP. Atomically unlinks the subject and revokes all SkiF4er browser sessions; returns session_revoked for the current session.",
         "responses": {
           "200": {
             "description": "Success",
@@ -25841,6 +25841,10 @@
                         },
                         "unlinked": {
                           "type": "boolean"
+                        },
+                        "session_revoked": {
+                          "type": "boolean",
+                          "description": "Current browser session was SkiF4er SSO and its cookie was invalidated."
                         }
                       }
                     }

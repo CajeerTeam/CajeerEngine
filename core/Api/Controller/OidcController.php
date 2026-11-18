@@ -166,7 +166,13 @@ final readonly class OidcController
         if (!is_null($code) && (!is_string($code) || strlen($code) > 128)) return $this->linkError('validation_failed', 'Некорректный 2FA код.', 422);
         if (!$this->auth->confirmSensitiveAction($identity, $payload['password'], $code)) return $this->linkError('reauthentication_required', 'Неверный пароль или код 2FA.', 403);
         try {
-            return new JsonResponse(['data'=>['unlinked'=>$this->login->unlink((string)$identity['user_id'])]], 200, ['Cache-Control'=>'no-store']);
+            $uid = (string)$identity['user_id'];
+            $currentWasSso = $this->login->isSsoSession($uid, (string)$identity['token_id']);
+            $unlinked = $this->login->unlink($uid);
+            $sessionRevoked = $unlinked && $currentWasSso;
+            $response = new JsonResponse(['data'=>['unlinked'=>$unlinked, 'session_revoked'=>$sessionRevoked]], 200, ['Cache-Control'=>'no-store']);
+            if ($sessionRevoked) $response->headers->clearCookie('ce_session', '/api/v1', null, true, true, Cookie::SAMESITE_STRICT);
+            return $response;
         } catch (\RuntimeException $e) {
             return $this->linkError('unlink_denied', $e->getMessage(), 409);
         }

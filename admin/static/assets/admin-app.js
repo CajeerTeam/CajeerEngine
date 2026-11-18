@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.5.9'
+const ADMIN_VERSION = '1.6.0'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -1011,8 +1011,13 @@ function bindIdentity() {
         if (!url || !url.startsWith('https://id.skif4er.ru/realms/skif4er/')) throw new Error('Получен недопустимый адрес авторизации.')
         window.location.assign(url)
       } else {
+        if (dataOf(result, {}).session_revoked === true) {
+          state.csrf = null
+          window.location.assign('/admin/#/login')
+          return
+        }
         await loadSilent('identity', '/identity/account')
-        setNotice('ok', 'Внешний аккаунт отвязан.')
+        setNotice('ok', 'Внешний аккаунт отвязан; все SSO-сессии завершены.')
       }
     } catch (error) { setNotice('error', error.message, error.payload) }
     finally { btn.disabled = false }

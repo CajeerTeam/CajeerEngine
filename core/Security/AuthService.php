@@ -70,7 +70,9 @@ final readonly class AuthService
         if ($user === null || ($user['status'] ?? '') !== 'active') throw new \RuntimeException('Account disabled or unavailable.');
         if (($user['two_factor_enabled'] ?? false)) {
             $amr = $verifiedClaims['amr'] ?? [];
-            if (!is_array($amr) || !array_intersect(['mfa', 'otp', 'hwk', 'swk'], $amr)) {
+            if (!is_array($amr) || !array_is_list($amr) || count($amr) > 16
+                || count(array_filter($amr, 'is_string')) !== count($amr)
+                || !array_intersect(['mfa', 'otp', 'hwk', 'swk'], $amr)) {
                 throw new \RuntimeException('External multi-factor authentication evidence required.');
             }
         }

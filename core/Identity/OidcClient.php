@@ -69,10 +69,12 @@ final class OidcClient
             || (count($audiences) > 1 && ($claims['azp'] ?? null) !== $this->clientId)
             || (isset($claims['azp']) && $claims['azp'] !== $this->clientId)
             || !is_int($claims['exp'] ?? null) || $claims['exp'] <= $now - 30
-            || !is_int($claims['iat'] ?? null) || $claims['iat'] > $now + 60
+            || !is_int($claims['iat'] ?? null) || $claims['iat'] <= 0 || $claims['iat'] > $now + 60
+            || $claims['exp'] <= $claims['iat'] || $claims['exp'] > $claims['iat'] + 86400
             || (isset($claims['nbf']) && (!is_int($claims['nbf']) || $claims['nbf'] > $now + 60))
             || !is_string($claims['nonce'] ?? null) || !hash_equals($nonce, $claims['nonce'])
-            || !is_string($claims['sub'] ?? null) || strlen($claims['sub']) < 1 || strlen($claims['sub']) > 255) {
+            || !is_string($claims['sub'] ?? null) || strlen($claims['sub']) < 1 || strlen($claims['sub']) > 255
+            || preg_match('/[\x00-\x1f\x7f]/', $claims['sub'])) {
             throw new \RuntimeException('OIDC identity claims rejected.');
         }
         return $claims;
@@ -276,7 +278,7 @@ final class OidcClient
             $content = '';
             curl_setopt_array($handle, [CURLOPT_FOLLOWLOCATION=>false, CURLOPT_CONNECTTIMEOUT=>5, CURLOPT_TIMEOUT=>10,
                 CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2, CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,
-                CURLOPT_HTTPHEADER=>$headers, CURLOPT_USERAGENT=>'CajeerEngine-OIDC/1.5.9', CURLOPT_MAXREDIRS=>0,
+                CURLOPT_HTTPHEADER=>$headers, CURLOPT_USERAGENT=>'CajeerEngine-OIDC/1.6.0', CURLOPT_MAXREDIRS=>0,
                 CURLOPT_PROXY=>'', CURLOPT_WRITEFUNCTION=>static function ($ch, string $chunk) use (&$content): int {
                     if (strlen($content) + strlen($chunk) > 262144) return 0;
                     $content .= $chunk;

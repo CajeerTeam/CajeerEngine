@@ -151,15 +151,7 @@ final readonly class IdentityCenter
 
     private function revokeSsoSessions(PDO $pdo, string $target): int
     {
-        // Only registered OIDC admin-session tokens, never machine/API tokens or local logins.
-        $tokens = $pdo->prepare("UPDATE ce_api_tokens SET revoked_at = CURRENT_TIMESTAMP
-            WHERE user_id = :owner AND name = 'admin-session' AND revoked_at IS NULL AND id IN
-            (SELECT token_id FROM ce_user_sessions WHERE user_id = :owner2 AND provider = 'skif4er' AND revoked_at IS NULL)");
-        $tokens->execute(['owner' => $target, 'owner2' => $target]);
-        $sessions = $pdo->prepare("UPDATE ce_user_sessions SET revoked_at = CURRENT_TIMESTAMP
-            WHERE user_id = :owner AND provider = 'skif4er' AND revoked_at IS NULL");
-        $sessions->execute(['owner' => $target]);
-        return $sessions->rowCount();
+        return $this->sessions->revokeSsoSessionsForUser($target, $pdo);
     }
 
     private function activeUser(PDO $pdo, string $target): void

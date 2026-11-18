@@ -71,7 +71,10 @@ final readonly class OidcLogin
             $userId = $this->store->provision($issuer, $claims, $this->users, $this->roles, $this->passwords);
             $this->audit->record('identity.oidc_provisioned', $userId, ['provider'=>'skif4er', 'subject_digest'=>hash('sha256', $claims['sub'])]);
         }
-        return $this->auth->loginExternal($userId, $claims, $request);
+        // Recheck and lock the mapping through session issuance. A concurrent
+        // unlink must either revoke this new session or complete before login.
+        return $this->store->withLinkedIdentity($issuer, (string)$claims['sub'],
+            fn (string $linkedUserId): array => $this->auth->loginExternal($linkedUserId, $claims, $request));
     }
 
     /** Locally revoke the current OIDC session before returning the pinned Keycloak logout URL. */
@@ -117,6 +120,15 @@ final readonly class OidcLogin
     }
 
     public function accountStatus(string $userId): array { return $this->store->statusForUser($this->client->issuer(), $userId); }
+
+    /** Used to clear the browser cookie if self-unlink revoked this SSO session. */
+    public function isSsoSession(string $userId, string $tokenId): bool
+    {
+        if ($this->sessions === null) throw new \RuntimeException('OIDC session registry unavailable.');
+        $session = $this->sessions->find($tokenId);
+        return is_array($session) && $session['user_id'] === $userId
+            && $session['provider'] === 'skif4er' && $session['revoked_at'] === null;
+    }
 
     public function unlink(string $userId): bool
     {

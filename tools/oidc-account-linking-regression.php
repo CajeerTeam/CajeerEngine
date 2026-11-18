@@ -24,6 +24,7 @@ $pdo->exec("CREATE TABLE ce_user_roles (user_id TEXT NOT NULL,role_id TEXT NOT N
 $pdo->exec("CREATE TABLE ce_api_tokens (id TEXT PRIMARY KEY,user_id TEXT,name TEXT,revoked_at TEXT,expires_at TEXT)");
 $pdo->exec(file_get_contents(dirname(__DIR__).'/migrations/sqlite/0026_skif4er_oidc.sql'));
 $pdo->exec(file_get_contents(dirname(__DIR__).'/migrations/sqlite/0027_oidc_account_linking.sql'));
+$pdo->exec(file_get_contents(dirname(__DIR__).'/migrations/sqlite/0028_unified_sessions.sql'));
 $roles=new RoleRepository($db);$roles->upsert('viewer','Viewer',['content:read','media:read','system:read']);
 $hasher=new PasswordHasher($cfg);$users=new UserRepository($db,$roles,$hasher);
 $store=new OidcStore($db,new SecretVault('base64:'.base64_encode(random_bytes(32))));
@@ -39,12 +40,16 @@ $reject=static function (callable $fn,string $message) use (&$pass):void {
 $user=$users->create('existing@example.test','Existing',$hasher->hash('Password-Strong123'),['viewer']);
 $session='12345678-1234-1234-1234-123456789abc';
 $pdo->prepare('INSERT INTO ce_api_tokens (id,user_id,name) VALUES (?,?,?)')->execute([$session,$user,'admin-session']);
+$pdo->prepare("INSERT INTO ce_user_sessions (token_id,user_id,provider) VALUES (?,?,?)")->execute([$session,$user,'local']);
 $tx=$store->save('state-link','nonce-link','secret-verifier',$user,$session);
 $parsed=$store->consume('state-link',$tx['browser']);
 $pass($parsed['purpose']==='link' && $parsed['user_id']===$user && $parsed['session_id']===$session,'link transaction is browser and session bound');
 $reject(fn()=>$store->consume('state-link',$tx['browser']),'link state one-time only');
 $store->completeLink($issuer,'subject-one',$user,$session,$users);
 $pass($store->statusForUser($issuer,$user)['linked']===true,'OIDC link stored for active local user');
+$pdo->prepare('UPDATE ce_user_sessions SET revoked_at=CURRENT_TIMESTAMP WHERE token_id=?')->execute([$session]);
+$reject(fn()=>$store->completeLink($issuer,'ignored-after-registry-revoke',$user,$session,$users),'session registry revocation prevents linking despite live API token');
+$pdo->prepare('UPDATE ce_user_sessions SET revoked_at=NULL WHERE token_id=?')->execute([$session]);
 $reject(fn()=>$store->completeLink($issuer,'different-subject',$user,$session,$users),'cannot bind multiple subjects to same local user');
 $pass($store->unlink($issuer,$user),'existing local account can unlink');
 $pass($store->linkedUser($issuer,'subject-one')===null,'unlink removes identity only');

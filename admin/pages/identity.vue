@@ -76,10 +76,13 @@ const submit = async () => {
   if (linked && !confirm('Отвязать SkiF4er ID?')) return
   busy.value = true; error.value = ''
   try {
-    const r = await api.request<{data: {authorization_url?:string}}> (linked ? '/identity/unlink' : '/identity/link/start',
+    const r = await api.request<{data: {authorization_url?:string;session_revoked?:boolean}}> (linked ? '/identity/unlink' : '/identity/link/start',
       {method:'POST',body:JSON.stringify({password:password.value,two_factor_code:twoFactorCode.value})})
     password.value = ''; twoFactorCode.value = ''
-    if (linked) await load()
+    if (linked) {
+      if (r.data.session_revoked) { api.setCsrf(null); await navigateTo('/login'); return }
+      await load()
+    }
     else {
       const url = r.data.authorization_url
       if (!url || !url.startsWith('https://id.skif4er.ru/realms/skif4er/')) throw new Error('Недопустимый адрес авторизации')

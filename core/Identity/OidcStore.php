@@ -8,6 +8,7 @@ use CajeerEngine\Database\DatabaseManager;
 use CajeerEngine\Integration\SecretVault;
 use CajeerEngine\Database\Repository\UserRepository;
 use CajeerEngine\Database\Repository\RoleRepository;
+use CajeerEngine\Database\Repository\UserSessionRepository;
 use CajeerEngine\Security\PasswordHasher;
 
 /** One-time authorization state and operator-linked identities, persisted across PHP workers. */
@@ -78,8 +79,16 @@ final readonly class OidcStore
     public function completeLink(string $issuer, string $subject, string $userId, string $sessionId, UserRepository $users): void
     {
         $this->database->transaction(function (\PDO $pdo) use ($issuer, $subject, $userId, $sessionId, $users): void {
-            $token = $pdo->prepare('SELECT id FROM ce_api_tokens WHERE id = :id AND user_id = :user AND name = :name AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)');
-            $token->execute(['id'=>$sessionId, 'user'=>$userId, 'name'=>'admin-session']);
+            // An old token can remain in ce_api_tokens while the browser session
+            // was independently revoked. The registry must also be live.
+            $token = $pdo->prepare("SELECT t.id FROM ce_api_tokens t
+                JOIN ce_user_sessions s ON s.token_id = t.id AND s.user_id = t.user_id
+                WHERE t.id = :id AND t.user_id = :user AND t.name = 'admin-session'
+                  AND t.revoked_at IS NULL AND (t.expires_at IS NULL OR t.expires_at > CURRENT_TIMESTAMP)
+                  AND s.revoked_at IS NULL AND (s.expires_at IS NULL OR s.expires_at > CURRENT_TIMESTAMP)
+                  AND s.last_seen_at >= :cutoff");
+            $idle = max(5, (int)(getenv('SESSION_IDLE_MINUTES') ?: 720));
+            $token->execute(['id'=>$sessionId, 'user'=>$userId, 'cutoff'=>gmdate('Y-m-d H:i:s', time() - $idle * 60)]);
             if ($token->fetchColumn() === false) throw new \RuntimeException('Local linking session expired or revoked.');
             $this->link($issuer, $subject, $userId, $users);
         });
@@ -106,7 +115,31 @@ final readonly class OidcStore
             if ((bool)$row['provisioned']) throw new \RuntimeException('Set up a verified local login before unlinking a provisioned account.');
             $delete = $pdo->prepare('DELETE FROM ce_oidc_identities WHERE issuer = :issuer AND user_id = :user');
             $delete->execute(['issuer'=>$issuer, 'user'=>$userId]);
-            return $delete->rowCount() === 1;
+            if ($delete->rowCount() !== 1) throw new \RuntimeException('Identity changed during unlink.');
+            // Removal without revocation leaves a live SkiF4er cookie that no
+            // longer has a corresponding identity. Never allow that state.
+            (new UserSessionRepository($this->database))->revokeSsoSessionsForUser($userId, $pdo);
+            return true;
+        });
+    }
+
+    /**
+     * Issue a local SSO session while holding the exact issuer/subject mapping.
+     * PostgreSQL/MySQL row locks serialize with administrator and self-unlink;
+     * SQLite holds its transactional reader lock until session registration.
+     * The callback MUST re-check the mapping after a separate provisioning step.
+     *
+     * @template T @param callable(string):T $issue @return T
+     */
+    public function withLinkedIdentity(string $issuer, string $subject, callable $issue): mixed
+    {
+        return $this->database->transaction(function (\PDO $pdo) use ($issuer, $subject, $issue): mixed {
+            $locking = $this->database->driver() !== 'sqlite' ? ' FOR UPDATE' : '';
+            $stmt = $pdo->prepare('SELECT user_id FROM ce_oidc_identities WHERE issuer = :issuer AND subject = :subject'.$locking);
+            $stmt->execute(['issuer' => $issuer, 'subject' => $subject]);
+            $userId = $stmt->fetchColumn();
+            if (!is_string($userId) || $userId === '') throw new \RuntimeException('OIDC identity was unlinked during login.');
+            return $issue($userId);
         });
     }
 
