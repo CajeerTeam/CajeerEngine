@@ -52,6 +52,7 @@ export type ContentEntryRecord = {
   locale?: string
   data?: Record<string, unknown>
   revision_number?: number
+  revision?: number
   created_at?: string
   updated_at?: string
   published_at?: string | null

@@ -54,6 +54,24 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "api_v1_ai_editor_apply": {
+        "method": "POST",
+        "path": "/ai/editor/proposals/{id}/apply",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_ai_editor_propose": {
+        "method": "POST",
+        "path": "/ai/editor/proposals",
+        "parameters": [],
+        "bodyRequired": true
+    },
     "api_v1_ai_settings": {
         "method": "PUT",
         "path": "/ai/settings",

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CajeerEngine\Api\Controller;
 
 use CajeerEngine\AI\AiChat;
+use CajeerEngine\AI\AiContentEditor;
 use CajeerEngine\AI\AiProviderException;
 use CajeerEngine\AI\AiSettings;
 use CajeerEngine\Audit\AuditLogger;
@@ -17,7 +18,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /** Admin-only chat endpoints. Authorization/CSRF/step-up also run in the core middleware. */
 final readonly class AiController
 {
-    public function __construct(private AiChat $chat, private AiSettings $settings, private AuditLogger $audit, private RateLimiter $limiter) {}
+    public function __construct(private AiChat $chat, private AiSettings $settings, private AuditLogger $audit, private RateLimiter $limiter, private AiContentEditor $editor) {}
 
     private function user(Request $request): string
     {
@@ -72,6 +73,32 @@ final readonly class AiController
     {
         $this->chat->delete($this->user($request), (string)$params['id']);
         return $this->ok(['deleted' => true]);
+    }
+
+    public function editorPropose(Request $request): JsonResponse
+    {
+        $uid = $this->user($request);
+        $hit = $this->limiter->hit('ai-editor-user', $uid, 6, 60);
+        if (!$hit['allowed']) return new JsonResponse(['error' => ['code' => 'ai_editor_rate_limit', 'message' => 'Лимит AI Editor: 6 запросов в минуту.']], 429, ['Retry-After' => (string)$hit['retry_after'], 'Cache-Control' => 'no-store']);
+        try {
+            $result = $this->editor->propose($uid, $this->body($request));
+            $this->audit->record('ai.editor.proposed', $uid, ['proposal_id' => $result['id'], 'type' => $result['type'], 'field' => $result['field'], 'mode' => $result['mode']]);
+            return $this->ok($result);
+        } catch (AiProviderException $e) {
+            return new JsonResponse(['error' => ['code' => 'ai_provider_unavailable', 'message' => $e->getMessage()]], $e->httpStatus, ['Cache-Control' => 'no-store']);
+        }
+    }
+
+    public function editorApply(Request $request, array $params): JsonResponse
+    {
+        $uid = $this->user($request);
+        $body = $this->body($request);
+        if (array_diff(array_keys($body), ['confirm_published']) !== [] || (isset($body['confirm_published']) && !is_bool($body['confirm_published']))) {
+            throw new \InvalidArgumentException('Invalid editor approval.');
+        }
+        $result = $this->editor->apply($uid, (string)($params['id'] ?? ''), $body['confirm_published'] ?? false);
+        $this->audit->record('ai.editor.applied', $uid, ['proposal_id' => $params['id'], 'type' => $result['type'], 'entry_id' => $result['entry']['id'], 'revision' => $result['entry']['revision']]);
+        return $this->ok($result);
     }
 
     private function throttle(string $uid): ?JsonResponse

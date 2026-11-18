@@ -220,7 +220,7 @@ final class ContentEntryRepository
     /** @param array<string, mixed> $payload @return array<string, mixed>|null */
     public function update(string $typeHandle, string $idOrSlug, array $payload, string $revisionReason = 'updated'): ?array
     {
-        if (!in_array($revisionReason, ['updated', 'migration_import', 'migration_media', 'migration_seo'], true)) {
+        if (!in_array($revisionReason, ['updated', 'migration_import', 'migration_media', 'migration_seo', 'ai_editor'], true)) {
             throw new \InvalidArgumentException('Unsupported content revision reason.');
         }
         $index = new \CajeerEngine\Public\RouteIndex($this->rootPath, $this->database());

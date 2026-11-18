@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.2] — AI Content Editor (2026-11-18)
+
+- Real AI drafting of titles, text, richtext and textual block fields via the configured OpenAI Responses API.
+- Generation, rewriting, shortening, expanding, proofreading and tone adjustments, including validated selected passages.
+- Persisted user-owned editorial proposals with original/proposed comparison and an explicit apply operation.
+- Server-side type and field validation, shared per-user token budget, crash-safe reservations, owner-checked expiry and audit metadata.
+- Optimistic revision CAS and separate confirmation for published content; AI changes enter the normal CMS revision history without changing slug or publication status.
+- Working Nuxt editor and production static SPA with draft generation and acceptance; three-database migration 0032, API/SDK support, and acceptance tests.
+
+
 ## [1.6.1] — OpenAI Integration & AI Chat (2026-11-18)
 
 - Real OpenAI Responses API transport with TLS verification, pinned DNS, SSE delta streaming, bounded memory and timeout handling.

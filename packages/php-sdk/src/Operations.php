@@ -78,6 +78,30 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'api_v1_ai_editor_apply' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/editor/proposals/{id}/apply',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_editor_propose' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/editor/proposals',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
   'api_v1_ai_settings' => 
   array (
     'method' => 'PUT',

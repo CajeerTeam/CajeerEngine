@@ -173,6 +173,8 @@ final class RouteRegistry
             ['GET', '/api/v1/ai/conversations', 'api.v1.ai.conversations', 'ai', 'index', ['content:read']],
             ['POST', '/api/v1/ai/chat', 'api.v1.ai.chat', 'ai', 'send', ['content:read']],
             ['POST', '/api/v1/ai/chat/stream', 'api.v1.ai.chat.stream', 'ai', 'stream', ['content:read']],
+            ['POST', '/api/v1/ai/editor/proposals', 'api.v1.ai.editor.propose', 'ai', 'editorPropose', ['content:read', 'content:write']],
+            ['POST', '/api/v1/ai/editor/proposals/{id}/apply', 'api.v1.ai.editor.apply', 'ai', 'editorApply', ['content:read', 'content:write']],
             ['GET', '/api/v1/ai/conversations/{id}', 'api.v1.ai.conversation.show', 'ai', 'show', ['content:read']],
             ['PATCH', '/api/v1/ai/conversations/{id}', 'api.v1.ai.conversation.rename', 'ai', 'rename', ['content:read']],
             ['DELETE', '/api/v1/ai/conversations/{id}', 'api.v1.ai.conversation.delete', 'ai', 'delete', ['content:read']],

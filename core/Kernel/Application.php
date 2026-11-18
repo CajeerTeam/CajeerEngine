@@ -18,6 +18,7 @@ use CajeerEngine\Api\Controller\OidcController;
 use CajeerEngine\Api\Controller\IdentityAdminController;
 use CajeerEngine\Api\Controller\AiController;
 use CajeerEngine\AI\AiChat;
+use CajeerEngine\AI\AiContentEditor;
 use CajeerEngine\AI\AiSettings;
 use CajeerEngine\AI\OpenAiClient;
 use CajeerEngine\Identity\IdentityCenter;
@@ -434,8 +435,14 @@ final class Application
         $container->set('controller.analyticsEvents', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\AnalyticsEventController => new \CajeerEngine\Api\Controller\AnalyticsEventController(new \CajeerEngine\Analytics\EventConfig($rootPath), new \CajeerEngine\Analytics\EventJournal($rootPath), $c->get(AuditLogger::class), new \CajeerEngine\Analytics\ServerEvents($rootPath,$c->get(IntegrationCenter::class),$c->get(ManagedQueueDriverInterface::class))));
         $container->set('controller.tracking', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\TrackingController => new \CajeerEngine\Api\Controller\TrackingController(new \CajeerEngine\Privacy\TrackingConfig($rootPath), $c->get(AuditLogger::class)));
         $container->set('controller.consent', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\ConsentController => new \CajeerEngine\Api\Controller\ConsentController(new \CajeerEngine\Privacy\ConsentPolicy($rootPath), $c->get(AuditLogger::class)));
+        $container->set(AiContentEditor::class, fn (ServiceContainer $c): AiContentEditor => new AiContentEditor(
+            $c->get(DatabaseManager::class), $c->get(AiSettings::class), $c->get(OpenAiClient::class),
+            new \CajeerEngine\Content\ContentEntryRepository($rootPath, $c->get(DatabaseManager::class)),
+            new \CajeerEngine\Content\ContentTypeRepository($rootPath, $c->get(DatabaseManager::class))
+        ));
         $container->set('controller.ai', fn (ServiceContainer $c): AiController => new AiController(
-            $c->get(AiChat::class), $c->get(AiSettings::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class)
+            $c->get(AiChat::class), $c->get(AiSettings::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class),
+            $c->get(AiContentEditor::class)
         ));
         $container->set('controller.integrations', fn (ServiceContainer $c): IntegrationController => new IntegrationController($c->get(IntegrationCenter::class), $c->get(AuditLogger::class)));
         $container->set('controller.webhooks', fn (ServiceContainer $c): WebhookController => new WebhookController($c->get(WebhookRepository::class), $c->get(WebhookDispatcher::class)));

@@ -5,3 +5,8 @@
 
 /* AI chat, persisted conversations, streaming output */
 .ai-layout{display:grid;grid-template-columns:minmax(220px,280px) minmax(0,1fr);gap:16px}.ai-threads{margin-top:14px;max-height:60vh;overflow:auto}.ai-thread{display:flex;gap:5px;margin-bottom:8px}.ai-thread button:first-child{flex:1;min-width:0;white-space:normal;overflow-wrap:anywhere;text-align:left}.ai-messages{display:flex;flex-direction:column;gap:12px;min-height:240px;height:min(55vh,650px);overflow-y:auto;margin:14px 0}.ai-bubble{background:#f1f5f9;border-radius:12px;padding:12px;overflow-wrap:anywhere}.ai-bubble.user{background:#eaf2ff}.ai-bubble div{white-space:pre-wrap;margin-top:8px;line-height:1.55}.ai-layout textarea{min-height:95px}@media(max-width:850px){.ai-layout{grid-template-columns:1fr}.ai-threads{max-height:180px}}
+
+/* AI editor proposals: render model output as inert text (never innerHTML). */
+.ai-editor-compare{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:14px}
+.ai-editor-text{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;background:var(--surface-muted,#f1f5f9);padding:14px;border-radius:8px}
+@media(max-width:750px){.ai-editor-compare{grid-template-columns:1fr}}
