@@ -99,6 +99,21 @@ $autoload = $root . '/vendor/autoload.php';
 require_once $root . '/core/Update/OperationFiles.php';
 require_once $root . '/core/Update/OperationLock.php';
 require_once $root . '/core/Console/OperationsCli.php';
+// Live, read-only GA preflight. A billable provider probe is opt-in only.
+if (($argv[1] ?? '') === 'ai:acceptance') {
+    if (is_file($autoload)) require_once $autoload; else require_once $root . '/core/Console/NativeCli.php';
+    \CajeerEngine\Console\OperationsCli::loadEnv($root);
+    try {
+        $allowed = ['--require-production', '--probe-provider'];
+        foreach (array_slice($argv, 2) as $arg) if (!in_array($arg, $allowed, true)) throw new \InvalidArgumentException('Unknown AI acceptance option.');
+        $result = (new \CajeerEngine\AI\AiGaAcceptance($root,
+            new \CajeerEngine\Runtime\ConfigRepository($root),
+            new \CajeerEngine\Database\DatabaseManager(new \CajeerEngine\Runtime\ConfigRepository($root))
+        ))->run(in_array('--require-production', $argv, true), in_array('--probe-provider', $argv, true));
+        echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
+        exit($result['ok'] ? 0 : 1);
+    } catch (\Throwable) { fwrite(STDERR, "[FAIL] AI acceptance cannot run.\n"); exit(1); }
+}
 if (in_array($argv[1] ?? '', ['identity:acceptance','identity:sessions:status','identity:sessions:migrate'], true)) {
     if (is_file($autoload)) require_once $autoload; else require_once $root . '/core/Console/NativeCli.php';
     exit(\CajeerEngine\Identity\IdentityDeploymentCli::run($root, $argv));

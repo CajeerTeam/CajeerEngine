@@ -29,8 +29,8 @@ final readonly class AiDataRetention
                 'params' => [$cutoff], 'messages' => 'ce_ai_messages', 'foreign' => 'conversation_id',
             ],
             'knowledge_chat' => [
-                'table' => 'ce_ai_kb_conversations', 'condition' => 'updated_at < ?',
-                'params' => [$cutoff], 'messages' => 'ce_ai_kb_messages', 'foreign' => 'conversation_id',
+                'table' => 'ce_ai_kb_conversations', 'condition' => 'updated_at < ? AND NOT EXISTS (SELECT 1 FROM ce_ai_editor_jobs j WHERE j.user_id = ce_ai_kb_conversations.user_id AND j.expires_at >= ?)',
+                'params' => [$cutoff, $now], 'messages' => 'ce_ai_kb_messages', 'foreign' => 'conversation_id',
             ],
             'closed_support' => [
                 'table' => 'ce_support_tickets', 'condition' => 'status = ? AND updated_at < ?',

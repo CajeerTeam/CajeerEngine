@@ -113,6 +113,10 @@ try {
         'locale'=>'ru', 'visibility'=>'public','status'=>'published','expected_revision'=>(int)$public['revision']],$public['id']);
     $redacted = $service->visitorView($second['ticket_id'], $second['access_token']);
     $check($redacted['messages'][1]['sources']===[] && !str_contains($redacted['messages'][1]['content'],'Создайте страницу'), 'Stale AI answers are redacted on every visitor read');
+    $pdo->prepare('INSERT INTO ce_support_messages (id,ticket_id,role,content,sources_json,created_at) VALUES (?,?,?,?,?,?)')
+        ->execute(['eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',$second['ticket_id'],'ai','Orphaned unsourced AI claim','[]',time()*1000000]);
+    $history = $service->visitorView($second['ticket_id'], $second['access_token']);
+    $check(!str_contains(json_encode($history, JSON_UNESCAPED_UNICODE), 'Orphaned unsourced AI claim'), 'Legacy AI replies without valid citations remain private');
     $service->update($first['ticket_id'], $operator, ['expected_revision'=>5,'status'=>'closed']);
     $reject(fn()=>$service->visitorReply($first['ticket_id'],$first['access_token'],'Late reply'), 'Closed tickets cannot accept messages');
     $reject(fn()=>$service->requestHuman($first['ticket_id'],$first['access_token']), 'Closed tickets cannot be reopened by unauthorized visitors');

@@ -106,6 +106,10 @@ try{
     $check($race['sources']===[] && str_contains($race['text'],'изменился'),'Concurrent document revision blocks ungrounded answer');
     $check((int)$pdo->query('SELECT SUM(used_tokens) FROM ce_ai_usage')->fetchColumn()>$before,'Provider usage is charged even if source changes mid-generation');
     $check((int)$pdo->query('SELECT SUM(reserved_tokens) FROM ce_ai_usage')->fetchColumn()===0,'No leaked reserved tokens');
+    $pdo->prepare('INSERT INTO ce_ai_editor_jobs (id,user_id,period,reserved_tokens,expires_at) VALUES (?,?,?,?,?)')
+        ->execute(['dddddddd-dddd-4ddd-8ddd-dddddddddddd',$owner,gmdate('Y-m'),100,time()+180]);
+    $reject(fn()=>$rag->remove($owner,$answer['conversation_id']),'In-flight RAG generation blocks history deletion');
+    $pdo->prepare('DELETE FROM ce_ai_editor_jobs WHERE user_id = ?')->execute([$owner]);
     $rag->remove($owner,$answer['conversation_id']);
     $check(count($rag->conversations($owner))===3 && (int)$pdo->query('SELECT COUNT(*) FROM ce_ai_kb_messages WHERE role = "assistant"')->fetchColumn()===3,'Deleting a conversation removes its history only');
     $reject(fn()=>$rag->remove($other,$internal['conversation_id']),'Cross-user deletion forbidden');

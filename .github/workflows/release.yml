@@ -116,6 +116,10 @@ jobs:
         run: php tools/ai-retention-integration.php --require-db
       - name: AI Support Center visitor capability, operator queue, grounded AI and handoff acceptance
         run: php tools/ai-support-integration.php --require-db
+      - name: AI GA real PHP/PDO acceptance, security and asset readiness
+        run: php tools/ai-ga-acceptance-regression.php --require-db
+      - name: AI GA competing support replies, rollback and RAG in-flight retention
+        run: python3 tools/ai-ga-sqlite-regression.py
       - name: AI Support Center SQL schema and optimistic update regression
         run: python3 tools/ai-support-sqlite-regression.py
       - name: AI Support Center public widget and admin SPA Chromium regression

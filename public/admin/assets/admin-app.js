@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.6.9'
+const ADMIN_VERSION = '1.7.0'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'

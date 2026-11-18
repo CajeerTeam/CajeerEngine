@@ -30,6 +30,8 @@ php tools/unified-sessions-regression.php --require-db
 php tools/oidc-api-regression.php
 php tools/oidc-api-integration.php --require-db
 php tools/integration-http-regression.php
+php tools/ai-ga-acceptance-regression.php --require-db
+python3 tools/ai-ga-sqlite-regression.py
 php tools/consent-regression.php
 php tools/tracking-regression.php
 php tools/tracking-http-regression.php

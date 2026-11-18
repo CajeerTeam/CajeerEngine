@@ -8,6 +8,12 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## AI Assistant ChatGPT GA (1.7.0)
+
+OpenAI Chat, Content Editor, SEO Assistant, Translation Studio, CMS Diagnostics, Knowledge Base, RAG and Support Center are integrated with existing CMS rights, revision history and token budgets. This release hardens concurrent Support ticket updates and prevents RAG history retention while a generation is in progress.
+
+**Before production cutover:** back up DB and storage, apply all migrations through `0036`, run `php bin/cajeer ai:acceptance --require-production` and the existing Identity / security checks. To verify a real OpenAI request, explicitly add `--probe-provider` (billable API usage). Production readiness must be confirmed against the installed deployment; passing offline tests alone does not certify live operation. [GA deployment and rollback](docs/ai-assistant-ga-1.7.0.md).
+
 ## AI Security & Acceptance (1.6.9)
 
 Внешние AI-запросы блокируются до передачи в OpenAI, если в контексте обнаружены секреты сервера, ключи API, Bearer/JWT или приватные ключи. Конкурирующие фоновые auto-reply больше не могут создать повторный ответ после передачи тикета оператору.

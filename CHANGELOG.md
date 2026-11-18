@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.0 — AI Assistant ChatGPT GA
+
+- **Race-safe Support:** guest replies, operator messages, and handoffs claim the expected ticket revision before adding transcript entries; closed tickets cannot be reopened by racing requests and write failures roll back atomically.
+- **RAG lifecycle:** owner deletion and data retention exclude conversations whose owner has an active shared AI generation lease, preventing in-flight answers from being lost to cleanup.
+- **Live deployment acceptance:** `php bin/cajeer ai:acceptance --require-production` validates real AI SQL tables, extension prerequisites, configured/decryptable provider credentials, shipped admin assets and production settings. `--probe-provider` performs an explicitly opted-in, billable OpenAI request. Results omit secrets.
+- **Release gates:** deterministic SQLite race/failure regressions, PHP/PDO GA preflight, existing AI Editor/SEO/Translation/Diagnostics/RAG/Support tests and published asset validation.
+- No incompatible database migration or public API change; preserve existing 0031–0036 migrations and user data.
+
+
 ## 1.6.9 — AI Security & Acceptance
 
 - **Provider credential boundary:** all OpenAI Responses calls now reject accidental disclosure of API keys, JWT/Bearer tokens, private keys and known server credentials before sending any HTTP data. Oversized provider contexts fail closed.

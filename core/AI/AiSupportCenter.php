@@ -98,7 +98,9 @@ final readonly class AiSupportCenter
         $list = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $sources = json_decode((string)$row['sources_json'], true);
-            $valid = is_array($sources) && array_is_list($sources);
+            // An automated answer must always carry at least one still-public source.
+            // Historical empty/malformed source metadata must never expose unsourced AI text.
+            $valid = is_array($sources) && array_is_list($sources) && ($row['role'] !== 'ai' || $sources !== []);
             if ($valid && $row['role'] === 'ai') {
                 foreach ($sources as $source) {
                     if (!is_array($source) || !is_string($source['id'] ?? null) || !is_int($source['revision'] ?? null)
@@ -160,9 +162,12 @@ final readonly class AiSupportCenter
         $this->db->transaction(static function (PDO $pdo) use ($id, $token, $message): void {
             $ticket = self::visitorTicket($pdo, $id, $token);
             if ($ticket['status'] === 'closed') throw new \DomainException('Closed ticket cannot be updated.');
+            // Compare-and-swap before writing the transcript: concurrent human handoff,
+            // operator close or AI delivery must never be lost or followed by a stale reply.
+            $claim = $pdo->prepare('UPDATE ce_support_tickets SET status = ?, needs_human = 1, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ? AND status <> ?');
+            $claim->execute(['open', time(), $id, (int)$ticket['revision'], 'closed']);
+            if ($claim->rowCount() !== 1) throw new \DomainException('Ticket revision conflict; refresh and retry.');
             self::insertMessage($pdo, $id, 'visitor', $message);
-            $pdo->prepare('UPDATE ce_support_tickets SET status = ?, needs_human = 1, revision = revision + 1, updated_at = ? WHERE id = ?')
-                ->execute(['open', time(), $id]);
         });
         return $this->visitorView($id, $token);
     }
@@ -173,8 +178,9 @@ final readonly class AiSupportCenter
         $this->db->transaction(static function (PDO $pdo) use ($id, $token): void {
             $ticket = self::visitorTicket($pdo, $id, $token);
             if ($ticket['status'] === 'closed') throw new \DomainException('Ticket is closed.');
-            $pdo->prepare('UPDATE ce_support_tickets SET status = ?, needs_human = 1, revision = revision + 1, updated_at = ? WHERE id = ?')
-                ->execute(['open', time(), $id]);
+            $claim = $pdo->prepare('UPDATE ce_support_tickets SET status = ?, needs_human = 1, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ? AND status <> ?');
+            $claim->execute(['open', time(), $id, (int)$ticket['revision'], 'closed']);
+            if ($claim->rowCount() !== 1) throw new \DomainException('Ticket revision conflict; refresh and retry.');
         });
         return $this->visitorView($id, $token);
     }
@@ -237,9 +243,10 @@ final readonly class AiSupportCenter
         $this->db->transaction(static function (PDO $pdo) use ($id, $actor, $body): void {
             $old = self::ticket($pdo, $id);
             if ($old['status'] === 'closed') throw new \DomainException('Closed ticket cannot receive replies.');
+            $claim = $pdo->prepare('UPDATE ce_support_tickets SET status = ?, needs_human = 0, assigned_to = ?, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ? AND status <> ?');
+            $claim->execute(['waiting', $old['assigned_to'] ?? $actor, time(), $id, (int)$old['revision'], 'closed']);
+            if ($claim->rowCount() !== 1) throw new \DomainException('Ticket revision conflict; refresh and retry.');
             self::insertMessage($pdo, $id, 'operator', $body, $actor);
-            $pdo->prepare('UPDATE ce_support_tickets SET status = ?, needs_human = 0, assigned_to = ?, revision = revision + 1, updated_at = ? WHERE id = ?')
-                ->execute(['waiting', $old['assigned_to'] ?? $actor, time(), $id]);
         });
         return $this->agentView($id);
     }

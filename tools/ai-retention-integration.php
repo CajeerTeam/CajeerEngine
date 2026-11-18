@@ -60,7 +60,13 @@ $pdo->prepare('INSERT INTO ce_ai_translation_proposals (id,user_id,type_handle,s
     ->execute([$uuid(61),$uuid(20),'page',$uuid(62),1,str_repeat('b',64),'en','Expired translation','{}',$old,$old]);
 $pdo->prepare('INSERT INTO ce_ai_usage (user_id,period,used_tokens,reserved_tokens) VALUES (?,?,?,?)')
     ->execute([$uuid(20),'2026-11',152,99]);
+// Active RAG generation protects aged conversation; retention can reclaim it after lease expiry.
+$pdo->prepare('INSERT INTO ce_ai_editor_jobs (id,user_id,period,reserved_tokens,expires_at) VALUES (?,?,?,?,?)')
+    ->execute([$uuid(65),$uuid(20),'2026-11',100,$now+180]);
 $service = new AiDataRetention($db);
+$guarded = $service->run(90, 100, false, $now);
+$check($guarded['deleted']['knowledge_chat'] === 0, 'Active RAG generation prevents retention of conversation history');
+$pdo->prepare('DELETE FROM ce_ai_editor_jobs WHERE id=?')->execute([$uuid(65)]);
 try { $service->run(1, 10, true, $now); throw new RuntimeException('Invalid retention age accepted.'); }
 catch (InvalidArgumentException) { $check(true, 'Retention below seven days rejected'); }
 $preview = $service->run(90, 100, false, $now);

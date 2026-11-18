@@ -100,6 +100,11 @@ final readonly class AiKnowledgeChat
     {
         $this->db->transaction(function (PDO $pdo) use ($userId, $id): void {
             $this->owned($pdo, $userId, $id);
+            // A provider request may still be preparing the next answer outside SQL.
+            // Its per-user AI budget lease is held until the answer is committed.
+            $busy = $pdo->prepare('SELECT 1 FROM ce_ai_editor_jobs WHERE user_id = ? AND expires_at >= ?');
+            $busy->execute([$userId, time()]);
+            if ($busy->fetchColumn()) throw new \DomainException('AI generation in progress; retry deletion after it completes.');
             // Explicit delete works across SQLite, MariaDB and PostgreSQL even with FK enforcement off.
             $pdo->prepare('DELETE FROM ce_ai_kb_messages WHERE conversation_id = ?')->execute([$id]);
             $stmt = $pdo->prepare('DELETE FROM ce_ai_kb_conversations WHERE id = ? AND user_id = ?');
