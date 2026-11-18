@@ -128,5 +128,6 @@ const submit = async () => {
       <button type="button" @click="revokeAll">Завершить все</button>
       <button v-if="sessions.some(s => s.current && s.provider === 'skif4er')" type="button" @click="globalLogout">Выйти из SkiF4er ID (SSO)</button>
     </section>
+    <IdentityCenterAdmin />
   </section>
 </template>

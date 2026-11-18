@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.5.6'
+const ADMIN_VERSION = '1.5.7'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -12,7 +12,7 @@ const nav = [
   ['media', '🖼️', 'Media', 'Загрузка и управление файлами'],
   ['cms', '🌐', 'CMS', 'Тема, меню, редиректы, preview'],
   ['users', '👥', 'Доступ', 'Пользователи, роли, tokens'],
-  ['identity', '🔑', 'SkiF4er ID', 'Привязка внешнего аккаунта и безопасность'],
+  ['identity', '🔑', 'Identity Center', 'SkiF4er ID: привязки, пользователи и сессии'],
   ['tracking', '📈', 'Счётчики', 'Яндекс Метрика, GA4, GTM, Matomo и Plausible'],
   ['analytics-hub', '📊', 'Analytics Hub', 'Отчёты трафика и поисковой статистики'],
   ['analytics-events', '📊', 'События', 'Правила, цели и диагностика аналитики'],
@@ -44,6 +44,7 @@ const state = {
     mediaTitle: '',
     mediaAlt: '',
     user: { name: '', email: '', password: '', roles: 'admin' },
+    identitySearch: '', identityLinked: 'all', identityOffset: 0, identitySelected: '',
     role: { handle: '', name: '', permissions: 'content:read,content:write' },
     token: { name: 'Admin token', scopes: 'content:read,content:write' },
     redirect: { from: '', to: '/', status: 301, enabled: true },
@@ -194,7 +195,7 @@ async function routeLoad(route) {
     if (route === 'media') await loadSilent('media', mediaQuery())
     if (route === 'cms') await Promise.allSettled([loadSilent('cmsOverview', '/cms'), loadSilent('theme', '/cms/theme'), loadSilent('navigation', '/cms/navigation'), loadSilent('redirects', '/cms/redirects'), loadSilent('publicRoutes', `/cms/routes?limit=100&offset=${state.forms.routeOffset || 0}`)])
     if (route === 'users') await Promise.allSettled([loadSilent('users', '/users'), loadSilent('roles', '/roles'), loadSilent('tokens', '/api-tokens')])
-    if (route === 'identity') await Promise.allSettled([loadSilent('identity', '/identity/account'), loadSilent('sessions', '/auth/sessions')])
+    if (route === 'identity') await Promise.allSettled([loadSilent('identity', '/identity/account'), loadSilent('sessions', '/auth/sessions'), ...(integrationScope('users:read') ? [loadIdentityUsers()] : [])])
     if (route === 'tracking') await loadSilent('tracking', '/tracking/counters')
     if (route === 'analytics-hub') {await loadSilent('analyticsHub','/analytics/reports');const previous=dataOf(state.cache.analyticsHubReport,{});if(previous.connection?.id){const r=state.forms.hubPeriod;await loadSilent('analyticsHubReport',`/analytics/reports/${encodeURIComponent(previous.connection.id)}/data${r?'?'+new URLSearchParams(r):''}`)}}
     if (route === 'analytics-events') await Promise.allSettled([loadSilent('analyticsEvents','/tracking/events'),loadSilent('analyticsJournal','/tracking/events/journal')])
@@ -207,6 +208,16 @@ async function routeLoad(route) {
     if (route === 'import-export') await Promise.allSettled([loadSilent('exports', '/import-export/exports'),loadSilent('importRequests','/import-export/requests')])
     if (route === 'system') await loadSilent('operations', '/system/operations')
   } catch {}
+}
+
+async function loadIdentityUsers() {
+  const f = state.forms
+  const path = '/identity/admin/users?' + new URLSearchParams({ q: f.identitySearch, linked: f.identityLinked, limit: '30', offset: String(f.identityOffset) })
+  await loadSilent('identityAdmin', path)
+  const items = dataOf(state.cache.identityAdmin, {}).items || []
+  if (f.identitySelected && !items.some(x => x.id === f.identitySelected)) {
+    f.identitySelected = ''; state.cache.identityAdminSessions = null
+  }
 }
 
 async function loadSilent(name, path, options = {}) {
@@ -859,6 +870,24 @@ document.addEventListener('click',async e=>{if(e.target.closest('[data-ops-refre
 bootstrap()
 
 
+function identityAdminView() {
+  if (!integrationScope('users:read')) return ''
+  const result = state.cache.identityAdmin
+  if (result?.error) return `<div class="card"><h2>Пользователи Identity Center</h2><p class="notice error">${escapeHtml(result.error.message)}</p><button class="btn secondary" data-identity-admin-refresh>Повторить</button></div>`
+  const page = dataOf(result, { items: [], total: 0, offset: 0, limit: 30 })
+  const users = Array.isArray(page?.items) ? page.items : []
+  const f = state.forms
+  const selected = users.find(u => u.id === f.identitySelected)
+  const write = integrationScope('*')
+  const own = selected && selected.id === (state.identity?.user_id || state.identity?.user?.id)
+  const sessionsResult = state.cache.identityAdminSessions
+  const sessions = Array.isArray(dataOf(sessionsResult)) ? dataOf(sessionsResult) : []
+  const rows = users.map(u => `<tr><td>${escapeHtml(u.name)}<br><small>${escapeHtml(u.email)}</small></td><td>${escapeHtml(u.status)}<br><small>2FA: ${u.two_factor_enabled ? 'включена' : 'нет'}</small></td><td>${u.linked ? `<strong>Привязан</strong>${u.provisioned ? ' (OIDC-only)' : ''}<br><small class="code-inline">${escapeHtml(u.subject)}</small>` : 'Не привязан'}</td><td><button type="button" class="btn secondary" data-identity-select="${escapeHtml(u.id)}">${selected?.id===u.id?'Выбран':'Управлять'}</button></td></tr>`).join('')
+  const targetSessions = selected ? `<div class="card"><h3>SSO-сессии — ${escapeHtml(selected.email)}</h3>${sessionsResult?.error ? `<p class="notice error">${escapeHtml(sessionsResult.error.message)}</p>` : ''}<div style="overflow-x:auto"><table class="table"><thead><tr><th>Устройство</th><th>Последняя активность</th><th></th></tr></thead><tbody>${sessions.map(v => `<tr><td>${escapeHtml(v.device)}<br><small>${escapeHtml(v.network)}</small></td><td>${escapeHtml(v.last_seen_at)}</td><td>${write && !own ? `<button class="btn danger" data-identity-session-revoke="${escapeHtml(v.id)}">Завершить</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="3">Активных SSO-сессий нет</td></tr>'}</tbody></table></div>${write && !own && sessions.length ? `<button type="button" class="btn danger" data-identity-revoke-all>Завершить все SSO-сессии</button>` : ''}</div>` : ''
+  const mapping = selected && write ? `<div class="card"><h3>Привязка — ${escapeHtml(selected.email)}</h3><p><strong>UUID:</strong> <code>${escapeHtml(selected.id)}</code></p><p>Оператор должен заранее сверить точный Keycloak <code>sub</code> с проверенной личностью. Email и имя не подтверждают идентичность. Операции требуют повторной аутентификации.</p>${selected.id === (state.identity?.user_id || state.identity?.user?.id) ? '<p>Для собственной учётной записи используйте форму привязки выше.</p>' : selected.linked ? `<p>Issuer: <code>https://id.skif4er.ru/realms/skif4er</code><br>Subject: <code>${escapeHtml(selected.subject)}</code><br>Создан: ${escapeHtml(selected.linked_at || '—')}</p>${selected.provisioned ? '<p class="notice error">Отвязка запрещена: сначала настройте проверенный локальный способ входа.</p>' : `<button class="btn danger" data-identity-admin-unlink>Отвязать Identity и завершить SSO-сессии</button>`}` : selected.status !== 'active' ? '<p>Привязка отключённого пользователя запрещена.</p>' : `<form class="form" data-identity-admin-link><label>Проверенный Keycloak sub<input class="input" name="subject" maxlength="255" required autocomplete="off" spellcheck="false"></label><label>Повторите sub для подтверждения<input class="input" name="confirm_subject" maxlength="255" required autocomplete="off" spellcheck="false"></label><button class="btn" type="submit">Привязать Identity</button></form>`}</div>` : ''
+  return `<section class="card"><h2>Identity Center · управление</h2><p>Здесь управляются привязки и браузерные сессии CajeerEngine. Пользователи и MFA в самом Keycloak управляются отдельно. Все операции ограничены правами администраторов.</p><form class="toolbar" data-identity-admin-filter><input class="input" name="q" aria-label="Поиск пользователя" placeholder="Email, имя или UUID" value="${escapeHtml(f.identitySearch)}" maxlength="120"><select name="linked" aria-label="Фильтр привязок"><option value="all" ${f.identityLinked==='all'?'selected':''}>Все</option><option value="yes" ${f.identityLinked==='yes'?'selected':''}>Привязаны</option><option value="no" ${f.identityLinked==='no'?'selected':''}>Без привязки</option></select><button class="btn" type="submit">Найти</button><button class="btn secondary" type="button" data-identity-admin-refresh>Обновить</button></form><p class="muted">Найдено: ${Number(page.total || 0)}</p><div style="overflow-x:auto"><table class="table"><thead><tr><th>Пользователь</th><th>Статус</th><th>SkiF4er ID</th><th>Действия</th></tr></thead><tbody>${rows || '<tr><td colspan="4">Пользователи не найдены</td></tr>'}</tbody></table></div><div class="toolbar"><button class="btn secondary" data-identity-page="previous" ${f.identityOffset<=0?'disabled':''}>Назад</button><button class="btn secondary" data-identity-page="next" ${f.identityOffset+30>=Number(page.total||0)?'disabled':''}>Далее</button><span>${Number(page.total||0)===0 ? 0 : f.identityOffset+1}–${Math.min(f.identityOffset+30,Number(page.total||0))}</span></div></section>${mapping}${targetSessions}`
+}
+
 function identityView() {
   const cached = state.cache.identity
   const data = dataOf(cached)
@@ -869,7 +898,7 @@ function identityView() {
     : `<div class="card"><h2>SkiF4er ID</h2><p>${data.linked ? 'Внешняя учётная запись привязана.' : 'Внешняя учётная запись не привязана.'}</p>${data.provisioned ? '<p>Аккаунт создан через SkiF4er ID. Для отвязки сначала настройте локальный вход.</p>' : ''}${data.created_at ? `<p class="muted">Дата привязки: ${escapeHtml(data.created_at)}</p>` : ''}<form class="form" data-identity-form><div class="form-row"><label>Текущий пароль CajeerEngine</label><input class="input" name="password" type="password" autocomplete="current-password" required maxlength="1024"></div><div class="form-row"><label>Код 2FA (если включён)</label><input class="input" name="two_factor_code" autocomplete="one-time-code" maxlength="128"></div><div class="toolbar">${data.linked ? `<button class="btn danger" type="submit" ${data.provisioned ? 'disabled' : ''}>Отвязать SkiF4er ID</button>` : '<button class="btn" type="submit">Привязать через SkiF4er ID</button>'}</div></form><p class="muted">Привязка требует локальный пароль и подтверждение SkiF4er ID. Email не используется для объединения аккаунтов.</p></div>`
   const sessionsPanel = `<div class="card"><h2>Активные сессии</h2><p>Отзыв немедленно блокирует доступ на выбранном устройстве. Обычные API-токены не затрагиваются.</p>${state.cache.sessions?.error ? `<p class="notice error">${escapeHtml(state.cache.sessions.error.message)}</p>` : ''}<div style="overflow-x:auto"><table class="table"><thead><tr><th>Устройство</th><th>Источник</th><th>Последняя активность</th><th>Срок действия</th><th></th></tr></thead><tbody>${sessions.map(session => `<tr><td>${escapeHtml(session.device || 'Браузер')} ${session.current ? '<strong>(текущая)</strong>' : ''}<br><span class="muted">${escapeHtml(session.network || '')}</span></td><td>${escapeHtml(session.provider)}</td><td>${escapeHtml(session.last_seen_at)}</td><td>${escapeHtml(session.expires_at || '—')}</td><td><button class="btn secondary" type="button" data-session-revoke="${escapeHtml(session.id)}">Завершить</button></td></tr>`).join('') || '<tr><td colspan="5">Активных сессий нет</td></tr>'}</tbody></table></div><div class="toolbar"><button class="btn secondary" data-session-rotate>Обновить текущую сессию</button><button class="btn secondary" data-session-others>Завершить остальные</button><button class="btn danger" data-session-all>Завершить все</button>${sessions.some(s => s.current && s.provider === "skif4er") ? '<button class="btn secondary" data-session-global>Выйти из SkiF4er ID (SSO)</button>' : ''}</div></div>`
   const assurancePanel = `<div class="card"><h2>Повторное подтверждение критических операций</h2><p>Изменение пользователей, ролей, API-токенов и интеграций требует свежего подтверждения. Для SkiF4er ID необходим MFA.</p><form class="form" data-assurance-form><div class="form-row"><label>Локальный пароль</label><input class="input" type="password" name="password" autocomplete="current-password" maxlength="1024" required></div><div class="form-row"><label>Текущий TOTP (если включён)</label><input class="input" name="two_factor_code" autocomplete="one-time-code" maxlength="128"></div><button class="btn" type="submit">Подтвердить локально</button></form>${sessions.some(s=>s.current&&s.provider==='skif4er') ? '<button class="btn secondary" data-assurance-oidc type="button">Подтвердить через SkiF4er ID + MFA</button>' : ''}<p class="muted">Подтверждение действует до 5 минут и аннулируется при ротации/отзыве сессии.</p></div>`
-  return identityPanel + assurancePanel + sessionsPanel
+  return identityPanel + assurancePanel + sessionsPanel + identityAdminView()
 }
 function bindSessionActions() {
   const refresh = async () => { await loadSilent('sessions','/auth/sessions'); render() }
@@ -905,8 +934,55 @@ function bindSessionActions() {
     } catch(e){setNotice('error',e.message);render()}
   })
 }
+function bindIdentityAdmin() {
+  if (!integrationScope('users:read')) return
+  const refresh = async () => { await loadIdentityUsers(); if (state.forms.identitySelected) await loadSilent('identityAdminSessions', '/identity/admin/users/' + encodeURIComponent(state.forms.identitySelected) + '/sessions'); render() }
+  const act = async (fn) => { try { await fn(); await refresh() } catch (e) { setNotice('error', e.message, e.payload); render() } }
+  document.querySelector('[data-identity-admin-filter]')?.addEventListener('submit', e => {
+    e.preventDefault(); const d = new FormData(e.currentTarget)
+    state.forms.identitySearch = String(d.get('q') || '').trim()
+    state.forms.identityLinked = String(d.get('linked') || 'all')
+    state.forms.identityOffset = 0; state.forms.identitySelected = ''
+    act(async () => { await loadIdentityUsers() })
+  })
+  document.querySelector('[data-identity-admin-refresh]')?.addEventListener('click', () => act(async () => {}))
+  document.querySelectorAll('[data-identity-page]').forEach(b => b.addEventListener('click', () => {
+    state.forms.identityOffset = Math.max(0, state.forms.identityOffset + (b.dataset.identityPage === 'next' ? 30 : -30))
+    state.forms.identitySelected = ''
+    act(async () => {})
+  }))
+  document.querySelectorAll('[data-identity-select]').forEach(b => b.addEventListener('click', () => {
+    state.forms.identitySelected = b.dataset.identitySelect
+    state.cache.identityAdminSessions = null
+    act(async () => {})
+  }))
+  const current = (dataOf(state.cache.identityAdmin, {}).items || []).find(u => u.id === state.forms.identitySelected)
+  if (!current || !integrationScope('*')) return
+  const base = '/identity/admin/users/' + encodeURIComponent(current.id)
+  document.querySelector('[data-identity-admin-link]')?.addEventListener('submit', e => {
+    e.preventDefault(); const f = new FormData(e.currentTarget)
+    const subject = String(f.get('subject') || ''), confirmation = String(f.get('confirm_subject') || '')
+    if (!subject || subject !== confirmation) { setNotice('error','Поля sub должны совпадать.');return }
+    if (!confirm('Подтвердите: внешняя личность проверена, и sub принадлежит пользователю '+ current.email +'?')) return
+    act(async () => { await api(base + '/link',{method:'POST',body:JSON.stringify({subject,confirm_subject:confirmation})});setNotice('ok','SkiF4er ID привязан.') })
+  })
+  document.querySelector('[data-identity-admin-unlink]')?.addEventListener('click', () => {
+    if (!confirm('Отвязать SkiF4er ID пользователя '+current.email+' и завершить его SSO-сессии?')) return
+    act(async () => { await api(base + '/link',{method:'DELETE',body:JSON.stringify({confirm_user_id:current.id})});setNotice('ok','SkiF4er ID отвязан, SSO-сессии отозваны.') })
+  })
+  document.querySelectorAll('[data-identity-session-revoke]').forEach(b => b.addEventListener('click', () => {
+    if (!confirm('Завершить выбранную SSO-сессию пользователя '+current.email+'?')) return
+    act(async () => { await api(base + '/sessions/' + encodeURIComponent(b.dataset.identitySessionRevoke), {method:'DELETE'}); setNotice('ok','SSO-сессия завершена.') })
+  }))
+  document.querySelector('[data-identity-revoke-all]')?.addEventListener('click', () => {
+    if (!confirm('Завершить ВСЕ SSO-сессии пользователя '+current.email+'?')) return
+    act(async () => { await api(base + '/sessions/revoke-all', {method:'POST',body:JSON.stringify({confirm_user_id:current.id})});setNotice('ok','SSO-сессии завершены.') })
+  })
+}
+
 function bindIdentity() {
   bindSessionActions()
+  bindIdentityAdmin()
   document.querySelector('[data-assurance-form]')?.addEventListener('submit', async e => {
     e.preventDefault(); const form=e.currentTarget;const data=new FormData(form)
     try { const result=dataOf(await api('/auth/assurance/confirm',{method:'POST',body:JSON.stringify({password:String(data.get('password')||''),two_factor_code:String(data.get('two_factor_code')||'')})}));form.reset();setNotice('ok','Повторная авторизация подтверждена до '+(result.expires_at||'истечения срока')) }

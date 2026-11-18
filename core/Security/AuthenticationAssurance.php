@@ -26,7 +26,7 @@ final readonly class AuthenticationAssurance
         // Use the route name established by Symfony's matcher, not raw path text.
         // A raw-path regex can be bypassed with percent-encoded path segments.
         $route = (string)$request->attributes->get('matched_route', '');
-        if (str_starts_with($route, 'api.v1.users.') || str_starts_with($route, 'api.v1.roles.')
+        if (str_starts_with($route, 'api.v1.identity.admin.') || str_starts_with($route, 'api.v1.users.') || str_starts_with($route, 'api.v1.roles.')
             || str_starts_with($route, 'api.v1.api_tokens.')) return true;
         // Keep runtime service-to-service delivery/test under existing RBAC, while guarding
         // actual integration creation, configuration, secrets and deletion.

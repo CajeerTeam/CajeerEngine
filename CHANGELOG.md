@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.7 — Identity Center Admin UX
+
+- Working Identity Center in shipped static admin SPA and Nuxt UI: search/page/filter local identity accounts, inspect SSO sessions, link a verified Keycloak `sub`, unlink with safe local-login checks, revoke selected or all SSO sessions.
+- Server-side HTTPS browser-session authorization, administrator RBAC, CSRF and recent password/TOTP or OIDC MFA step-up for all mutations; audit subject digests and target IDs, deny self-operator changes, never merge by email.
+- Transactional unlink plus local OIDC session revocation, without revoking local logins, service tokens or changing Keycloak accounts. No Keycloak Admin API credentials or browser secrets.
+- Regression coverage for PDO, HTTP authorization, and browser interactions; OpenAPI operations and extension SDK synchronized.
+
+
 ## 1.5.5 — SkiF4er ID OIDC API Authentication
 
 - Validate real Keycloak OAuth access tokens using the existing pinned JWKS/RS256 client, with strict access-token type, issuer, API audience, OAuth client, lifetime and scope checks. ID tokens and Logout Tokens never authorize the API.

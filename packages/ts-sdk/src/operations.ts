@@ -1,5 +1,97 @@
 // Generated from api/openapi.yaml. Do not edit.
 export const operations = {
+    "api_v1_identity_admin_link": {
+        "method": "POST",
+        "path": "/identity/admin/users/{id}/link",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_identity_admin_revoke_all": {
+        "method": "POST",
+        "path": "/identity/admin/users/{id}/sessions/revoke-all",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_identity_admin_revoke_session": {
+        "method": "DELETE",
+        "path": "/identity/admin/users/{id}/sessions/{session}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "session",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_identity_admin_sessions": {
+        "method": "GET",
+        "path": "/identity/admin/users/{id}/sessions",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_identity_admin_unlink": {
+        "method": "DELETE",
+        "path": "/identity/admin/users/{id}/link",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_identity_admin_users": {
+        "method": "GET",
+        "path": "/identity/admin/users",
+        "parameters": [
+            {
+                "name": "q",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "linked",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "limit",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "offset",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
     "delete_AnalyticsEventJournal": {
         "method": "DELETE",
         "path": "/tracking/events/journal",

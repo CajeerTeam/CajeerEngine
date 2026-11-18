@@ -82,10 +82,14 @@ final readonly class UserSessionRepository
     }
 
     /** @return list<array<string,mixed>> Public metadata; no token, IP address or raw OIDC subject. */
-    public function activeForUser(string $userId, ?string $currentId = null, int $idleMinutes = 720): array
+    public function activeForUser(string $userId, ?string $currentId = null, int $idleMinutes = 720, ?string $provider = null): array
     {
-        $stmt = $this->database->connection()->prepare("SELECT s.token_id, s.provider, s.user_agent, s.ip_hint, s.created_at, s.last_seen_at, s.expires_at FROM ce_user_sessions s INNER JOIN ce_api_tokens t ON t.id = s.token_id AND t.user_id = s.user_id WHERE s.user_id = :uid AND s.revoked_at IS NULL AND t.revoked_at IS NULL AND (t.expires_at IS NULL OR t.expires_at > CURRENT_TIMESTAMP) AND (s.expires_at IS NULL OR s.expires_at > CURRENT_TIMESTAMP) AND s.last_seen_at >= :cutoff ORDER BY s.last_seen_at DESC LIMIT 100");
-        $stmt->execute(['uid'=>$userId, 'cutoff'=>gmdate('Y-m-d H:i:s', time()-max(1,$idleMinutes)*60)]);
+        if ($provider !== null && !in_array($provider, ['local', 'skif4er', 'legacy'], true)) throw new \InvalidArgumentException('Invalid session provider.');
+        $sql = "SELECT s.token_id, s.provider, s.user_agent, s.ip_hint, s.created_at, s.last_seen_at, s.expires_at FROM ce_user_sessions s INNER JOIN ce_api_tokens t ON t.id = s.token_id AND t.user_id = s.user_id WHERE s.user_id = :uid AND s.revoked_at IS NULL AND t.revoked_at IS NULL AND (t.expires_at IS NULL OR t.expires_at > CURRENT_TIMESTAMP) AND (s.expires_at IS NULL OR s.expires_at > CURRENT_TIMESTAMP) AND s.last_seen_at >= :cutoff";
+        $args = ['uid'=>$userId, 'cutoff'=>gmdate('Y-m-d H:i:s', time()-max(1,$idleMinutes)*60)];
+        if ($provider !== null) { $sql .= ' AND s.provider = :provider'; $args['provider'] = $provider; }
+        $stmt = $this->database->connection()->prepare($sql.' ORDER BY s.last_seen_at DESC LIMIT 100');
+        $stmt->execute($args);
         return array_map(static fn(array $row):array => [
             'id'=>(string)$row['token_id'], 'provider'=>(string)$row['provider'],
             'device'=>(string)$row['user_agent'] ?: 'Unknown browser',

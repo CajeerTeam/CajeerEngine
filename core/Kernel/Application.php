@@ -15,6 +15,8 @@ use CajeerEngine\Api\Controller\AdminController;
 use CajeerEngine\Api\Controller\ApiTokenController;
 use CajeerEngine\Api\Controller\AuthController;
 use CajeerEngine\Api\Controller\OidcController;
+use CajeerEngine\Api\Controller\IdentityAdminController;
+use CajeerEngine\Identity\IdentityCenter;
 use CajeerEngine\Identity\OidcClient;
 use CajeerEngine\Identity\OidcApiAuthenticator;
 use CajeerEngine\Identity\OidcStore;
@@ -166,7 +168,7 @@ final class Application
         $response->headers->set('traceparent',$trace->header());
         $response->headers->set('X-Runtime-Ms',(string)round($duration*1000));
         $this->container->get(RuntimeLogger::class)->info('HTTP request handled',$trace->fields()+['request_id'=>(string)$request->attributes->get('request_id',''),'method'=>$request->getMethod(),'route'=>$route,'status'=>$response->getStatusCode(),'duration_ms'=>round($duration*1000,3)]);
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.5.6'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.5.7'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -392,6 +394,9 @@ final class Application
                 return new OidcController($cfg, null, $c->get(AuthService::class));
             }
         });
+        $container->set('controller.identityAdmin', fn (ServiceContainer $c): IdentityAdminController => new IdentityAdminController(
+            new IdentityCenter($c->get(DatabaseManager::class), $c->get(UserSessionRepository::class), $c->get(AuditLogRepository::class))
+        ));
         $container->set('controller.users', fn (ServiceContainer $c): UserController => new UserController($c->get(UserRepository::class), $c->get(PasswordHasher::class)));
         $container->set('controller.roles', fn (ServiceContainer $c): RoleController => new RoleController($c->get(RoleRepository::class)));
         $container->set('controller.api_tokens', fn (ServiceContainer $c): ApiTokenController => new ApiTokenController($c->get(ApiTokenRepository::class)));
@@ -508,6 +513,7 @@ final class Application
         /** @var AuthController $auth */
         $auth = $container->get('controller.auth');
         $oidc = $container->get('controller.oidc');
+        $identityAdmin = $container->get('controller.identityAdmin');
 
         /** @var UserController $users */
         $users = $container->get('controller.users');
@@ -530,7 +536,7 @@ final class Application
         $analyticsHub = $container->get('controller.analyticsHub');
         $analyticsEvents = $container->get('controller.analyticsEvents');
         $migration = $container->get('controller.migration');
-        $controllers = compact('oidc', 'migration', 'analyticsHub', 'tracking', 'analyticsEvents', 'consent', 'integrations', 'health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
+        $controllers = compact('identityAdmin', 'oidc', 'migration', 'analyticsHub', 'tracking', 'analyticsEvents', 'consent', 'integrations', 'health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
         foreach (\CajeerEngine\Http\RouteRegistry::all() as [$method, $path, $name, $controller, $action, $scopes]) {
             $router->add([$method], $path, $name, [$controllers[$controller], $action], $scopes);
         }

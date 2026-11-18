@@ -6,6 +6,120 @@ namespace CajeerEngine\ExtensionSdk;
 /** Generated from api/openapi.yaml. */
 final class Operations {
     public const ALL = array (
+  'api_v1_identity_admin_link' => 
+  array (
+    'method' => 'POST',
+    'path' => '/identity/admin/users/{id}/link',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_identity_admin_revoke_all' => 
+  array (
+    'method' => 'POST',
+    'path' => '/identity/admin/users/{id}/sessions/revoke-all',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_identity_admin_revoke_session' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/identity/admin/users/{id}/sessions/{session}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'session',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_identity_admin_sessions' => 
+  array (
+    'method' => 'GET',
+    'path' => '/identity/admin/users/{id}/sessions',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_identity_admin_unlink' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/identity/admin/users/{id}/link',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_identity_admin_users' => 
+  array (
+    'method' => 'GET',
+    'path' => '/identity/admin/users',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'q',
+        'in' => 'query',
+        'required' => false,
+      ),
+      1 => 
+      array (
+        'name' => 'linked',
+        'in' => 'query',
+        'required' => false,
+      ),
+      2 => 
+      array (
+        'name' => 'limit',
+        'in' => 'query',
+        'required' => false,
+      ),
+      3 => 
+      array (
+        'name' => 'offset',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'delete_AnalyticsEventJournal' => 
   array (
     'method' => 'DELETE',
