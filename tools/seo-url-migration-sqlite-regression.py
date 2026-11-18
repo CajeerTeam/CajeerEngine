@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-files = sorted((root / 'migrations/sqlite').glob('*.sql'))
+files = sorted(p for p in (root/'migrations/sqlite').glob('*.sql') if p.name[:4] <= '0022')
 assert files[-1].name == '0022_seo_url_migration.sql', files[-1]
 with tempfile.TemporaryDirectory(prefix='cajeer-seo-migrate-') as folder:
     source = Path(folder) / 'source.sqlite'

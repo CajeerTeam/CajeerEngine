@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import sqlite3
 root=Path(__file__).resolve().parents[1]
-files=sorted((root/'migrations/sqlite').glob('*.sql'))
+files = sorted(p for p in (root/'migrations/sqlite').glob('*.sql') if p.name[:4] <= '0023')
 assert files[-1].name=='0023_migration_execution.sql'
 with tempfile.TemporaryDirectory(prefix='ce-execution-') as tmp:
     file=Path(tmp)/'site.sqlite'

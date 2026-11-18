@@ -5,12 +5,12 @@ import sqlite3
 import tempfile
 root=Path(__file__).resolve().parents[1]
 migrations=sorted((root/'migrations/sqlite').glob('*.sql'))
-assert migrations[-1].name=='0024_migration_validation_cutover.sql'
+assert migrations[-1].name=='0025_migration_redirect_evidence.sql'
 with tempfile.TemporaryDirectory(prefix='ce-cutover-') as temp:
     path=Path(temp)/'site.sqlite';db=sqlite3.connect(path);db.execute('PRAGMA foreign_keys=ON')
     for f in migrations:db.executescript(f.read_text())
     assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
-    print('PASS full SQLite upgrade through 0024')
+    print('PASS full SQLite upgrade through 0025')
     project='a'*32
     with db:
         db.execute('INSERT INTO ce_migration_validation VALUES(?,?,?,?,?,?)',(project,'b'*64,'c'*64,0,'{"changes":1}','2026-11-17'))
@@ -33,6 +33,15 @@ with tempfile.TemporaryDirectory(prefix='ce-cutover-') as temp:
     except sqlite3.IntegrityError:pass
     assert db.execute('SELECT cursor_index FROM ce_migration_sync_runs').fetchone()==(1,)
     print('PASS committed sync checkpoint and unique source key')
+    with db:
+        db.execute('INSERT INTO ce_migration_seo_path_evidence(project_id,source_path,target_path) VALUES(?,?,?)',(project,'/old-news.html','/news/new'))
+    try:
+        with db:
+            db.execute('INSERT INTO ce_migration_seo_path_evidence(project_id,source_path,target_path) VALUES(?,?,?)',(project,'/old-news.html','/news/different'))
+        raise AssertionError('Duplicate legacy path evidence permitted')
+    except sqlite3.IntegrityError:pass
+    assert db.execute('SELECT target_path FROM ce_migration_seo_path_evidence WHERE project_id=?',(project,)).fetchone()==('/news/new',)
+    print('PASS durable project-owned 301 evidence is unique and immutable')
     snapshot=Path(temp)/'backup.sqlite'
     with sqlite3.connect(snapshot) as backup:db.backup(backup)
     with db:

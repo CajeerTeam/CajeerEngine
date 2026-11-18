@@ -40,6 +40,9 @@ php tools/migration-planning-regression.php --require-xml
 php tools/seo-url-migration-regression.php
 python3 tools/seo-url-migration-sqlite-regression.py
 python3 tools/migration-execution-sqlite-regression.py
+php tools/migration-validation-regression.php
+php tools/migration-ga-regression.php
+python3 tools/migration-validation-sqlite-regression.py
 php tools/migration-execution-regression.php --require-db
 php tools/seo-url-migration-integration.php --require-db
 php tools/dle-migration-regression.php --require-db

@@ -70,7 +70,7 @@ final readonly class MigrationCutover
         return $r;
     }
     /** Pure reconciliation of source inventory against the original content receipt and subsequent sync receipts. */
-    public static function reconcile(array $inventory,array $project,array $receipt,callable $lookup,callable $syncReceipt):array
+    public static function reconcile(array $inventory,array $project,array $receipt,callable $lookup,callable $syncReceipt,?callable $trustedRevision=null):array
     {
         $baseline=[];$plan=[];
         foreach($project['plan']['records']??[] as $a)$plan[$a['source_type'].':'.$a['source_id']]=$a;
@@ -102,8 +102,8 @@ final readonly class MigrationCutover
                 if(($entry['slug']??'')!==($payload['slug']??''))$drift[]=['source'=>$key,'code'=>'target_slug_differs'];
                 if($lastHash!==null&&hash_equals($lastHash,$hash))continue;
                 $counts['changed']++;
-                $expected=(int)($synced['revision']??$old['revision']??0);
-                if((int)$entry['revision']!==$expected||$entry['slug']!==($payload['slug']??'')){
+                $expected=$trustedRevision!==null?$trustedRevision($key,$entry,$old,$synced):(int)($synced['revision']??$old['revision']??0);
+                if($expected===null||(int)$entry['revision']!==$expected||$entry['slug']!==($payload['slug']??'')){
                     $problems[]=['source'=>$key,'code'=>'editor_revision_or_slug_conflict'];continue;
                 }
                 $changes[]=['source_type'=>$r['type'],'source_id'=>(string)$r['id'],'action'=>'update','target_type'=>$rule['target'],'target_id'=>$id,'expected_revision'=>$expected,'payload_sha256'=>$hash,'source_author'=>(string)($r['author']??''),'author_id'=>$userMap[(string)($r['author']??'')]??$old['author_id']??null];
@@ -159,7 +159,33 @@ final readonly class MigrationCutover
             if($kind==='slug')return $this->entries->find($value[0],$value[1]);
             $key=$value[0].':'.$value[1];return $entries[$key]??= $this->entries->findById($value[0],$value[1]);
         };
-        $result=self::reconcile($inventory,$p,$receipt,$lookup,fn(string $key)=>$synced[$key]??null);
+        $integrity=MigrationIntegrity::receiptProblems($p['plan']['records']??[],$receipt['records']);
+        $trusted=[];
+        $q=$pdo->prepare('SELECT target_id,original_revision,updated_sha,status FROM ce_migration_media_rewrites WHERE project_id=:id');
+        $q->execute(['id'=>$project]);$mediaRewrites=[];
+        while($row=$q->fetch(PDO::FETCH_ASSOC))$mediaRewrites[$row['target_id']]=$row;
+        $verified=array_merge($receipt['records'],array_map(static function($key)use($synced,$p){
+            [$sourceType,$sourceId]=explode(':',$key,2);
+            return ['source_type'=>$sourceType,'source_id'=>$sourceId,'target_type'=>$p['mapping']['types'][$sourceType]['target']??'',
+                'target_id'=>$synced[$key]['target_id'],'revision'=>$synced[$key]['revision'],'action'=>'update'];
+        },array_keys($synced)));
+        foreach($verified as $item){
+            if(!in_array($item['action']??'', ['create','update'],true)||empty($item['target_id']))continue;
+            $key=$item['source_type'].':'.$item['source_id'];$id=(string)$item['target_id'];
+            $entry=$lookup('entry',[(string)$item['target_type'],$id]);
+            if($entry===null)continue; // Target missing is separately reported by reconciliation.
+            $baseline=(int)($synced[$key]['revision']??$item['revision']??0);
+            $issue=MigrationIntegrity::revisionProblem($entry,$this->entries->revisions((string)$item['target_type'],$id),$baseline,$mediaRewrites[$id]??null);
+            if($issue!==null)$integrity[]=['source'=>$key,'code'=>$issue];
+            else $trusted[$key]=(int)$entry['revision'];
+        }
+        foreach($mediaRewrites as $targetId=>$row){
+            if(($row['status']??'')!=='done')$integrity[]=['source'=>$targetId,'code'=>'unfinished_media_rewrite'];
+        }
+        $result=self::reconcile($inventory,$p,$receipt,$lookup,fn(string $key)=>$synced[$key]??null,
+            fn(string $key)=>$trusted[$key]??null);
+        array_push($result['problems'],...$integrity);
+        $result['counts']['integrity_problems']=count($integrity);
         $users=new \CajeerEngine\Database\Repository\UserRepository($this->db,new \CajeerEngine\Database\Repository\RoleRepository($this->db));
         $checkedUsers=0;
         foreach(($receipt['users']??[]) as $identity){
@@ -199,7 +225,27 @@ final readonly class MigrationCutover
             while($url=$q->fetch(PDO::FETCH_ASSOC))if($redirect->legacyQueryTarget($url['query_key'])!==$url['target_path'])$result['problems'][]=['source'=>$url['query_key'],'code'=>'legacy_query_redirect_broken'];
         }
         $q=$pdo->prepare('SELECT COUNT(*) FROM ce_migration_seo_runs WHERE project_id=:id');$q->execute(['id'=>$project]);
-        if((int)$q->fetchColumn()===0)$result['problems'][]=['source'=>'seo','code'=>'seo_stage_not_completed'];
+        $seoCompleted=(int)$q->fetchColumn()>0;
+        if(!$seoCompleted)$result['problems'][]=['source'=>'seo','code'=>'seo_stage_not_completed'];
+        else{
+            $q=$pdo->prepare('SELECT target_id FROM ce_migration_seo_meta WHERE project_id=:id');$q->execute(['id'=>$project]);
+            $seoIds=array_fill_keys($q->fetchAll(PDO::FETCH_COLUMN),true);
+            foreach($receipt['records'] as $item){
+                if(!in_array($item['action']??'', ['create','update'],true)||!isset($item['target_id']))continue;
+                if(!isset($seoIds[$item['target_id']]))$result['problems'][]=['source'=>$item['source_type'].':'.$item['source_id'],'code'=>'missing_seo_metadata'];
+            }
+        }
+        if($this->db->tableExists('ce_migration_seo_path_evidence')){
+            $q=$pdo->prepare('SELECT source_path,target_path FROM ce_migration_seo_path_evidence WHERE project_id=:id');$q->execute(['id'=>$project]);
+            $redirects=new RedirectRepository($this->root,$this->db);
+            $checked=0;
+            while($item=$q->fetch(PDO::FETCH_ASSOC)){
+                $checked++;$active=$redirects->byPath($item['source_path']);
+                if($active===null||!$active['enabled']||(int)$active['status_code']!==301||$active['target_url']!==$item['target_path'])
+                    $result['problems'][]=['source'=>$item['source_path'],'code'=>'legacy_path_redirect_missing_or_changed'];
+            }
+            $result['counts']['seo_redirects_verified']=$checked;
+        }
         $media=new MediaRepository($this->root,new StorageManager($this->root,new ConfigRepository($this->root)),$this->db);
         $q=$pdo->prepare('SELECT source_path,media_id,checksum FROM ce_migration_media_files WHERE project_id=:id');$q->execute(['id'=>$project]);
         $mediaCount=0;$badMedia=0;

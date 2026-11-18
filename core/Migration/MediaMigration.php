@@ -253,7 +253,7 @@ final readonly class MediaMigration
             $q=$this->db->connection()->prepare('INSERT INTO ce_migration_media_rewrites(project_id,target_id,original_revision,original_sha,updated_sha,replacements,status,updated_at) VALUES(:project,:id,:rev,:before,:after,:replacements,:status,:date)');
             $q->execute(['project'=>$project,'id'=>$id,'rev'=>$entry['revision'],'before'=>$before,'after'=>$after,'replacements'=>$count,'status'=>'pending','date'=>gmdate(DATE_ATOM)]);
         }
-        $updated=$this->entries->update($type,$id,['title'=>$entry['title'],'slug'=>$entry['slug'],'status'=>$entry['status'],'locale'=>$entry['locale'],'data'=>$new,'expected_revision'=>(int)$entry['revision']]);
+        $updated=$this->entries->update($type,$id,['title'=>$entry['title'],'slug'=>$entry['slug'],'status'=>$entry['status'],'locale'=>$entry['locale'],'data'=>$new,'expected_revision'=>(int)$entry['revision']], 'migration_media');
         if(!$updated||!hash_equals(self::dataHash($updated['data']),$after))throw new \RuntimeException('Media rewrite failed verification.');
         $this->completeIntent($project,$id,$count);$rewritten++;$links+=$count;
     }

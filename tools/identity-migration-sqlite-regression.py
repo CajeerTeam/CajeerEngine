@@ -4,7 +4,7 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 db = sqlite3.connect(':memory:')
 db.execute('PRAGMA foreign_keys=ON')
-files = sorted((root/'migrations/sqlite').glob('*.sql'))
+files = sorted(p for p in (root/'migrations/sqlite').glob('*.sql') if p.name[:4] <= '0020')
 for f in files[:-1]: db.executescript(f.read_text())
 db.execute("INSERT INTO ce_users(id,email,name,password_hash) VALUES('old','old@example.com','Old','oldhash')")
 db.commit()

@@ -101,7 +101,7 @@ final readonly class SeoMigration
     public function execute(array $project,array $inventory,string $origin,array $aliases,string $pattern=''):array
     {
         if(($project['status']??'')!=='completed'||empty($project['execution']['records']))throw new \RuntimeException('Complete content migration before SEO migration.');
-        if($this->entries->storage()!=='database'||!$this->db->tableExists('ce_migration_seo_runs'))throw new \RuntimeException('SEO migration requires database content and migration 0022.');
+        if($this->entries->storage()!=='database'||!$this->db->tableExists('ce_migration_seo_runs')||!$this->db->tableExists('ce_migration_seo_path_evidence'))throw new \RuntimeException('SEO migration requires SQL migrations through 0025.');
         $origin=MediaMigration::validateOrigin($origin);$pattern=self::pattern($pattern);
         if($origin===''&&$aliases!==[])throw new \InvalidArgumentException('Set --origin for verified legacy URL mapping.');
         $id=$project['id'];$source=$project['source'];$content=$project['execution'];
@@ -161,9 +161,11 @@ final readonly class SeoMigration
                 $q=$pdo->prepare('INSERT INTO ce_migration_seo_meta(project_id,target_id,title,description,canonical_url,noindex,created_at) VALUES(:project,:target,:title,:description,:canonical,:noindex,:created)');
                 $q->execute(['project'=>$id,'target'=>$entry['id'],'title'=>$seo['title'],'description'=>$seo['description'],'canonical'=>$seo['canonical'],'noindex'=>$seo['noindex']?1:0,'created'=>gmdate(DATE_ATOM)]);$metadata++;
                 $count=0;$new=MediaMigration::rewrite($entry['data'],$rewriteMap,$count);
-                if($count>0){$this->entries->update((string)$r['import']['target_type'],$entry['id'],['title'=>$entry['title'],'slug'=>$entry['slug'],'status'=>$entry['status'],'locale'=>$entry['locale'],'data'=>$new,'expected_revision'=>(int)$entry['revision']]);$rewritten++;$links+=$count;}
+                if($count>0){$this->entries->update((string)$r['import']['target_type'],$entry['id'],['title'=>$entry['title'],'slug'=>$entry['slug'],'status'=>$entry['status'],'locale'=>$entry['locale'],'data'=>$new,'expected_revision'=>(int)$entry['revision']], 'migration_seo');$rewritten++;$links+=$count;}
             }
             foreach($redirects as $old=>$target){if($redirectRepo->byPath($old)===null){$redirectRepo->save(['source_path'=>$old,'target_url'=>$target,'status_code'=>301,'enabled'=>true]);$newRedirects++;}}
+            $evidence=$pdo->prepare('INSERT INTO ce_migration_seo_path_evidence(project_id,source_path,target_path) VALUES(:project,:source,:target)');
+            foreach($redirects as $old=>$target)$evidence->execute(['project'=>$id,'source'=>$old,'target'=>$target]);
             foreach($query as $key=>$target){$q=$pdo->prepare('INSERT INTO ce_migration_seo_query_urls(project_id,query_key,target_path,created_at) VALUES(:project,:key,:target,:created)');$q->execute(['project'=>$id,'key'=>$key,'target'=>$target,'created'=>gmdate(DATE_ATOM)]);$newQuery++;}
             $result=['project_id'=>$id,'source'=>$source,'configuration_sha256'=>$configHash,'completed_at'=>gmdate(DATE_ATOM),'metadata_entries'=>$metadata,'new_redirects'=>$newRedirects,'new_query_redirects'=>$newQuery,'rewritten_entries'=>$rewritten,'rewritten_links'=>$links,'skipped'=>$skipped,'sitemap_url'=>'/sitemap.xml'];
             $q=$pdo->prepare('INSERT INTO ce_migration_seo_runs(project_id,configuration_sha256,completed_at,result) VALUES(:project,:sha,:completed,:result)');$q->execute(['project'=>$id,'sha'=>$configHash,'completed'=>$result['completed_at'],'result'=>json_encode($result,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);

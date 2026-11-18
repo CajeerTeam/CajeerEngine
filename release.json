@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.4.9",
+  "version": "1.5.0",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.4.9-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.4.9-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.5.0-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.5.0-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.4.9-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.5.0-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,7 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
-    "Migration Validation & Cutover: source/target reconciliation, SQL-atomic incremental sync, checked media/routes/sitemap, verified backup and operator-controlled cutover."
+    "Migration Center DLE + WordPress 1.5.0: content revision provenance, source/target receipt integrity, post-media/SEO incremental revision validation, durable SEO redirect evidence, cutover safety checks and release regressions."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -79,7 +79,7 @@
     "1.4.6": "Media & Attachments Migration — verified local uploads, URL rewrite, WordPress featured attachments, resumable media receipts",
     "1.4.7": "SEO & URL Migration — verified legacy 301 redirects, WordPress query permalinks, SEO metadata, internal links and sitemap",
     "1.4.8": "Migration Execution & Recovery — checkpointed DLE/WordPress content transfer, resumable batch journal, verified full backup rollback",
-    "1.4.9": "Migration Validation & Cutover — source/target integrity verification, staged delta synchronization and guarded local activation"
+    "1.5.0": "Migration Validation & Cutover — source/target integrity verification, staged delta synchronization and guarded local activation"
   },
   "stability": "stable"
 }

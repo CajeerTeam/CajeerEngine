@@ -1,4 +1,14 @@
-## 1.4.9 — Migration Validation & Cutover
+## 1.5.0 — Migration Center DLE + WordPress GA
+
+- Validate every source-to-target content receipt against the approved plan, rejecting missing/duplicate/altered receipts.
+- Audit latest target revision snapshots and provenance of every later edit; detect undetected editorial drift, not just slug/status drift.
+- Label revisions written by content migration, media rewriting and SEO rewriting, permitting safe post-media/SEO incremental sync.
+- Accept one legacy 1.4.x media revision only when backed by the stored SHA-256 receipt. Unlabelled legacy SEO/editor modifications require manual reconciliation.
+- Persist project-owned legacy redirect evidence, validate actual 301 status/destination and individual SEO metadata before cutover (SQL migration 0025).
+- Detect incomplete media rewrite receipts as cutover blockers; extend local release and CI regressions.
+- No changes to DNS, remote CMS databases or untrusted PHP/plugin execution. Production acceptance still requires a full release CI and real-site rehearsal.
+
+## 1.5.0 — Migration Validation & Cutover
 
 - CLI source/target validation with real content, route, sitemap, SEO and SHA-256 media checks.
 - Reviewed incremental synchronization with batch checkpoint, pre-sync verified backup and full restore.

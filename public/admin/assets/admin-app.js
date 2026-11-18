@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.4.9'
+const ADMIN_VERSION = '1.5.0'
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
 localStorage.removeItem(TOKEN_KEY) // remove legacy bearer credentials

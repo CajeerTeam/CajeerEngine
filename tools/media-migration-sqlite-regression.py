@@ -5,7 +5,7 @@ import sqlite3
 import tempfile
 
 root = Path(__file__).resolve().parents[1]
-files = sorted((root / 'migrations/sqlite').glob('*.sql'))
+files = sorted(p for p in (root / 'migrations/sqlite').glob('*.sql') if p.name[:4] <= '0021')
 assert files[-1].name == '0021_migration_media.sql'
 with tempfile.TemporaryDirectory(prefix='cajeer-media-migration-') as directory:
     database = Path(directory) / 'test.sqlite'

@@ -16,9 +16,13 @@ php bin/cajeer admin:assets --check
 php bin/cajeer doctor
 ```
 
-## Production Stable 1.4.9
+## Production Stable 1.5.0
 
-### Migration Validation & Cutover (1.4.9)
+### Migration Center GA (1.5.0)
+
+The operator-only DLE/WordPress workflow now verifies SQL import receipts and revision provenance, confirms SEO metadata and project-owned 301 redirects, checks media integrity, and refuses cutover on unverified content edits. See `docs/migration-ga.md`.
+
+### Migration Validation & Cutover (introduced in 1.4.9)
 
 After importing DLE or WordPress content and running media/SEO migration, use `php bin/cajeer migration:validate PROJECT_ID` to compare the source with migrated content, users, routes, sitemap and SHA-256 media. If a review includes new/changed records without unresolved blockers, use `migration:sync PROJECT_ID VALIDATION_SHA --yes --batch=50`; it captures a verified backup and saves SQL-atomic checkpoints. Revalidate and activate with `migration:cutover PROJECT_ID VALIDATION_SHA --yes --target=https://site.example.com`, using the configured `APP_URL`. DNS/reverse-proxy changes are an explicit separate operator step. See [Migration Validation & Cutover](docs/migration-validation-cutover.md).
 
@@ -42,7 +46,7 @@ node admin/scripts/publish-admin-assets.mjs --check
 php tools/release-regression.php
 # После коммита всех изменений и composer.lock:
 bash tools/release-pipeline.sh /tmp/cajeer-release
-bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.4.9-dist.zip sqlite
+bash tools/release-smoke.sh /tmp/cajeer-release/cajeerengine-1.5.0-dist.zip sqlite
 ```
 
 Сборка использует чистый Git snapshot и проверяет каждую запись ZIP, checksum и sidecar manifest. Dist включает `vendor/`, production Admin assets, миграции и пустые runtime-маркеры. Никакие данные рабочей установки, загруженные медиа, секреты и установленные пользователем плагины не включаются. Публиковать dist только после успешных smoke tests; SHA256 проверяет целостность, но не заменяет подпись доверенного издателя.
