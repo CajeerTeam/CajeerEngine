@@ -375,6 +375,54 @@ export const operations = {
         ],
         "bodyRequired": true
     },
+    "api_v1_knowledge_chat_ask": {
+        "method": "POST",
+        "path": "/knowledge/chat/ask",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_knowledge_chat_conversations": {
+        "method": "GET",
+        "path": "/knowledge/chat/conversations",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "api_v1_knowledge_chat_delete": {
+        "method": "DELETE",
+        "path": "/knowledge/chat/conversations/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_knowledge_chat_feedback": {
+        "method": "POST",
+        "path": "/knowledge/chat/messages/{id}/feedback",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_knowledge_chat_show": {
+        "method": "GET",
+        "path": "/knowledge/chat/conversations/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
     "api_v1_knowledge_documents": {
         "method": "GET",
         "path": "/knowledge/documents",

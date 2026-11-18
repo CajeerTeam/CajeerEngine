@@ -395,6 +395,84 @@ final readonly class AiKnowledgeBase
         return $results;
     }
 
+    /**
+     * Ranked, bounded source chunks for server-side grounded answers. Only current,
+     * published, indexed documents are eligible. The exact CMS revision is checked
+     * again before every source leaves this service.
+     * @return list<array{id:string,title:string,locale:string,visibility:string,revision:int,chunk_no:int,content:string,score:int}>
+     */
+    public function retrieve(string $query, string $visibility = 'all', string $locale = '', int $limit = 6): array
+    {
+        $query = self::text($query, 1200);
+        if (!in_array($visibility, ['all','public'], true) || $limit < 1 || $limit > 8)
+            throw new \InvalidArgumentException('Invalid retrieval scope.');
+        if ($locale !== '') self::locale($locale);
+        $terms = array_slice(array_keys(self::terms($query)), 0, 14);
+        if ($terms === []) return [];
+        $pdo = $this->db->connection();
+        $sql = 'SELECT t.term, t.document_id, t.chunk_no, t.frequency, d.title, d.locale, d.visibility, d.revision, d.source_kind, d.source_type, d.source_id, d.source_revision, c.content'
+            .' FROM ce_kb_terms t JOIN ce_kb_documents d ON d.id = t.document_id'
+            .' JOIN ce_kb_chunks c ON c.document_id = t.document_id AND c.chunk_no = t.chunk_no'
+            .' WHERE t.term = ? AND d.status = ? AND d.indexed_revision = d.revision';
+        if ($visibility === 'public') $sql .= ' AND d.visibility = ?';
+        if ($locale !== '') $sql .= ' AND d.locale = ?';
+        $sql .= ' ORDER BY d.updated_at DESC LIMIT 350';
+        $stmt = $pdo->prepare($sql);
+        $candidates = [];
+        foreach ($terms as $term) {
+            $params = [$term, 'published'];
+            if ($visibility === 'public') $params[] = 'public';
+            if ($locale !== '') $params[] = $locale;
+            $stmt->execute($params);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $key = $row['document_id'].':'.$row['chunk_no'];
+                if (!isset($candidates[$key])) $candidates[$key] = ['row' => $row, 'score' => 0, 'matches' => 0];
+                $candidates[$key]['score'] += min(12, (int)$row['frequency']);
+                $candidates[$key]['matches']++;
+            }
+        }
+        uasort($candidates, static fn (array $a, array $b): int => ($b['matches'] * 4 + $b['score']) <=> ($a['matches'] * 4 + $a['score']));
+        $out = []; $perDoc = []; $checked = [];
+        foreach ($candidates as $item) {
+            if (count($out) >= $limit) break;
+            $row = $item['row']; $id = (string)$row['document_id'];
+            if (($perDoc[$id] ?? 0) >= 2) continue;
+            if (!array_key_exists($id, $checked)) {
+                $checked[$id] = true;
+                if ($row['source_kind'] === 'cms') {
+                    // Refuse stale, unpublished and deleted source revisions, even if index is not refreshed.
+                    $current = $this->entries->findById((string)$row['source_type'], (string)$row['source_id']);
+                    $checked[$id] = $current !== null && ($current['status'] ?? '') === 'published'
+                        && (int)$current['revision'] === (int)$row['source_revision'];
+                }
+            }
+            if (!$checked[$id]) continue;
+            $out[] = ['id' => $id, 'title' => (string)$row['title'], 'locale' => (string)$row['locale'],
+                'visibility' => (string)$row['visibility'], 'revision' => (int)$row['revision'],
+                'chunk_no' => (int)$row['chunk_no'], 'content' => (string)$row['content'],
+                'score' => $item['matches'] * 4 + $item['score']];
+            $perDoc[$id] = ($perDoc[$id] ?? 0) + 1;
+        }
+        return $out;
+    }
+
+    /** Returns false if a previously cited source has been edited, unpublished or removed. */
+    public function isCurrentSource(string $id, int $revision, string $scope): bool
+    {
+        if ($revision < 1 || !in_array($scope, ['all', 'public'], true)) return false;
+        $stmt = $this->db->connection()->prepare('SELECT revision, indexed_revision, status, visibility, source_kind, source_type, source_id, source_revision FROM ce_kb_documents WHERE id = ?');
+        $stmt->execute([self::validId($id)]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row) || $row['status'] !== 'published' || (int)$row['revision'] !== $revision
+            || (int)$row['indexed_revision'] !== $revision || ($scope === 'public' && $row['visibility'] !== 'public')) return false;
+        if ($row['source_kind'] === 'cms') {
+            $current = $this->entries->findById((string)$row['source_type'], (string)$row['source_id']);
+            return $current !== null && ($current['status'] ?? '') === 'published'
+                && (int)$current['revision'] === (int)$row['source_revision'];
+        }
+        return true;
+    }
+
     /** Rebuilds corrupted/old derived indexes in bounded batches; repeats are safe. */
     public function reindex(int $limit = 20, int $offset = 0): array
     {

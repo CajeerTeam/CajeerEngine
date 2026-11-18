@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.6.6'
+const ADMIN_VERSION = '1.6.7'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -18,6 +18,7 @@ const nav = [
   ['translations', '🌐', 'AI Translation Studio', 'Переводы и локализации'],
   ['diagnostics', '⚙️', 'AI CMS Diagnostics', 'Проверка состояния CMS и объяснение проблем'],
   ['knowledge', '📚', 'AI Knowledge Base', 'Документы, категории, импорт, поиск'],
+  ['knowledge-chat', '◈', 'AI Knowledge Chat / RAG', 'Ответы с проверенными источниками'],
   ['tracking', '📈', 'Счётчики', 'Яндекс Метрика, GA4, GTM, Matomo и Plausible'],
   ['analytics-hub', '📊', 'Analytics Hub', 'Отчёты трафика и поисковой статистики'],
   ['analytics-events', '📊', 'События', 'Правила, цели и диагностика аналитики'],
@@ -53,6 +54,7 @@ const state = {
     seo: {type:'',entry:'',field:'seo_title',instructions:'',audit:null,batch:null,proposal:null,busy:false},
     diagnostics: {window:60,focus:'',explanation:null,usage:null,busy:false},
     knowledge: {selected:null, category:'', query:'', offset:0, search:'', visibility:'all', results:[], busy:false, kind:'', entry:''},
+    knowledgeChat: {active:null,messages:[],busy:false,visibility:'all',locale:'',question:''},
     translation: {type:'',entry:'',locale:'en',instructions:'',updateExisting:false,overview:null,glossary:[],proposal:null,busy:false,batch:null,batchSelection:[],batchUpdateExisting:false},
     aiSelected: null, aiMessages: [], aiBusy: false, aiEditor: {field:'title',mode:'generate',instructions:'',selection:'',busy:false,proposal:null},
     role: { handle: '', name: '', permissions: 'content:read,content:write' },
@@ -209,6 +211,7 @@ async function routeLoad(route) {
     if (route === 'ai') await Promise.allSettled([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations')])
     if (route === 'diagnostics') await loadSilent('aiDiagnostics','/ai/diagnostics?window_minutes='+state.forms.diagnostics.window)
     if (route === 'knowledge') await Promise.allSettled([loadSilent('kbCategories','/knowledge/categories'),loadSilent('kbDocuments','/knowledge/documents?limit=30&offset='+state.forms.knowledge.offset),loadSilent('kbTypes','/content-types')])
+    if (route === 'knowledge-chat') await Promise.allSettled([loadSilent('kbChatConversations','/knowledge/chat/conversations'),loadSilent('aiStatus','/ai/status')])
     if (route === 'seo') {
       await loadSilent('seoTypes','/content-types')
       const available=asArray(state.cache.seoTypes)
@@ -297,6 +300,7 @@ function render() {
   else if (state.route === 'translations') body = translationsView()
   else if (state.route === 'diagnostics') body = diagnosticsView()
   else if (state.route === 'knowledge') body = knowledgeView()
+  else if (state.route === 'knowledge-chat') body = knowledgeChatView()
   else if (state.route === 'tracking') body = trackingView()
   else if (state.route === 'analytics-hub') body = analyticsHubView()
   else if (state.route === 'analytics-events') body = analyticsEventsView()
@@ -314,6 +318,7 @@ function render() {
   bindForms()
   bindAi()
   bindKnowledge()
+  bindKnowledgeChat()
 }
 
 function renderLogin() {
@@ -1489,4 +1494,67 @@ function bindKnowledge() {
     const result=dataOf(await api('/knowledge/reindex',{method:'POST',body:JSON.stringify({limit:20,offset})}))
     setNotice('ok','Переиндексировано: '+Number(result.processed)+'. Следующее смещение: '+(result.next_offset??'завершено'));await refresh()
   }))
+}
+
+
+/** Production static SPA, same API and authorization policy as the Nuxt Knowledge Chat. */
+function knowledgeChatView(){
+  const e=escapeHtml,k=state.forms.knowledgeChat,conversations=asArray(state.cache.kbChatConversations)
+  const status=dataOf(state.cache.aiStatus,{})
+  const messages=k.messages.map(m=>`<article class="card" style="overflow-wrap:anywhere;background:${m.role==='user'?'#eff6ff':'#f8fafc'}">
+    <h3>${m.role==='user'?'Вопрос':'Ответ'}</h3><p style="white-space:pre-wrap">${e(m.content)}</p>
+    ${m.revoked?'<p class="notice error">Источник изменён или недоступен; ответ скрыт.</p>':''}
+    ${(m.sources||[]).length?`<h4>Подтверждённые источники</h4><ul>${m.sources.map(src=>`<li>[${Number(src.number)}] <button class="btn small secondary" data-kc-source="${e(src.id)}">${e(src.title)}</button> · ${e(src.locale)} · ревизия ${Number(src.revision)}, фрагмент ${Number(src.chunk_no)+1}</li>`).join('')}</ul>`:''}
+    ${m.role==='assistant'&&!m.revoked?`<div class="toolbar"><button class="btn small secondary" data-kc-rate="${e(m.id)}" data-rating="1" ${Number(m.feedback)===1?'aria-pressed="true"':''}>Полезно</button><button class="btn small secondary" data-kc-rate="${e(m.id)}" data-rating="-1" ${Number(m.feedback)===-1?'aria-pressed="true"':''}>Не помогло</button></div>`:''}
+  </article>`).join('')
+  const options=(values,value)=>values.map(([v,l])=>`<option value="${e(v)}" ${v===value?'selected':''}>${e(l)}</option>`).join('')
+  return `<section class="card"><h2>AI Knowledge Chat / RAG</h2><p>Рабочие ответы по опубликованной базе знаний и импортированным CMS-страницам. Документы отправляются в OpenAI только при вопросе. История приватна и ссылки сверяются с актуальной ревизией.</p>${!status?.configured?'<p class="notice">Для генерации нужен API-ключ OpenAI в настройках AI Assistant.</p>':''}</section>
+   <div class="two-col"><section class="card"><h3>Диалоги</h3><button class="btn secondary" data-kc-new ${k.busy?'disabled':''}>Новый диалог</button>
+   ${conversations.map(c=>`<div class="toolbar" style="margin:8px 0"><button class="btn small secondary" data-kc-open="${e(c.id)}" ${k.busy?'disabled':''}>${e(c.title)}</button><small>${e(c.visibility)}</small><button class="btn small danger" data-kc-delete="${e(c.id)}" ${k.busy?'disabled':''}>Удалить</button></div>`).join('')||'<p>История пуста.</p>'}</section>
+   <section class="card"><h3>Ответы с цитированием</h3><div class="toolbar"><label>Источники <select id="kc-visibility" class="input" ${k.active||k.busy?'disabled':''}>${options([['all','Все доступные'],['public','Только публичные']],k.visibility)}</select></label>
+   <label>Язык <select id="kc-locale" class="input" ${k.active||k.busy?'disabled':''}>${options([['','Все'],['ru','Русский'],['en','English']],k.locale)}</select></label></div>
+   <div style="max-height:60vh;overflow:auto">${messages||'<p>Задайте вопрос по базе знаний. Если подтверждённых фрагментов нет, ответ будет ограничен.</p>'}</div>
+   <form class="form" data-kc-ask><label>Вопрос <textarea name="question" class="input" maxlength="1200" rows="4" required>${e(k.question)}</textarea></label><button class="btn" type="submit" ${k.busy?'disabled':''}>${k.busy?'Формирование ответа…':'Спросить базу знаний'}</button></form></section></div>`
+}
+function bindKnowledgeChat(){
+  if(state.route!=='knowledge-chat')return
+  const k=state.forms.knowledgeChat
+  const refresh=async()=>{await loadSilent('kbChatConversations','/knowledge/chat/conversations');render()}
+  const run=async fn=>{
+    if(k.busy)return;k.busy=true;render()
+    try{await fn()}catch(err){setNotice('error',err.message,err.payload)}finally{k.busy=false;render()}
+  }
+  document.querySelector('[data-kc-new]')?.addEventListener('click',()=>{k.active=null;k.messages=[];k.question='';render()})
+  document.querySelectorAll('[data-kc-open]').forEach(b=>b.addEventListener('click',()=>run(async()=>{
+    const c=asArray(state.cache.kbChatConversations).find(c=>c.id===b.dataset.kcOpen)
+    if(!c)return
+    k.active=c.id;k.visibility=c.visibility;k.locale=c.locale;k.messages=asArray(await api('/knowledge/chat/conversations/'+encodeURIComponent(c.id)))
+  })))
+  document.querySelectorAll('[data-kc-delete]').forEach(b=>b.addEventListener('click',()=>{if(!confirm('Удалить диалог и все ответы?'))return;run(async()=>{
+    await api('/knowledge/chat/conversations/'+encodeURIComponent(b.dataset.kcDelete),{method:'DELETE'})
+    if(k.active===b.dataset.kcDelete){k.active=null;k.messages=[]}
+    await refresh()
+  })}))
+  document.querySelectorAll('[data-kc-rate]').forEach(b=>b.addEventListener('click',()=>run(async()=>{
+    const rating=Number(b.dataset.rating),id=b.dataset.kcRate
+    await api('/knowledge/chat/messages/'+encodeURIComponent(id)+'/feedback',{method:'POST',body:JSON.stringify({rating})})
+    const m=k.messages.find(m=>m.id===id);if(m)m.feedback=rating
+  })))
+  document.querySelectorAll('[data-kc-source]').forEach(b=>b.addEventListener('click',()=>run(async()=>{
+    const doc=dataOf(await api('/knowledge/documents/'+encodeURIComponent(b.dataset.kcSource)))
+    state.forms.knowledge.selected=doc;go('knowledge')
+  })))
+  document.querySelector('[data-kc-ask]')?.addEventListener('submit',event=>{
+    event.preventDefault()
+    const f=new FormData(event.currentTarget);k.question=String(f.get('question')||'').trim()
+    const visibility=document.querySelector('#kc-visibility');const locale=document.querySelector('#kc-locale')
+    if(!k.active){k.visibility=visibility?.value||'all';k.locale=locale?.value||''}
+    if(!k.question)return
+    run(async()=>{
+      const answer=dataOf(await api('/knowledge/chat/ask',{method:'POST',body:JSON.stringify({conversation_id:k.active,question:k.question,visibility:k.visibility,locale:k.locale})}))
+      k.active=answer.conversation_id;k.question=''
+      k.messages=asArray(await api('/knowledge/chat/conversations/'+encodeURIComponent(k.active)))
+      await refresh()
+    })
+  })
 }

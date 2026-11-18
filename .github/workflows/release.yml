@@ -106,6 +106,8 @@ jobs:
         run: php tools/ai-cms-diagnostics-regression.php --require-db
       - name: AI Knowledge Base real PDO, indexed search, CMS source staleness and document revision acceptance
         run: php tools/ai-knowledge-integration.php --require-db
+      - name: AI Knowledge Chat RAG real PDO, private sessions, source revocation and shared budget
+        run: php tools/ai-knowledge-chat-integration.php --require-db
       - name: Identity GA SQL rollback and selective revocation (SQLite)
         run: python3 tools/identity-ga-sqlite-regression.py
       - name: Unified Session Management PDO / SQLite integration
@@ -174,6 +176,7 @@ jobs:
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/ai-translation-browser.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/ai-cms-diagnostics-browser.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/ai-knowledge-browser.py
+          CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/ai-knowledge-chat-browser.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/tracking-browser-regression.py --network
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/analytics-events-browser-regression.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/alternative-analytics-browser-regression.py

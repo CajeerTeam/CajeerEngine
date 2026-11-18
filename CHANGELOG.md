@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.7 — AI Knowledge Chat / RAG
+
+- Ranked retrieval of actual indexed knowledge chunks; published CMS sources are checked against the current source revision and visibility before transmission to OpenAI.
+- Grounded Responses API generation with validated inline source markers, refusal without evidence, shared monthly AI budget, rate limits and per-user conversation histories.
+- Source revision/visibility verification on historical answers, owner-only deletion, per-answer feedback and isolated knowledge chat storage.
+- Nuxt and production static SPA Knowledge Chat, server-side audit and three-database migration 0035; regression and deployment documentation.
+
+
 ## 1.6.6 — AI Knowledge Base
 
 - Admin knowledge categories and documents with publication state, locale, internal/public visibility, optimistic revisions, audit and CSRF/RBAC.

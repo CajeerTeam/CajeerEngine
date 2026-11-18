@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace CajeerEngine\Api\Controller;
 
 use CajeerEngine\AI\AiKnowledgeBase;
+use CajeerEngine\AI\AiKnowledgeChat;
+use CajeerEngine\AI\AiProviderException;
 use CajeerEngine\Audit\AuditLogger;
 use CajeerEngine\Security\RateLimiter;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -13,7 +15,7 @@ use Symfony\Component\HttpFoundation\Request;
 /** Authenticated browser-only editorial knowledge management, never a public retrieval route. */
 final readonly class KnowledgeController
 {
-    public function __construct(private AiKnowledgeBase $kb, private AuditLogger $audit, private RateLimiter $limiter) {}
+    public function __construct(private AiKnowledgeBase $kb, private AuditLogger $audit, private RateLimiter $limiter, private AiKnowledgeChat $chat) {}
 
     private static function user(Request $request): string
     {
@@ -147,6 +149,63 @@ final readonly class KnowledgeController
         if ($limit < 1) throw new \InvalidArgumentException('Invalid limit.');
         return self::ok($this->kb->search((string)$request->query->get('q', ''), (string)$request->query->get('visibility', 'all'),
             (string)$request->query->get('locale', ''), $limit));
+    }
+
+    /** Owner-scoped RAG conversations, separate from general ChatGPT history. */
+    public function chatConversations(Request $request): JsonResponse
+    {
+        return self::ok($this->chat->conversations(self::user($request)));
+    }
+
+    public function chatShow(Request $request, array $params): JsonResponse
+    {
+        return self::ok($this->chat->messages(self::user($request), (string)$params['id']));
+    }
+
+    public function chatDelete(Request $request, array $params): JsonResponse
+    {
+        $user = self::user($request);
+        $this->chat->remove($user, (string)$params['id']);
+        $this->audit->record('knowledge.chat.deleted', $user, ['conversation_id' => $params['id']]);
+        return self::ok(['deleted' => true]);
+    }
+
+    public function chatFeedback(Request $request, array $params): JsonResponse
+    {
+        $user = self::user($request);
+        $body = self::data($request);
+        if (array_keys($body) !== ['rating'] || !is_int($body['rating']))
+            throw new \InvalidArgumentException('Rating must be an integer.');
+        $value = $this->chat->feedback($user, (string)$params['id'], $body['rating']);
+        $this->audit->record('knowledge.chat.feedback', $user, ['message_id' => $params['id'], 'rating' => $body['rating']]);
+        return self::ok($value);
+    }
+
+    public function chatAsk(Request $request): JsonResponse
+    {
+        $user = self::user($request);
+        $body = self::data($request);
+        if (array_diff(array_keys($body), ['conversation_id', 'question', 'visibility', 'locale']) !== []
+            || !is_string($body['question'] ?? null)
+            || (isset($body['conversation_id']) && !is_string($body['conversation_id']))
+            || (isset($body['visibility']) && !is_string($body['visibility']))
+            || (isset($body['locale']) && !is_string($body['locale'])))
+            throw new \InvalidArgumentException('Invalid knowledge question.');
+        $hit = $this->limiter->hit('knowledge-rag-generation', $user, 6, 60);
+        if (!$hit['allowed']) return new JsonResponse(['error' => ['code' => 'knowledge_chat_rate_limited', 'message' => 'Knowledge Chat: не более шести вопросов в минуту.']],
+            429, ['Retry-After' => (string)$hit['retry_after'], 'Cache-Control' => 'no-store']);
+        try {
+            $result = $this->chat->ask($user, $body['conversation_id'] ?? null, $body['question'],
+                $body['visibility'] ?? 'all', $body['locale'] ?? '');
+            $this->audit->record('knowledge.chat.answered', $user, [
+                'conversation_id' => $result['conversation_id'], 'sources' => count($result['sources']),
+                'usage' => $result['usage'],
+            ]);
+            return self::ok($result);
+        } catch (AiProviderException $e) {
+            return new JsonResponse(['error' => ['code' => 'knowledge_chat_provider_unavailable', 'message' => $e->getMessage()]],
+                $e->httpStatus, ['Cache-Control' => 'no-store']);
+        }
     }
 
     public function reindex(Request $request): JsonResponse

@@ -61,7 +61,7 @@ with sync_playwright() as driver:
     assert page.locator('img').count()==0, 'HTML in knowledge title cannot execute'
     page.locator('[data-kb-document] textarea[name=body]').fill('New revision and corrected instructions')
     page.locator('[data-kb-document] button[type=submit]').click()
-    page.get_by_text('Документ сохранён и индекс обновлён.').wait_for()
+    page.wait_for_function('() => state.forms.knowledge.busy === false && window.calls.some(x => x.method === "PUT" && x.path.startsWith("/knowledge/documents/"))')
     page.locator('[data-kb-search] input[name=q]').fill('instructions')
     page.locator('[data-kb-search] button[type=submit]').click()
     try: page.get_by_text('Found <img src=x onerror=alert(1)>').wait_for(timeout=6000)

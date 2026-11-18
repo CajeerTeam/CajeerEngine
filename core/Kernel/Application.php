@@ -18,6 +18,7 @@ use CajeerEngine\Api\Controller\OidcController;
 use CajeerEngine\Api\Controller\IdentityAdminController;
 use CajeerEngine\Api\Controller\AiController;
 use CajeerEngine\AI\AiChat;
+use CajeerEngine\AI\AiKnowledgeChat;
 use CajeerEngine\AI\AiContentEditor;
 use CajeerEngine\AI\AiSeoAssistant;
 use CajeerEngine\AI\AiSettings;
@@ -456,8 +457,13 @@ final class Application
         $container->set(\CajeerEngine\AI\AiKnowledgeBase::class, fn (ServiceContainer $c): \CajeerEngine\AI\AiKnowledgeBase => new \CajeerEngine\AI\AiKnowledgeBase(
             $c->get(DatabaseManager::class), $c->get(ContentEntryRepository::class), $c->get(ContentTypeRepository::class)
         ));
+        $container->set(AiKnowledgeChat::class, fn (ServiceContainer $c): AiKnowledgeChat => new AiKnowledgeChat(
+            $c->get(DatabaseManager::class), $c->get(\CajeerEngine\AI\AiKnowledgeBase::class),
+            $c->get(AiSettings::class), $c->get(OpenAiClient::class)
+        ));
         $container->set('controller.knowledge', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\KnowledgeController => new \CajeerEngine\Api\Controller\KnowledgeController(
-            $c->get(\CajeerEngine\AI\AiKnowledgeBase::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class)
+            $c->get(\CajeerEngine\AI\AiKnowledgeBase::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class),
+            $c->get(AiKnowledgeChat::class)
         ));
         $container->set('controller.ai', fn (ServiceContainer $c): AiController => new AiController(
             $c->get(AiChat::class), $c->get(AiSettings::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class),

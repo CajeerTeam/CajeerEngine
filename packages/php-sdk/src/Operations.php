@@ -492,6 +492,69 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'api_v1_knowledge_chat_ask' => 
+  array (
+    'method' => 'POST',
+    'path' => '/knowledge/chat/ask',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_knowledge_chat_conversations' => 
+  array (
+    'method' => 'GET',
+    'path' => '/knowledge/chat/conversations',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_knowledge_chat_delete' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/knowledge/chat/conversations/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_knowledge_chat_feedback' => 
+  array (
+    'method' => 'POST',
+    'path' => '/knowledge/chat/messages/{id}/feedback',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_knowledge_chat_show' => 
+  array (
+    'method' => 'GET',
+    'path' => '/knowledge/chat/conversations/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'api_v1_knowledge_documents' => 
   array (
     'method' => 'GET',

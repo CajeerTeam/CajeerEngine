@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const api = useAdminApi()
+const route = useRoute()
 type Category = {id:string;slug:string;name:string;description:string}
 type Document = {id:string;category_id:string|null;slug:string;title:string;body:string;locale:string;visibility:'public'|'internal';status:'draft'|'published'|'archived';revision:number;indexed_revision:number;source_kind:string;source_type:string|null;source_id:string|null;source_revision:number|null}
 type Hit = {id:string;title:string;excerpt:string;locale:string;visibility:string;score:number}
@@ -133,7 +134,7 @@ async function rebuild(){
   }catch(e){error.value=e instanceof Error?e.message:'Переиндексация прервана; можно продолжить с текущего смещения.'}
   finally{busy.value=false}
 }
-onMounted(async()=>{await refresh();await loadEntries()})
+onMounted(async()=>{await refresh();await loadEntries();const id=route.query.document;if(typeof id==='string' && /^[a-f0-9-]{36}$/i.test(id)) await openDocument(id)})
 watch(()=>cms.type,()=>{cms.entry_id='';loadEntries()})
 </script>
 
