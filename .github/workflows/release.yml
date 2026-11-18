@@ -108,6 +108,12 @@ jobs:
         run: php tools/ai-knowledge-integration.php --require-db
       - name: AI Knowledge Chat RAG real PDO, private sessions, source revocation and shared budget
         run: php tools/ai-knowledge-chat-integration.php --require-db
+      - name: AI Support Center visitor capability, operator queue, grounded AI and handoff acceptance
+        run: php tools/ai-support-integration.php --require-db
+      - name: AI Support Center SQL schema and optimistic update regression
+        run: python3 tools/ai-support-sqlite-regression.py
+      - name: AI Support Center public widget and admin SPA Chromium regression
+        run: python3 tools/ai-support-browser.py
       - name: Identity GA SQL rollback and selective revocation (SQLite)
         run: python3 tools/identity-ga-sqlite-regression.py
       - name: Unified Session Management PDO / SQLite integration

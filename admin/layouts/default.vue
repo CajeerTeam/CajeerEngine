@@ -7,7 +7,7 @@ onMounted(() => auth.load())
   <main class="ce-admin-shell">
     <aside class="ce-admin-sidebar">
       <strong>CajeerEngine</strong>
-      <small>Admin UI 1.6.7</small>
+      <small>Admin UI 1.6.8</small>
       <nav>
         <NuxtLink to="/">Обзор</NuxtLink>
         <NuxtLink to="/content-types">Типы контента</NuxtLink>
@@ -21,6 +21,7 @@ onMounted(() => auth.load())
         <NuxtLink to="/diagnostics">AI CMS Diagnostics</NuxtLink>
         <NuxtLink to="/knowledge">AI Knowledge Base</NuxtLink>
         <NuxtLink to="/knowledge-chat">AI Knowledge Chat / RAG</NuxtLink>
+        <NuxtLink to="/support">AI Support Center</NuxtLink>
         <NuxtLink to="/api-tokens">API tokens</NuxtLink>
         <NuxtLink to="/extensions">Расширения</NuxtLink>
         <NuxtLink to="/import-export">Import / Export</NuxtLink>

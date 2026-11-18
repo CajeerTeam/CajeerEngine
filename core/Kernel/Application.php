@@ -352,6 +352,7 @@ final class Application
             new \CajeerEngine\Analytics\ServerEvents($rootPath,$c->get(IntegrationCenter::class),$c->get(ManagedQueueDriverInterface::class)),
             $c->get(\CajeerEngine\Analytics\Reporting\AnalyticsHub::class),
             $c->get(\CajeerEngine\AI\AiTranslationStudio::class),
+            $c->get(\CajeerEngine\AI\AiSupportCenter::class),
         ));
         $container->set(SchedulerRunner::class, fn (ServiceContainer $c): SchedulerRunner => new SchedulerRunner(
             $rootPath,
@@ -460,6 +461,12 @@ final class Application
         $container->set(AiKnowledgeChat::class, fn (ServiceContainer $c): AiKnowledgeChat => new AiKnowledgeChat(
             $c->get(DatabaseManager::class), $c->get(\CajeerEngine\AI\AiKnowledgeBase::class),
             $c->get(AiSettings::class), $c->get(OpenAiClient::class)
+        ));
+        $container->set(\CajeerEngine\AI\AiSupportCenter::class, fn (ServiceContainer $c): \CajeerEngine\AI\AiSupportCenter => new \CajeerEngine\AI\AiSupportCenter(
+            $c->get(DatabaseManager::class), $c->get(\CajeerEngine\AI\AiKnowledgeBase::class), $c->get(AiSettings::class), $c->get(OpenAiClient::class)
+        ));
+        $container->set('controller.support', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\SupportController => new \CajeerEngine\Api\Controller\SupportController(
+            $c->get(\CajeerEngine\AI\AiSupportCenter::class), $c->get(RateLimiter::class), $c->get(AuditLogger::class), $c->get(ManagedQueueDriverInterface::class)
         ));
         $container->set('controller.knowledge', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\KnowledgeController => new \CajeerEngine\Api\Controller\KnowledgeController(
             $c->get(\CajeerEngine\AI\AiKnowledgeBase::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class),
@@ -577,13 +584,14 @@ final class Application
 
         $ai = $container->get('controller.ai');
         $knowledge = $container->get('controller.knowledge');
+        $support = $container->get('controller.support');
         $integrations = $container->get('controller.integrations');
         $consent = $container->get('controller.consent');
         $tracking = $container->get('controller.tracking');
         $analyticsHub = $container->get('controller.analyticsHub');
         $analyticsEvents = $container->get('controller.analyticsEvents');
         $migration = $container->get('controller.migration');
-        $controllers = compact('knowledge', 'ai', 'identityAdmin', 'oidc', 'migration', 'analyticsHub', 'tracking', 'analyticsEvents', 'consent', 'integrations', 'health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
+        $controllers = compact('support', 'knowledge', 'ai', 'identityAdmin', 'oidc', 'migration', 'analyticsHub', 'tracking', 'analyticsEvents', 'consent', 'integrations', 'health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
         foreach (\CajeerEngine\Http\RouteRegistry::all() as [$method, $path, $name, $controller, $action, $scopes]) {
             $router->add([$method], $path, $name, [$controllers[$controller], $action], $scopes);
         }

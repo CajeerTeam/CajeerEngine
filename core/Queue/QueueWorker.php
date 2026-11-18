@@ -10,9 +10,15 @@ final class QueueWorker
 {
     private JobHandlerRegistry $handlers;
     private bool $stopping=false;
-    public function __construct(private readonly ManagedQueueDriverInterface $queue,private readonly SearchIndexer $searchIndexer,private readonly WebhookRepository $webhooks,private readonly WebhookDispatcher $dispatcher,private readonly ?\CajeerEngine\Extension\Runtime\PlatformServices $platform=null,private readonly ?\CajeerEngine\Analytics\ServerEvents $analytics=null,private readonly ?\CajeerEngine\Analytics\Reporting\AnalyticsHub $analyticsHub=null,private readonly ?\CajeerEngine\AI\AiTranslationStudio $translationStudio=null)
+    public function __construct(private readonly ManagedQueueDriverInterface $queue,private readonly SearchIndexer $searchIndexer,private readonly WebhookRepository $webhooks,private readonly WebhookDispatcher $dispatcher,private readonly ?\CajeerEngine\Extension\Runtime\PlatformServices $platform=null,private readonly ?\CajeerEngine\Analytics\ServerEvents $analytics=null,private readonly ?\CajeerEngine\Analytics\Reporting\AnalyticsHub $analyticsHub=null,private readonly ?\CajeerEngine\AI\AiTranslationStudio $translationStudio=null,private readonly ?\CajeerEngine\AI\AiSupportCenter $supportCenter=null)
     {
         $this->handlers=new JobHandlerRegistry();
+        $this->handlers->register('ai.support.reply', function ($payload, JobContext $ctx): void {
+            if ($this->supportCenter === null || !is_string($payload['ticket_id'] ?? null)) throw new \RuntimeException('AI Support job unavailable.');
+            $ctx->heartbeat();
+            $this->supportCenter->autoReply($payload['ticket_id']);
+            $ctx->heartbeat();
+        });
         $this->handlers->register('ai.translation.propose', function ($payload, JobContext $ctx): void {
             if ($this->translationStudio === null || !is_string($payload['item_id'] ?? null)) throw new \RuntimeException('AI Translation Studio job unavailable');
             $ctx->heartbeat();

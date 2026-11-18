@@ -70,5 +70,7 @@
       <footer class="ce-footer">Работает на CajeerEngine CMS.</footer>
     @endif
   </main>
+  <link rel="stylesheet" href="/support/widget.css">
+  <script src="/support/widget.js" defer></script>
 </body>
 </html>

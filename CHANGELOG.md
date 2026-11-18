@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.8 — AI Support Center
+
+- Live public visitor ticket widget with capability-based ticket access, rate limits, ticket messages and operator handoff.
+- Agent inbox, assignment, priority, status, replies and revision checks in Nuxt and production static SPA.
+- Optional OpenAI responses grounded exclusively in current public knowledge sources, budgeted generation, and manual AI draft approval.
+- Cross-database SQL migration 0036, integration regression and deployment instructions.
+
 ## 1.6.7 — AI Knowledge Chat / RAG
 
 - Ranked retrieval of actual indexed knowledge chunks; published CMS sources are checked against the current source revision and visibility before transmission to OpenAI.

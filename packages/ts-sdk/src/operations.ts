@@ -537,6 +537,108 @@ export const operations = {
         "parameters": [],
         "bodyRequired": true
     },
+    "api_v1_public_support_config": {
+        "method": "GET",
+        "path": "/public/support/config",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "api_v1_public_support_handoff": {
+        "method": "POST",
+        "path": "/public/support/tickets/{id}/handoff",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_public_support_messages_create": {
+        "method": "POST",
+        "path": "/public/support/tickets/{id}/messages",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_public_support_tickets_create": {
+        "method": "POST",
+        "path": "/public/support/tickets",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_public_support_tickets_show": {
+        "method": "GET",
+        "path": "/public/support/tickets/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_support_ai_draft": {
+        "method": "POST",
+        "path": "/support/tickets/{id}/ai-draft",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_support_messages_create": {
+        "method": "POST",
+        "path": "/support/tickets/{id}/messages",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_support_tickets": {
+        "method": "GET",
+        "path": "/support/tickets",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "api_v1_support_tickets_show": {
+        "method": "GET",
+        "path": "/support/tickets/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_support_tickets_update": {
+        "method": "PATCH",
+        "path": "/support/tickets/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
     "delete_AnalyticsEventJournal": {
         "method": "DELETE",
         "path": "/tracking/events/journal",

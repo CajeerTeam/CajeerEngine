@@ -702,6 +702,138 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'api_v1_public_support_config' => 
+  array (
+    'method' => 'GET',
+    'path' => '/public/support/config',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_public_support_handoff' => 
+  array (
+    'method' => 'POST',
+    'path' => '/public/support/tickets/{id}/handoff',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_public_support_messages_create' => 
+  array (
+    'method' => 'POST',
+    'path' => '/public/support/tickets/{id}/messages',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_public_support_tickets_create' => 
+  array (
+    'method' => 'POST',
+    'path' => '/public/support/tickets',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_public_support_tickets_show' => 
+  array (
+    'method' => 'GET',
+    'path' => '/public/support/tickets/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_support_ai_draft' => 
+  array (
+    'method' => 'POST',
+    'path' => '/support/tickets/{id}/ai-draft',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_support_messages_create' => 
+  array (
+    'method' => 'POST',
+    'path' => '/support/tickets/{id}/messages',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_support_tickets' => 
+  array (
+    'method' => 'GET',
+    'path' => '/support/tickets',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_support_tickets_show' => 
+  array (
+    'method' => 'GET',
+    'path' => '/support/tickets/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_support_tickets_update' => 
+  array (
+    'method' => 'PATCH',
+    'path' => '/support/tickets/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
   'delete_AnalyticsEventJournal' => 
   array (
     'method' => 'DELETE',

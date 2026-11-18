@@ -32,7 +32,7 @@ final readonly class OpenApiLinter
                 if (!isset($expected[$key])) { $errors[] = 'Undeclared runtime operation: '.$key; continue; }
                 [$name,$scopes] = $expected[$key];
                 if (($op['x-cajeer-route'] ?? '') !== $name || !array_key_exists('x-cajeer-required-scopes',$op) || $op['x-cajeer-required-scopes'] !== $scopes) $errors[] = 'Route / scope mismatch: '.$key;
-                $security = $scopes === null ? [] : ((str_starts_with($name, 'api.v1.ai.') || str_starts_with($name, 'api.v1.knowledge.')) ? [['BrowserSession'=>[]]+($method !== 'get' ? ['CsrfToken'=>[]] : [])] : [['BearerAuth'=>[]],['ApiTokenAuth'=>[]],['BrowserSession'=>[]]+($method !== 'get' ? ['CsrfToken'=>[]] : [])]);
+                $security = $scopes === null ? [] : ((str_starts_with($name, 'api.v1.ai.') || str_starts_with($name, 'api.v1.knowledge.') || str_starts_with($name, 'api.v1.support.')) ? [['BrowserSession'=>[]]+($method !== 'get' ? ['CsrfToken'=>[]] : [])] : [['BearerAuth'=>[]],['ApiTokenAuth'=>[]],['BrowserSession'=>[]]+($method !== 'get' ? ['CsrfToken'=>[]] : [])]);
                 if (($op['security'] ?? null) !== $security) $errors[] = 'Security mismatch: '.$key;
                 $id = $op['operationId'] ?? '';
                 if (!is_string($id) || $id === '' || isset($ids[$id])) $errors[] = 'Missing/duplicate operationId: '.$key;

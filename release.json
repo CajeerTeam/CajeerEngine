@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.6.7",
+  "version": "1.6.8",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.6.7-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.6.7-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.6.8-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.6.8-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.6.7-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.6.8-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -41,7 +41,8 @@
     "AI Content Editor 1.6.2: live generation and rewriting of title/text/richtext/block fields, durable per-user proposals, token budget reservations, revision CAS acceptance, and both admin interfaces.",
     "AI CMS Diagnostics 1.6.5: real OperationsMonitor/SecurityHardener probes, redacted runtime event aggregation, actionable read-only rules, optional budgeted OpenAI explanation, Nuxt and production static SPA.",
     "AI Knowledge Base 1.6.6: authenticated category/document workflows, TXT/Markdown/PDF import, published CMS entry sync, separate private full-text inverted index, optimistic revisions and dual admin interfaces.",
-    "AI Knowledge Chat / RAG 1.6.7: owner-scoped indexed retrieval, published/current CMS source guards, referenced OpenAI answers, feedback, audit and protected conversation histories in both admin interfaces."
+    "AI Knowledge Chat / RAG 1.6.7: owner-scoped indexed retrieval, published/current CMS source guards, referenced OpenAI answers, feedback, audit and protected conversation histories in both admin interfaces.",
+    "AI Support Center 1.6.8: public guest widget with per-ticket capability tokens, operator ticket queue, assignments, replies, handoff, and public-only RAG suggestions, live DB acceptance and dual admin UI."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",

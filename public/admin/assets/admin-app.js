@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.6.7'
+const ADMIN_VERSION = '1.6.8'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -19,6 +19,7 @@ const nav = [
   ['diagnostics', '⚙️', 'AI CMS Diagnostics', 'Проверка состояния CMS и объяснение проблем'],
   ['knowledge', '📚', 'AI Knowledge Base', 'Документы, категории, импорт, поиск'],
   ['knowledge-chat', '◈', 'AI Knowledge Chat / RAG', 'Ответы с проверенными источниками'],
+  ['support', '✉', 'AI Support Center', 'Обращения и передача оператору'],
   ['tracking', '📈', 'Счётчики', 'Яндекс Метрика, GA4, GTM, Matomo и Plausible'],
   ['analytics-hub', '📊', 'Analytics Hub', 'Отчёты трафика и поисковой статистики'],
   ['analytics-events', '📊', 'События', 'Правила, цели и диагностика аналитики'],
@@ -55,6 +56,7 @@ const state = {
     diagnostics: {window:60,focus:'',explanation:null,usage:null,busy:false},
     knowledge: {selected:null, category:'', query:'', offset:0, search:'', visibility:'all', results:[], busy:false, kind:'', entry:''},
     knowledgeChat: {active:null,messages:[],busy:false,visibility:'all',locale:'',question:''},
+    support: {selected:null,status:'',offset:0,busy:false,reply:'',draft:'',draftSources:[],assignee:'',priority:'normal',ticketStatus:'open'},
     translation: {type:'',entry:'',locale:'en',instructions:'',updateExisting:false,overview:null,glossary:[],proposal:null,busy:false,batch:null,batchSelection:[],batchUpdateExisting:false},
     aiSelected: null, aiMessages: [], aiBusy: false, aiEditor: {field:'title',mode:'generate',instructions:'',selection:'',busy:false,proposal:null},
     role: { handle: '', name: '', permissions: 'content:read,content:write' },
@@ -212,6 +214,7 @@ async function routeLoad(route) {
     if (route === 'diagnostics') await loadSilent('aiDiagnostics','/ai/diagnostics?window_minutes='+state.forms.diagnostics.window)
     if (route === 'knowledge') await Promise.allSettled([loadSilent('kbCategories','/knowledge/categories'),loadSilent('kbDocuments','/knowledge/documents?limit=30&offset='+state.forms.knowledge.offset),loadSilent('kbTypes','/content-types')])
     if (route === 'knowledge-chat') await Promise.allSettled([loadSilent('kbChatConversations','/knowledge/chat/conversations'),loadSilent('aiStatus','/ai/status')])
+    if (route === 'support') await loadSilent('supportTickets','/support/tickets?'+new URLSearchParams({status:state.forms.support.status,offset:String(state.forms.support.offset),limit:'30'}))
     if (route === 'seo') {
       await loadSilent('seoTypes','/content-types')
       const available=asArray(state.cache.seoTypes)
@@ -301,6 +304,7 @@ function render() {
   else if (state.route === 'diagnostics') body = diagnosticsView()
   else if (state.route === 'knowledge') body = knowledgeView()
   else if (state.route === 'knowledge-chat') body = knowledgeChatView()
+  else if (state.route === 'support') body = supportView()
   else if (state.route === 'tracking') body = trackingView()
   else if (state.route === 'analytics-hub') body = analyticsHubView()
   else if (state.route === 'analytics-events') body = analyticsEventsView()
@@ -319,6 +323,7 @@ function render() {
   bindAi()
   bindKnowledge()
   bindKnowledgeChat()
+  bindSupport()
 }
 
 function renderLogin() {
@@ -1557,4 +1562,68 @@ function bindKnowledgeChat(){
       await refresh()
     })
   })
+}
+
+/** Full operator ticket workflow in the production static SPA (matches Nuxt UI). */
+function supportView() {
+  const e = escapeHtml, f = state.forms.support, data = dataOf(state.cache.supportTickets, {}), items = data.items || []
+  const t = f.selected
+  const opts = (options, selected) => options.map(([v, label]) => `<option value="${e(v)}" ${v === selected ? 'selected' : ''}>${e(label)}</option>`).join('')
+  return `<div class="two-col"><section class="card"><h2>Очередь обращений · ${Number(data.total || 0)}</h2>
+      <form data-sp-filter class="toolbar"><label>Статус <select name="status" class="input">${opts([['','Все'],['open','Открытые'],['waiting','Ожидание'],['resolved','Решённые'],['closed','Закрытые']],f.status)}</select></label><button class="btn secondary">Фильтр</button></form>
+      ${(items.map(item=>`<article class="card" style="margin:8px 0;overflow-wrap:anywhere"><strong>${e(item.subject)}</strong><p>${e(item.name)} · ${e(item.email)}</p><small>${e(item.status)} · ${e(item.priority)} ${item.needs_human ? ' · требуется оператор':''}</small><div><button class="btn small secondary" data-sp-open="${e(item.id)}">Открыть</button></div></article>`).join('')) || '<p>Обращений нет.</p>'}
+      <div class="toolbar"><button class="btn secondary" data-sp-prev ${f.offset===0?'disabled':''}>Назад</button><button class="btn secondary" data-sp-next ${f.offset+30>=Number(data.total||0)?'disabled':''}>Далее</button></div>
+    </section><section class="card">${t ? `<h2>${e(t.subject)}</h2><p><strong>${e(t.name)}</strong> · ${e(t.email)} · ${e(t.locale)}</p>
+      <form class="form" data-sp-update><label>Статус <select class="input" name="status">${opts([['open','Открыто'],['waiting','Ожидание посетителя'],['resolved','Решено'],['closed','Закрыто']],f.ticketStatus)}</select></label>
+      <label>Приоритет <select name="priority" class="input">${opts([['low','Низкий'],['normal','Обычный'],['high','Высокий'],['urgent','Срочный']],f.priority)}</select></label>
+      <label>Ответственный (UUID пользователя)<input class="input" name="assigned_to" value="${e(f.assignee)}" maxlength="36" placeholder="Не назначен"></label><button class="btn secondary" data-sp-self type="button">Назначить себе</button><button class="btn" ${f.busy?'disabled':''}>Сохранить статус и назначение</button></form>
+      <h3>Переписка</h3><div style="max-height:46vh;overflow:auto;display:grid;gap:8px" aria-live="polite">${(t.messages||[]).map(msg=>`<article class="card" style="background:${msg.role==='visitor'?'#eff6ff':msg.role==='ai'?'#ecfdf5':'#f8fafc'};overflow-wrap:anywhere"><strong>${msg.role==='visitor'?'Посетитель':msg.role==='ai'?'AI':'Оператор'}</strong><p style="white-space:pre-wrap">${e(msg.content)}</p>${(msg.sources||[]).map(src=>`<small>[${Number(src.number)}] ${e(src.title)}</small>`).join('')}</article>`).join('')}</div>
+      <form class="form" data-sp-reply><label>Ответ<textarea name="message" class="input" maxlength="6000" rows="5" required ${t.status==='closed'?'disabled':''}>${e(f.reply)}</textarea></label><div class="toolbar"><button class="btn secondary" type="button" data-sp-draft ${f.busy||t.status==='closed'?'disabled':''}>AI-подсказка</button><button class="btn" ${f.busy||t.status==='closed'?'disabled':''}>Ответить</button></div></form>
+      ${f.draft?`<p class="notice">AI-черновик требует проверки оператором перед отправкой.</p><ul>${f.draftSources.map(src=>`<li>[${Number(src.number)}] ${e(src.title)}</li>`).join('')}</ul>`:''}` : '<p>Выберите обращение для работы.</p>'}</section></div>`
+}
+function bindSupport() {
+  if (state.route !== 'support') return
+  const f = state.forms.support
+  const reload = async () => {
+    await routeLoad('support')
+    if (f.selected) f.selected = dataOf(await api('/support/tickets/' + encodeURIComponent(f.selected.id)))
+  }
+  const run = async fn => {
+    if (f.busy) return
+    f.busy = true; render()
+    try { await fn() } catch (err) { setNotice('error', err.message, err.payload) }
+    finally { f.busy = false; render() }
+  }
+  document.querySelector('[data-sp-filter]')?.addEventListener('submit', event => {
+    event.preventDefault(); f.status = String(new FormData(event.currentTarget).get('status')); f.offset = 0
+    run(async () => { await reload() })
+  })
+  document.querySelector('[data-sp-prev]')?.addEventListener('click', () => run(async () => { f.offset = Math.max(0, f.offset - 30); await reload() }))
+  document.querySelector('[data-sp-next]')?.addEventListener('click', () => run(async () => { f.offset += 30; await reload() }))
+  document.querySelectorAll('[data-sp-open]').forEach(button => button.addEventListener('click', () => run(async () => {
+    f.selected = dataOf(await api('/support/tickets/' + encodeURIComponent(button.dataset.spOpen)))
+    f.assignee = f.selected.assigned_to || ''; f.priority = f.selected.priority; f.ticketStatus = f.selected.status
+    f.reply = ''; f.draft = ''; f.draftSources = []
+  })))
+  document.querySelector('[data-sp-self]')?.addEventListener('click', () => {
+    f.assignee = state.identity?.user_id || '';
+    const input = document.querySelector('[data-sp-update] input[name=assigned_to]'); if(input)input.value=f.assignee
+  })
+  document.querySelector('[data-sp-update]')?.addEventListener('submit', event => {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const body = {expected_revision:Number(f.selected.revision),status:String(data.get('status')),priority:String(data.get('priority')),assigned_to:String(data.get('assigned_to')).trim()||null}
+    run(async () => { f.selected = dataOf(await api('/support/tickets/'+encodeURIComponent(f.selected.id),{method:'PATCH',body:JSON.stringify(body)})); await reload();setNotice('ok','Обращение обновлено.') })
+  })
+  document.querySelector('[data-sp-reply]')?.addEventListener('submit', event => {
+    event.preventDefault()
+    const message = String(new FormData(event.currentTarget).get('message')||'').trim()
+    if (!message) return
+    run(async () => { f.selected = dataOf(await api('/support/tickets/'+encodeURIComponent(f.selected.id)+'/messages',{method:'POST',body:JSON.stringify({message})})); f.reply='';f.draft='';f.draftSources=[];await reload();setNotice('ok','Ответ отправлен.') })
+  })
+  document.querySelector('[data-sp-draft]')?.addEventListener('click', () => run(async () => {
+    const result = dataOf(await api('/support/tickets/'+encodeURIComponent(f.selected.id)+'/ai-draft',{method:'POST',body:'{}'}))
+    f.draft = result.text || '';f.reply = f.draft;f.draftSources = result.sources || []
+    setNotice('ok',f.draft?'Черновик готов. Проверьте текст перед отправкой.':'Нет подтверждённых публичных источников; ответьте вручную.')
+  }))
 }
