@@ -71,6 +71,10 @@ jobs:
           php tools/oidc-global-logout-regression.php
           python3 tools/oidc-global-logout-sqlite-regression.py
           php tools/oidc-global-logout-integration.php --require-db
+      - name: SkiF4er ID API access token RS256 and live introspection regression
+        run: php tools/oidc-api-regression.php
+      - name: SkiF4er ID API real PHP PDO / HTTP middleware integration
+        run: php tools/oidc-api-integration.php --require-db
       - name: Unified Session Management PDO / SQLite integration
         run: |
           python3 tools/unified-sessions-sqlite-regression.py

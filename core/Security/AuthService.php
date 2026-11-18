@@ -8,6 +8,7 @@ use CajeerEngine\Database\Repository\ApiTokenRepository;
 use CajeerEngine\Database\Repository\AuditLogRepository;
 use CajeerEngine\Database\Repository\UserRepository;
 use CajeerEngine\Database\Repository\UserSessionRepository;
+use CajeerEngine\Identity\OidcApiAuthenticator;
 use CajeerEngine\Runtime\ConfigRepository;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -21,6 +22,7 @@ final readonly class AuthService
         private PasswordHasher $passwords,
         private TwoFactorTotp $totp,
         private ?UserSessionRepository $sessions = null,
+        private ?OidcApiAuthenticator $oidcApi = null,
     ) {
     }
 
@@ -98,6 +100,26 @@ final readonly class AuthService
         }
         if ($token === '') { return null; }
         $cookie = $cookie ?? false;
+
+        // External JWTs never masquerade as local opaque API tokens or browser cookies.
+        if (!$cookie && preg_match('/^Bearer\s+/i', $authorization) === 1 && !str_starts_with($token, 'ce_')) {
+            $path = $request->getPathInfo();
+            if ($this->oidcApi === null || !str_starts_with($path, '/api/v1/')
+                || (str_starts_with($path, '/api/v1/auth/') && $path !== '/api/v1/auth/me')
+                || str_starts_with($path, '/api/v1/identity/')
+                || str_starts_with($path, '/api/v1/api-tokens')) return null;
+            $external = $this->oidcApi->authenticate($token);
+            if ($external === null) return null;
+            $uid = $external['user_id'];
+            $user = $this->users->findById($uid);
+            if ($user === null || ($user['status'] ?? null) !== 'active') return null;
+            $scopes = self::intersectScopes($external['permissions'], $this->users->permissionsForUser($uid));
+            return [
+                'token_id'=>null, 'session'=>false, 'cookie'=>false, 'csrf_token'=>null,
+                'auth_source'=>'oidc_access', 'user'=>$this->publicUser($user),
+                'user_id'=>$uid, 'scopes'=>$scopes,
+            ];
+        }
 
         $record = $this->tokens->findValidPlainToken($token);
         if ($record === null) {

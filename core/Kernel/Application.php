@@ -16,6 +16,7 @@ use CajeerEngine\Api\Controller\ApiTokenController;
 use CajeerEngine\Api\Controller\AuthController;
 use CajeerEngine\Api\Controller\OidcController;
 use CajeerEngine\Identity\OidcClient;
+use CajeerEngine\Identity\OidcApiAuthenticator;
 use CajeerEngine\Identity\OidcStore;
 use CajeerEngine\Identity\OidcLogin;
 use CajeerEngine\Api\Controller\ContentEntryController;
@@ -223,6 +224,29 @@ final class Application
         $container->set(PasswordHasher::class, fn (ServiceContainer $c): PasswordHasher => new PasswordHasher($c->get(ConfigRepository::class)));
         $container->set(TwoFactorTotp::class, fn (): TwoFactorTotp => new TwoFactorTotp());
         $container->set(RateLimiter::class, fn (): RateLimiter => new RateLimiter($rootPath));
+        // Dedicated OAuth resource-server configuration. Defaults off; invalid settings fail closed.
+        $container->set(OidcApiAuthenticator::class, function (ServiceContainer $c): ?OidcApiAuthenticator {
+            if (!filter_var(getenv('SKIF4ER_ID_API_ENABLED') ?: 'false', FILTER_VALIDATE_BOOLEAN)) return null;
+            try {
+                if (!filter_var(getenv('SKIF4ER_ID_ENABLED') ?: 'false', FILTER_VALIDATE_BOOLEAN)) throw new \RuntimeException('Provider disabled.');
+                $clientId = trim((string)(getenv('SKIF4ER_ID_CLIENT_ID') ?: ''));
+                $clientSecret = (string)(getenv('SKIF4ER_ID_CLIENT_SECRET') ?: '');
+                $base = rtrim($c->get(ConfigRepository::class)->string('app.url'), '/');
+                $split = static fn (string $name): array => array_values(array_unique(array_filter(array_map('trim', explode(',', (string)(getenv($name) ?: ''))), static fn (string $s): bool => $s !== '')));
+                return new OidcApiAuthenticator(
+                    new OidcClient($clientId, $clientSecret, $base.'/auth/oidc/callback'),
+                    $c->get(DatabaseManager::class),
+                    trim((string)(getenv('SKIF4ER_ID_API_AUDIENCE') ?: '')),
+                    $split('SKIF4ER_ID_API_ALLOWED_CLIENTS'),
+                    trim((string)(getenv('SKIF4ER_ID_API_REQUIRED_SCOPE') ?: 'cajeer.api')),
+                    $split('SKIF4ER_ID_API_MAX_PERMISSIONS'),
+                    filter_var(getenv('SKIF4ER_ID_API_INTROSPECTION') ?: 'true', FILTER_VALIDATE_BOOLEAN),
+                );
+            } catch (\Throwable) {
+                $c->get(RuntimeLogger::class)->warning('OIDC API authentication disabled', ['code'=>'oidc_api_configuration_invalid']);
+                return null;
+            }
+        });
         $container->set(AuthService::class, fn (ServiceContainer $c): AuthService => new AuthService(
             $c->get(ConfigRepository::class),
             $c->get(UserRepository::class),
@@ -231,6 +255,7 @@ final class Application
             $c->get(PasswordHasher::class),
             $c->get(TwoFactorTotp::class),
             $c->get(UserSessionRepository::class),
+            $c->get(OidcApiAuthenticator::class),
         ));
         $container->set(ContentTypeRepository::class, fn (ServiceContainer $c): ContentTypeRepository => new ContentTypeRepository($rootPath, $c->get(DatabaseManager::class)));
         $container->set(ContentEntryRepository::class, fn (ServiceContainer $c): ContentEntryRepository => new ContentEntryRepository($rootPath, $c->get(DatabaseManager::class)));

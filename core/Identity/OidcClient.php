@@ -77,6 +77,80 @@ final class OidcClient
         return $claims;
     }
 
+    /**
+     * Validate an access token for *this API*, never an ID token intended for login.
+     * Keycloak's legacy JWT header uses typ=JWT with typ=Bearer in the payload;
+     * RFC 9068 tokens use the explicitly typed at+jwt header instead.
+     *
+     * @param list<string> $allowedClients OAuth clients permitted to call this resource server
+     * @return array<string,mixed> verified access claims (never log or serialize raw token)
+     */
+    public function validateAccessToken(string $jwt, string $audience, array $allowedClients, string $requiredScope, bool $onlineIntrospection = true): array
+    {
+        $parts = explode('.', $jwt);
+        if (count($parts) !== 3 || strlen($jwt) > 16384) throw new \RuntimeException('Malformed access token.');
+        $header = $this->decodeJson(self::decodeBase64Url($parts[0]));
+        $typ = strtolower((string)($header['typ'] ?? ''));
+        if (!in_array($typ, ['at+jwt', 'application/at+jwt', 'jwt'], true)) {
+            throw new \RuntimeException('Incorrect access token type.');
+        }
+        $claims = $this->verifiedJwt($jwt);
+        // Generic Keycloak JWTs MUST carry their own explicit Bearer type.
+        if (($typ === 'jwt' && ($claims['typ'] ?? null) !== 'Bearer')
+            || (isset($claims['typ']) && $claims['typ'] !== 'Bearer')) {
+            throw new \RuntimeException('An ID token cannot authorize API access.');
+        }
+        $now = time();
+        $aud = $claims['aud'] ?? null;
+        $audiences = is_string($aud) ? [$aud] : (is_array($aud) && array_is_list($aud) ? $aud : []);
+        $authorizedClient = $claims['azp'] ?? $claims['client_id'] ?? null;
+        if (($claims['iss'] ?? null) !== self::ISSUER
+            || !is_string($authorizedClient) || !in_array($authorizedClient, $allowedClients, true)
+            || (isset($claims['client_id'], $claims['azp']) && $claims['client_id'] !== $claims['azp'])
+            || !in_array($audience, $audiences, true)
+            || !is_int($claims['exp'] ?? null) || $claims['exp'] <= $now
+            || !is_int($claims['iat'] ?? null) || $claims['iat'] > $now + 60 || $claims['iat'] <= 0
+            || $claims['exp'] > $claims['iat'] + 86400
+            || (isset($claims['nbf']) && (!is_int($claims['nbf']) || $claims['nbf'] > $now + 30))
+            || !is_string($claims['sub'] ?? null) || strlen($claims['sub']) < 1 || strlen($claims['sub']) > 255
+            || preg_match('/[\x00-\x1f\x7f]/', $claims['sub'])
+            || !is_string($claims['scope'] ?? null)
+            || !in_array($requiredScope, preg_split('/\s+/', trim($claims['scope'])) ?: [], true)
+            || isset($claims['nonce']) || isset($claims['events'])) {
+            throw new \RuntimeException('Access token claims rejected.');
+        }
+        if ($onlineIntrospection) {
+            $this->confirmActiveAccessToken($jwt, $claims, $audience, $requiredScope);
+        }
+        return $claims;
+    }
+
+    /** Check current server-side revocation state. Failure or outage must deny access. */
+    private function confirmActiveAccessToken(string $jwt, array $claims, string $audience, string $scope): void
+    {
+        $endpoint = $this->configuration()['introspection_endpoint'] ?? null;
+        if (!is_string($endpoint)) throw new \RuntimeException('Token introspection unavailable.');
+        $response = $this->request('POST', $endpoint, http_build_query([
+            'token'=>$jwt, 'token_type_hint'=>'access_token',
+        ], '', '&', PHP_QUERY_RFC3986), [
+            'Content-Type: application/x-www-form-urlencoded', 'Accept: application/json',
+            'Authorization: Basic '.base64_encode($this->clientId.':'.$this->clientSecret),
+        ]);
+        if ($response['status'] !== 200) throw new \RuntimeException('Token introspection failed.');
+        $current = $this->decodeJson($response['body']);
+        $aud = $current['aud'] ?? null;
+        $audiences = is_string($aud) ? [$aud] : (is_array($aud) && array_is_list($aud) ? $aud : []);
+        if (($current['active'] ?? false) !== true
+            || (isset($current['sub']) && $current['sub'] !== $claims['sub'])
+            || (isset($current['iss']) && $current['iss'] !== self::ISSUER)
+            || (isset($current['aud']) && !in_array($audience, $audiences, true))
+            || (isset($current['scope']) && (!is_string($current['scope']) || !in_array($scope, preg_split('/\s+/', trim($current['scope'])) ?: [], true)))
+            || (isset($current['exp']) && (!is_int($current['exp']) || $current['exp'] <= time()))
+            || (isset($current['client_id']) && $current['client_id'] !== ($claims['azp'] ?? $claims['client_id'] ?? null))) {
+            throw new \RuntimeException('Access token is inactive or mismatched.');
+        }
+    }
+
     /** Verified, signed JWT claims. Signature validation is shared by ID and logout tokens. */
     private function verifiedJwt(string $jwt): array
     {
@@ -140,7 +214,7 @@ final class OidcClient
         return $url.'?'.http_build_query(['client_id'=>$this->clientId, 'post_logout_redirect_uri'=>$postLogoutUrl], '', '&', PHP_QUERY_RFC3986);
     }
 
-    /** @return array{authorization_endpoint:string,token_endpoint:string,jwks_uri:string,end_session_endpoint?:string} */
+    /** @return array{authorization_endpoint:string,token_endpoint:string,jwks_uri:string,end_session_endpoint?:string,introspection_endpoint?:string} */
     private function configuration(): array
     {
         if ($this->discovery !== null) return $this->discovery;
@@ -155,6 +229,10 @@ final class OidcClient
         if (isset($document['end_session_endpoint'])) {
             if (!is_string($document['end_session_endpoint']) || !self::pinnedUrl($document['end_session_endpoint'])) throw new \RuntimeException('Unsafe OIDC logout endpoint.');
             $result['end_session_endpoint'] = $document['end_session_endpoint'];
+        }
+        if (isset($document['introspection_endpoint'])) {
+            if (!is_string($document['introspection_endpoint']) || !self::pinnedUrl($document['introspection_endpoint'])) throw new \RuntimeException('Unsafe OIDC introspection endpoint.');
+            $result['introspection_endpoint'] = $document['introspection_endpoint'];
         }
         return $this->discovery = $result;
     }
@@ -186,7 +264,7 @@ final class OidcClient
         try {
             curl_setopt_array($handle, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_FOLLOWLOCATION=>false, CURLOPT_CONNECTTIMEOUT=>5, CURLOPT_TIMEOUT=>10,
                 CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2, CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,
-                CURLOPT_HTTPHEADER=>$headers, CURLOPT_USERAGENT=>'CajeerEngine-OIDC/1.5.4', CURLOPT_MAXREDIRS=>0]);
+                CURLOPT_HTTPHEADER=>$headers, CURLOPT_USERAGENT=>'CajeerEngine-OIDC/1.5.5', CURLOPT_MAXREDIRS=>0]);
             if ($method === 'POST') curl_setopt_array($handle, [CURLOPT_POST=>true, CURLOPT_POSTFIELDS=>$body]);
             $content = curl_exec($handle);
             if ($content === false || strlen($content) > 262144) throw new \RuntimeException('OIDC network request failed or response too large.');

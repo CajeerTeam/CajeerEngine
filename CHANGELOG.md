@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.5 — SkiF4er ID OIDC API Authentication
+
+- Validate real Keycloak OAuth access tokens using the existing pinned JWKS/RS256 client, with strict access-token type, issuer, API audience, OAuth client, lifetime and scope checks. ID tokens and Logout Tokens never authorize the API.
+- Opt-in live token introspection detects revoked/disabled access tokens; provider outages deny external authentication without affecting existing local logins.
+- Resolve only explicitly linked `(issuer, sub)` local accounts and enforce active status plus the intersection of current local RBAC with the configured API permission ceiling.
+- Preserve `ce_` API tokens and browser sessions; prevent external JWTs from operating browser-session, identity-linking or API-token management endpoints.
+- Add deterministic signed-token protocol regression and mandatory real-PDO AuthService/HTTP middleware regression to release CI. No database migration.
+
 ## 1.5.4 — SkiF4er ID SSO & Global Logout
 
 - RP-Initiated Logout initiated by an authenticated, CSRF-protected browser POST; immediately revoke the local OIDC session and redirect through the pinned Keycloak end-session endpoint.

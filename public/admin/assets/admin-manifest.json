@@ -1,6 +1,6 @@
 {
   "name": "CajeerEngine Admin UI",
-  "version": "1.5.4",
+  "version": "1.5.5",
   "mode": "production-static-spa",
   "base_path": "/admin/",
   "api_base": "/api/v1",
