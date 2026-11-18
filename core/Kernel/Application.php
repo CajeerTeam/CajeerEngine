@@ -16,6 +16,10 @@ use CajeerEngine\Api\Controller\ApiTokenController;
 use CajeerEngine\Api\Controller\AuthController;
 use CajeerEngine\Api\Controller\OidcController;
 use CajeerEngine\Api\Controller\IdentityAdminController;
+use CajeerEngine\Api\Controller\AiController;
+use CajeerEngine\AI\AiChat;
+use CajeerEngine\AI\AiSettings;
+use CajeerEngine\AI\OpenAiClient;
 use CajeerEngine\Identity\IdentityCenter;
 use CajeerEngine\Identity\OidcClient;
 use CajeerEngine\Identity\OidcApiAuthenticator;
@@ -302,6 +306,11 @@ final class Application
             $c->get(SearchEngineInterface::class),
             $c->get(SearchIndexer::class),
         ));
+        $container->set(AiSettings::class, fn (): AiSettings => new AiSettings($rootPath));
+        $container->set(OpenAiClient::class, fn (): OpenAiClient => new OpenAiClient());
+        $container->set(AiChat::class, fn (ServiceContainer $c): AiChat => new AiChat(
+            $c->get(DatabaseManager::class), $c->get(AiSettings::class), $c->get(OpenAiClient::class)
+        ));
         $container->set(ProviderRegistry::class, fn (): ProviderRegistry => ProviderRegistry::defaults());
         $container->set(IntegrationCenter::class, fn (ServiceContainer $c): IntegrationCenter => new IntegrationCenter(
             new IntegrationStore($rootPath), $c->get(ProviderRegistry::class),
@@ -425,6 +434,9 @@ final class Application
         $container->set('controller.analyticsEvents', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\AnalyticsEventController => new \CajeerEngine\Api\Controller\AnalyticsEventController(new \CajeerEngine\Analytics\EventConfig($rootPath), new \CajeerEngine\Analytics\EventJournal($rootPath), $c->get(AuditLogger::class), new \CajeerEngine\Analytics\ServerEvents($rootPath,$c->get(IntegrationCenter::class),$c->get(ManagedQueueDriverInterface::class))));
         $container->set('controller.tracking', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\TrackingController => new \CajeerEngine\Api\Controller\TrackingController(new \CajeerEngine\Privacy\TrackingConfig($rootPath), $c->get(AuditLogger::class)));
         $container->set('controller.consent', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\ConsentController => new \CajeerEngine\Api\Controller\ConsentController(new \CajeerEngine\Privacy\ConsentPolicy($rootPath), $c->get(AuditLogger::class)));
+        $container->set('controller.ai', fn (ServiceContainer $c): AiController => new AiController(
+            $c->get(AiChat::class), $c->get(AiSettings::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class)
+        ));
         $container->set('controller.integrations', fn (ServiceContainer $c): IntegrationController => new IntegrationController($c->get(IntegrationCenter::class), $c->get(AuditLogger::class)));
         $container->set('controller.webhooks', fn (ServiceContainer $c): WebhookController => new WebhookController($c->get(WebhookRepository::class), $c->get(WebhookDispatcher::class)));
         $container->set('controller.extensions', fn (ServiceContainer $c): ExtensionController => new ExtensionController($c->get(ExtensionRegistry::class), $c->get(ExtensionRuntime::class)));
@@ -530,13 +542,14 @@ final class Application
         /** @var PublicController $public */
         $public = $container->get('controller.public');
 
+        $ai = $container->get('controller.ai');
         $integrations = $container->get('controller.integrations');
         $consent = $container->get('controller.consent');
         $tracking = $container->get('controller.tracking');
         $analyticsHub = $container->get('controller.analyticsHub');
         $analyticsEvents = $container->get('controller.analyticsEvents');
         $migration = $container->get('controller.migration');
-        $controllers = compact('identityAdmin', 'oidc', 'migration', 'analyticsHub', 'tracking', 'analyticsEvents', 'consent', 'integrations', 'health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
+        $controllers = compact('ai', 'identityAdmin', 'oidc', 'migration', 'analyticsHub', 'tracking', 'analyticsEvents', 'consent', 'integrations', 'health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
         foreach (\CajeerEngine\Http\RouteRegistry::all() as [$method, $path, $name, $controller, $action, $scopes]) {
             $router->add([$method], $path, $name, [$controllers[$controller], $action], $scopes);
         }

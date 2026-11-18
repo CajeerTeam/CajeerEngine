@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.1] — OpenAI Integration & AI Chat (2026-11-18)
+
+- Real OpenAI Responses API transport with TLS verification, pinned DNS, SSE delta streaming, bounded memory and timeout handling.
+- Encrypted API key configuration in admin, configurable model/output cap and per-user monthly token limits.
+- SQL-backed, user-isolated chat history with create, list, rename, delete and authenticated browser streaming.
+- Nuxt and production static SPA chat UI, new AI routes with RBAC, CSRF, step-up, audit and user-scoped throttling.
+- Migrations 0031 for PostgreSQL, MySQL and SQLite; acceptance checks and operations guide.
+
 ## [1.6.0] — Identity SkiF4er ID GA (2026-11-18)
 
 - Reworked verified OIDC login finalization to lock the persisted issuer/subject mapping while creating a revocable session; a concurrent unlink cannot leave a valid orphaned SSO cookie.

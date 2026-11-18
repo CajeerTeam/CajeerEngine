@@ -1,5 +1,71 @@
 // Generated from api/openapi.yaml. Do not edit.
 export const operations = {
+    "api_v1_ai_chat": {
+        "method": "POST",
+        "path": "/ai/chat",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_ai_chat_stream": {
+        "method": "POST",
+        "path": "/ai/chat/stream",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_ai_conversation_delete": {
+        "method": "DELETE",
+        "path": "/ai/conversations/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_conversation_rename": {
+        "method": "PATCH",
+        "path": "/ai/conversations/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_ai_conversation_show": {
+        "method": "GET",
+        "path": "/ai/conversations/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_conversations": {
+        "method": "GET",
+        "path": "/ai/conversations",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "api_v1_ai_settings": {
+        "method": "PUT",
+        "path": "/ai/settings",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_ai_status": {
+        "method": "GET",
+        "path": "/ai/status",
+        "parameters": [],
+        "bodyRequired": false
+    },
     "api_v1_identity_admin_link": {
         "method": "POST",
         "path": "/identity/admin/users/{id}/link",

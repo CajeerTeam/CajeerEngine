@@ -38,6 +38,7 @@ final readonly class KeyRotation
                 'integrations'=>$this->integrations->activeKeyId(),
                 'oidc'=>$this->oidc->activeKeyId(),
             ], 'stores'=>[]];
+            $result['stores']['ai_settings'] = $this->aiSettings($apply);
             $result['stores']['integrations'] = $this->integrationRegistry($apply);
             $result['stores']['migration'] = $this->migrationProjects($apply);
             $result['stores']['server_events'] = $this->serverEvents($apply);
@@ -50,6 +51,33 @@ final readonly class KeyRotation
             $result['deferred'] = array_sum(array_column($result['stores'], 'deferred'));
             return $result;
         } finally { OperationLock::release($lease); }
+    }
+
+    private function aiSettings(bool $apply): array
+    {
+        $path = Files::path($this->root, 'storage/app/ai/settings.json');
+        if (!is_file($path)) return ['changed'=>0];
+        $lock = Files::path($this->root, 'storage/app/ai/settings.lock');
+        $handle = fopen($lock, 'c+');
+        if ($handle === false) throw new \RuntimeException('AI credential rotation lock unavailable.');
+        try {
+            Files::permissions($lock, 0600);
+            if (!flock($handle, $apply ? LOCK_EX : LOCK_SH)) throw new \RuntimeException('AI credential rotation lock failed.');
+            if (!is_file($path)) return ['changed'=>0];
+            $state = Files::read($path);
+            if (!isset($state['key_ciphertext'])) return ['changed'=>0];
+            if (!is_string($state['key_ciphertext'])) throw new \RuntimeException('Invalid encrypted AI API credential.');
+            $new = $this->integrations->rewrap('cajeerengine:ai:openai:key', $state['key_ciphertext']);
+            if ($new === $state['key_ciphertext']) return ['changed'=>0];
+            if ($apply) {
+                $state['key_ciphertext'] = $new;
+                Files::json($path, $state, 0600);
+            }
+            return ['changed'=>1];
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
     }
 
     private function integrationRegistry(bool $apply): array

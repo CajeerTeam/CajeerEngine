@@ -32,7 +32,7 @@ final readonly class OpenApiLinter
                 if (!isset($expected[$key])) { $errors[] = 'Undeclared runtime operation: '.$key; continue; }
                 [$name,$scopes] = $expected[$key];
                 if (($op['x-cajeer-route'] ?? '') !== $name || !array_key_exists('x-cajeer-required-scopes',$op) || $op['x-cajeer-required-scopes'] !== $scopes) $errors[] = 'Route / scope mismatch: '.$key;
-                $security = $scopes === null ? [] : [['BearerAuth'=>[]],['ApiTokenAuth'=>[]],['BrowserSession'=>[]]+($method !== 'get' ? ['CsrfToken'=>[]] : [])];
+                $security = $scopes === null ? [] : (str_starts_with($name, 'api.v1.ai.') ? [['BrowserSession'=>[]]+($method !== 'get' ? ['CsrfToken'=>[]] : [])] : [['BearerAuth'=>[]],['ApiTokenAuth'=>[]],['BrowserSession'=>[]]+($method !== 'get' ? ['CsrfToken'=>[]] : [])]);
                 if (($op['security'] ?? null) !== $security) $errors[] = 'Security mismatch: '.$key;
                 $id = $op['operationId'] ?? '';
                 if (!is_string($id) || $id === '' || isset($ids[$id])) $errors[] = 'Missing/duplicate operationId: '.$key;
@@ -47,7 +47,7 @@ final readonly class OpenApiLinter
                 if ($scopes !== null && !isset($op['responses']['401'],$op['responses']['403'])) $errors[] = 'Missing auth responses: '.$key;
                 if (!($op['deprecated'] ?? false) && !array_filter(array_keys($op['responses'] ?? []),static fn($s)=>str_starts_with((string)$s,'2'))) $errors[] = 'Missing success response: '.$key;
                 foreach ($op['responses'] ?? [] as $status=>$response) {
-                    if ((string)$status !== '204' && !isset($response['content']['application/json']['schema']) && !isset($response['content']['application/zip']['schema']) && !isset($response['content']['application/octet-stream']['schema'])) $errors[] = 'Missing response schema: '.$key.' '.$status;
+                    if ((string)$status !== '204' && !isset($response['content']['application/json']['schema']) && !isset($response['content']['application/zip']['schema']) && !isset($response['content']['application/octet-stream']['schema']) && !isset($response['content']['text/event-stream']['schema'])) $errors[] = 'Missing response schema: '.$key.' '.$status;
                 }
                 if (isset($op['requestBody']) && !isset($op['requestBody']['content']['application/json']['schema']) && !isset($op['requestBody']['content']['multipart/form-data']['schema'])) $errors[] = 'Missing body schema: '.$key;
             }

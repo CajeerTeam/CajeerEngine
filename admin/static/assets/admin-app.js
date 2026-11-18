@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.6.0'
+const ADMIN_VERSION = '1.6.1'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -13,6 +13,7 @@ const nav = [
   ['cms', '🌐', 'CMS', 'Тема, меню, редиректы, preview'],
   ['users', '👥', 'Доступ', 'Пользователи, роли, tokens'],
   ['identity', '🔑', 'Identity Center', 'SkiF4er ID: привязки, пользователи и сессии'],
+  ['ai', '◈', 'AI Assistant', 'ChatGPT через OpenAI API'],
   ['tracking', '📈', 'Счётчики', 'Яндекс Метрика, GA4, GTM, Matomo и Plausible'],
   ['analytics-hub', '📊', 'Analytics Hub', 'Отчёты трафика и поисковой статистики'],
   ['analytics-events', '📊', 'События', 'Правила, цели и диагностика аналитики'],
@@ -45,6 +46,7 @@ const state = {
     mediaAlt: '',
     user: { name: '', email: '', password: '', roles: 'admin' },
     identitySearch: '', identityLinked: 'all', identityOffset: 0, identitySelected: '',
+    aiSelected: null, aiMessages: [], aiBusy: false,
     role: { handle: '', name: '', permissions: 'content:read,content:write' },
     token: { name: 'Admin token', scopes: 'content:read,content:write' },
     redirect: { from: '', to: '/', status: 301, enabled: true },
@@ -196,6 +198,7 @@ async function routeLoad(route) {
     if (route === 'cms') await Promise.allSettled([loadSilent('cmsOverview', '/cms'), loadSilent('theme', '/cms/theme'), loadSilent('navigation', '/cms/navigation'), loadSilent('redirects', '/cms/redirects'), loadSilent('publicRoutes', `/cms/routes?limit=100&offset=${state.forms.routeOffset || 0}`)])
     if (route === 'users') await Promise.allSettled([loadSilent('users', '/users'), loadSilent('roles', '/roles'), loadSilent('tokens', '/api-tokens')])
     if (route === 'identity') await Promise.allSettled([loadSilent('identity', '/identity/account'), loadSilent('sessions', '/auth/sessions'), ...(integrationScope('users:read') ? [loadIdentityUsers()] : [])])
+    if (route === 'ai') await Promise.allSettled([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations')])
     if (route === 'tracking') await loadSilent('tracking', '/tracking/counters')
     if (route === 'analytics-hub') {await loadSilent('analyticsHub','/analytics/reports');const previous=dataOf(state.cache.analyticsHubReport,{});if(previous.connection?.id){const r=state.forms.hubPeriod;await loadSilent('analyticsHubReport',`/analytics/reports/${encodeURIComponent(previous.connection.id)}/data${r?'?'+new URLSearchParams(r):''}`)}}
     if (route === 'analytics-events') await Promise.allSettled([loadSilent('analyticsEvents','/tracking/events'),loadSilent('analyticsJournal','/tracking/events/journal')])
@@ -257,6 +260,7 @@ function render() {
   else if (state.route === 'cms') body = cmsView()
   else if (state.route === 'users') body = usersView()
   else if (state.route === 'identity') body = identityView()
+  else if (state.route === 'ai') body = aiView()
   else if (state.route === 'tracking') body = trackingView()
   else if (state.route === 'analytics-hub') body = analyticsHubView()
   else if (state.route === 'analytics-events') body = analyticsEventsView()
@@ -272,6 +276,7 @@ function render() {
   app.innerHTML = shell(title, subtitle, body)
   bindCommon()
   bindForms()
+  bindAi()
 }
 
 function renderLogin() {
@@ -543,6 +548,97 @@ function bindForms() {
 function table(headers, rows) {
   if (!rows.length) return '<div class="empty">Данных пока нет.</div>'
   return `<div class="table-wrap"><table><thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`
+}
+
+function aiView() {
+  const f = state.forms
+  const status = dataOf(state.cache.aiStatus, {})
+  const conversations = asArray(state.cache.aiConversations)
+  const canManage = integrationScope('system:write') && integrationScope('integrations:secrets')
+  const selected = f.aiSelected
+  const title = selected ? conversations.find(c => c.id === selected)?.title || 'Диалог' : 'Новый диалог'
+  const messages = Array.isArray(f.aiMessages) ? f.aiMessages : []
+  const rows = conversations.map(c => `<div class="ai-thread"><button type="button" class="btn small ${selected === c.id ? '' : 'secondary'}" data-ai-open="${escapeHtml(c.id)}">${escapeHtml(c.title)}</button><button type="button" class="btn small ghost" data-ai-rename="${escapeHtml(c.id)}" title="Переименовать">✎</button><button type="button" class="btn small danger" data-ai-delete="${escapeHtml(c.id)}" title="Удалить">×</button></div>`).join('')
+  const content = messages.map(m => `<article class="ai-bubble ${m.role === 'user' ? 'user' : 'assistant'}"><strong>${m.role === 'user' ? 'Вы' : 'ChatGPT'}</strong><div>${escapeHtml(m.content)}</div></article>`).join('')
+  const settingsView = canManage ? `<details class="card"><summary><strong>Настройки OpenAI</strong></summary><form data-ai-settings class="form" style="margin-top:14px"><div class="form-row"><label>API-ключ (пустое поле сохраняет текущий)</label><input class="input" name="api_key" type="password" autocomplete="off" placeholder="sk-..."></div><div class="form-row"><label>Модель</label><input class="input" name="model" required value="${escapeHtml(status.model || 'gpt-4.1-mini')}"></div><div class="form-row"><label>Лимит токенов ответа</label><input class="input" name="max_output_tokens" type="number" min="128" max="4096" value="${Number(status.max_output_tokens || 1024)}" required></div><div class="form-row"><label>Месячный бюджет токенов на пользователя</label><input class="input" name="monthly_token_limit" type="number" min="1000" max="10000000" value="${Number(status.monthly_token_limit || 250000)}" required></div><div class="row-actions"><button type="submit" class="btn">Сохранить настройки</button><button type="button" class="btn danger" data-ai-remove-key>Удалить сохранённый ключ</button></div><p class="muted">Требуются system:write и integrations:secrets, CSRF и повторное подтверждение в Identity Center.</p></form></details>` : ''
+  const html = `<div class="card"><p>OpenAI: <strong>${status.configured ? 'подключён' : 'не настроен'}</strong> · Модель: <code>${escapeHtml(status.model || '—')}</code> · Ключ: ${escapeHtml(status.credential_source || 'none')}</p>${!status.configured ? '<p class="muted">Администратор должен настроить OpenAI API-ключ.</p>' : ''}</div><div class="ai-layout"><aside class="card"><button class="btn" data-ai-new ${f.aiBusy ? 'disabled' : ''}>Новый диалог</button><div class="ai-threads">${rows || '<p class="muted">Диалогов нет</p>'}</div></aside><section class="card"><h2>${escapeHtml(title)}</h2><div class="ai-messages" aria-live="polite">${content || '<p class="muted">Отправьте первое сообщение.</p>'}<article class="ai-bubble assistant" data-ai-stream style="display:${f.aiBusy ? '' : 'none'}"><strong>ChatGPT</strong><div>Генерация…</div></article></div><form data-ai-chat class="form"><textarea class="input" rows="4" maxlength="12000" name="message" placeholder="Сообщение для ChatGPT" ${!status.configured || f.aiBusy ? 'disabled' : ''} required></textarea><button class="btn" type="submit" ${!status.configured || f.aiBusy ? 'disabled' : ''}>${f.aiBusy ? 'Генерация…' : 'Отправить'}</button></form></section></div>${settingsView}`
+  // Handlers are bound after render in bindForms; no raw model output is interpreted as HTML.
+  return html
+}
+
+async function aiRefresh() {
+  await Promise.all([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations')])
+}
+
+function bindAi() {
+  if (state.route !== 'ai') return
+  const f = state.forms
+  const guard = async (action) => { try { await action() } catch(e) { setNotice('error',e.message,e.payload) } }
+  document.querySelector('[data-ai-new]')?.addEventListener('click', () => { if(f.aiBusy)return;f.aiSelected=null;f.aiMessages=[];render() })
+  document.querySelectorAll('[data-ai-open]').forEach(el => el.addEventListener('click', () => guard(async()=>{
+    if(f.aiBusy)return
+    f.aiSelected=el.dataset.aiOpen
+    f.aiMessages=asArray(await api('/ai/conversations/'+encodeURIComponent(f.aiSelected)))
+    render()
+  })))
+  document.querySelectorAll('[data-ai-rename]').forEach(el => el.addEventListener('click', () => guard(async()=>{
+    const current=asArray(state.cache.aiConversations).find(c=>c.id===el.dataset.aiRename)
+    const title=prompt('Название диалога',current?.title||'')
+    if (!title)return
+    await api('/ai/conversations/'+encodeURIComponent(el.dataset.aiRename),{method:'PATCH',body:JSON.stringify({title})})
+    await aiRefresh();render()
+  })))
+  document.querySelectorAll('[data-ai-delete]').forEach(el => el.addEventListener('click', () => guard(async()=>{
+    if(f.aiBusy||!confirm('Удалить диалог и историю?'))return
+    await api('/ai/conversations/'+encodeURIComponent(el.dataset.aiDelete),{method:'DELETE'})
+    if(f.aiSelected===el.dataset.aiDelete){f.aiSelected=null;f.aiMessages=[]}
+    await aiRefresh();render()
+  })))
+  document.querySelector('[data-ai-settings]')?.addEventListener('submit', event => {event.preventDefault();guard(async()=>{
+    const form=new FormData(event.currentTarget)
+    const body={model:String(form.get('model')),max_output_tokens:Number(form.get('max_output_tokens')),monthly_token_limit:Number(form.get('monthly_token_limit'))}
+    if(form.get('api_key'))body.api_key=String(form.get('api_key'))
+    await api('/ai/settings',{method:'PUT',body:JSON.stringify(body)})
+    await aiRefresh();setNotice('ok','Настройки OpenAI сохранены.')
+  })})
+  document.querySelector('[data-ai-remove-key]')?.addEventListener('click',()=>guard(async()=>{
+    if(!confirm('Удалить сохранённый OpenAI API-ключ?'))return
+    await api('/ai/settings',{method:'PUT',body:'{"remove_key":true}'})
+    await aiRefresh();setNotice('ok','Сохранённый ключ удалён.')
+  }))
+  document.querySelector('[data-ai-chat]')?.addEventListener('submit',event=>{event.preventDefault();guard(async()=>{
+    if(f.aiBusy)return
+    const textarea=event.currentTarget.querySelector('[name="message"]')
+    const message=(textarea?.value||'').trim()
+    if(!message)return
+    f.aiBusy=true;f.aiMessages.push({id:'pending-'+Date.now(),role:'user',content:message});render()
+    let answer='';let done=false
+    try{
+      const headers={'Accept':'text/event-stream','Content-Type':'application/json'}
+      if(state.csrf)headers['X-CSRF-Token']=state.csrf
+      const response=await fetch(API_BASE+'/ai/chat/stream',{method:'POST',credentials:'same-origin',cache:'no-store',headers,body:JSON.stringify({conversation_id:f.aiSelected,message})})
+      if(!response.ok||!response.body){const err=await response.json().catch(()=>({}));throw new Error(err?.error?.message||'OpenAI HTTP '+response.status)}
+      const reader=response.body.getReader(),decoder=new TextDecoder('utf-8');let pending=''
+      const handle=frame=>{
+        const lines=frame.split('\n'),event=lines.find(line=>line.startsWith('event:'))?.slice(6).trim()
+        const raw=lines.filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trimStart()).join('\n')
+        if(!raw)return
+        const data=JSON.parse(raw)
+        if(event==='delta'){
+          answer+=String(data.text||'')
+          const node=document.querySelector('[data-ai-stream]')
+          if(node){node.style.display='';node.querySelector('div').textContent=answer}
+        }
+        if(event==='error')throw new Error(data.message||'AI-ответ завершился ошибкой.')
+        if(event==='done'){done=true;f.aiSelected=data.conversation_id}
+      }
+      while(true){const packet=await reader.read();if(packet.done)break;pending+=decoder.decode(packet.value,{stream:true});pending=pending.replace(/\r\n/g,'\n');let at;while((at=pending.indexOf('\n\n'))>=0){handle(pending.slice(0,at));pending=pending.slice(at+2)}}
+      if(!done)throw new Error('Поток завершился до сохранения ответа.')
+      f.aiMessages=asArray(await api('/ai/conversations/'+encodeURIComponent(f.aiSelected)))
+      await aiRefresh()
+    } catch(e){f.aiMessages.pop();setNotice('error',e.message,e.payload);throw e}
+    finally{f.aiBusy=false;render()}
+  })})
 }
 
 function dashboardView() {

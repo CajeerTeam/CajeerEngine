@@ -6,6 +6,96 @@ namespace CajeerEngine\ExtensionSdk;
 /** Generated from api/openapi.yaml. */
 final class Operations {
     public const ALL = array (
+  'api_v1_ai_chat' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/chat',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_chat_stream' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/chat/stream',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_conversation_delete' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/ai/conversations/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_conversation_rename' => 
+  array (
+    'method' => 'PATCH',
+    'path' => '/ai/conversations/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_conversation_show' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/conversations/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_conversations' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/conversations',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_settings' => 
+  array (
+    'method' => 'PUT',
+    'path' => '/ai/settings',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_status' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/status',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
   'api_v1_identity_admin_link' => 
   array (
     'method' => 'POST',
