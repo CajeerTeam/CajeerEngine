@@ -276,7 +276,7 @@ final class OidcClient
             $content = '';
             curl_setopt_array($handle, [CURLOPT_FOLLOWLOCATION=>false, CURLOPT_CONNECTTIMEOUT=>5, CURLOPT_TIMEOUT=>10,
                 CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2, CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,
-                CURLOPT_HTTPHEADER=>$headers, CURLOPT_USERAGENT=>'CajeerEngine-OIDC/1.5.8', CURLOPT_MAXREDIRS=>0,
+                CURLOPT_HTTPHEADER=>$headers, CURLOPT_USERAGENT=>'CajeerEngine-OIDC/1.5.9', CURLOPT_MAXREDIRS=>0,
                 CURLOPT_PROXY=>'', CURLOPT_WRITEFUNCTION=>static function ($ch, string $chunk) use (&$content): int {
                     if (strlen($content) + strlen($chunk) > 262144) return 0;
                     $content .= $chunk;

@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.5.8",
+  "version": "1.5.9",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.5.8-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.5.8-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.5.9-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.5.9-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.5.8-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.5.9-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,7 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
-    "Security & Resilience Hardening 1.5.8: real vault keyring, encrypted data rotation in SQL/files, durable integration circuit breaker, OIDC GET retry and secure outbound/rate-limit defaults."
+    "Identity Acceptance & Migration 1.5.9: production-safe legacy browser session backfill with bounded resumable migration, stale credential revocation, strict cutover and live Identity acceptance checks."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -86,7 +86,7 @@
     "1.5.5": "OIDC API resource server: signed RS256 access tokens, linked subjects, audience/scope/client checks, optional live introspection and local RBAC ceiling.",
     "1.5.6": "RBAC & Authentication Assurance: password/TOTP and fresh OIDC MFA step-up, session-scoped evidence, sensitive admin mutation guard and OIDC permission ceiling.",
     "1.5.7": "Identity Center Admin UX: local user link management, subject prelink verification, OIDC session controls, pagination and safe role-gated step-up.",
-    "1.5.8": "Vault key rotation, resumable encrypted data rewrap, integration circuit breaker and OIDC fail-closed resiliency."
+    "1.5.9": "Vault key rotation, resumable encrypted data rewrap, integration circuit breaker and OIDC fail-closed resiliency."
   },
   "stability": "stable"
 }

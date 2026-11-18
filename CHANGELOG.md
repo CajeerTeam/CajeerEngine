@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.9] — Identity Acceptance & Migration (2026-11-18)
+
+- Migrated pre-registry browser sessions using resumable bounded real SQL writes without extending TTL or inferring external identity, with stale/disabled token revocation and API credential isolation.
+- Added opt-in strict session registry cutover, live preflight checks for schema, identity keyring and session ownership, plus remote HTTPS deployment and Keycloak probes.
+- Added PDO integration acceptance in release CI and production deployment/rollback procedure.
+
+
 ## 1.5.8 — Security & Resilience Hardening
 
 - Versioned authenticated encryption with key IDs and backwards-compatible decrypt-only keyring for legacy vault ciphertext, including OIDC PKCE state.

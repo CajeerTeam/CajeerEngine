@@ -99,6 +99,10 @@ $autoload = $root . '/vendor/autoload.php';
 require_once $root . '/core/Update/OperationFiles.php';
 require_once $root . '/core/Update/OperationLock.php';
 require_once $root . '/core/Console/OperationsCli.php';
+if (in_array($argv[1] ?? '', ['identity:acceptance','identity:sessions:status','identity:sessions:migrate'], true)) {
+    if (is_file($autoload)) require_once $autoload; else require_once $root . '/core/Console/NativeCli.php';
+    exit(\CajeerEngine\Identity\IdentityDeploymentCli::run($root, $argv));
+}
 if (($argv[1] ?? '') === 'identity:link-user') {
     if (is_file($autoload)) require_once $autoload; else require_once $root . '/core/Console/NativeCli.php';
     exit(\CajeerEngine\Identity\OidcCli::run($root, $argv));

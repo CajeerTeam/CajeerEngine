@@ -82,6 +82,8 @@ jobs:
           php tools/assurance-integration.php --require-db
       - name: Identity Center Admin UX real SQL, auth middleware and atomic session revocation
         run: php tools/identity-center-integration.php --require-db
+      - name: Identity 1.5.9 acceptance, resumable session migration and strict cutover (real PDO)
+        run: php tools/identity-session-acceptance-integration.php --require-db
       - name: Unified Session Management PDO / SQLite integration
         run: |
           python3 tools/unified-sessions-sqlite-regression.py

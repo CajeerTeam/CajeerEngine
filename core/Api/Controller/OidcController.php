@@ -20,7 +20,7 @@ final readonly class OidcController
 
     public function status(Request $request): JsonResponse
     {
-        return new JsonResponse(['data'=>['enabled'=>$this->login !== null, 'provider'=>'SkiF4er ID', 'global_logout'=>$this->login !== null]], 200, ['Cache-Control'=>'no-store']);
+        return new JsonResponse(['data'=>['enabled'=>$this->login !== null, 'provider'=>'SkiF4er ID', 'global_logout'=>$this->login !== null, 'session_strict'=>filter_var(getenv('IDENTITY_SESSION_STRICT') ?: 'false', FILTER_VALIDATE_BOOLEAN)]], 200, ['Cache-Control'=>'no-store']);
     }
 
     public function start(Request $request): Response

@@ -47,6 +47,9 @@ final readonly class UserSessionRepository
         $id = (string) $token['id'];
         $row = $this->find($id);
         if ($row === null) {
+            // After a verified cutover, an unknown browser token must not be silently recreated.
+            // Leave disabled during rolling upgrades; enable only after identity:acceptance succeeds.
+            if (filter_var(getenv('IDENTITY_SESSION_STRICT') ?: 'false', FILTER_VALIDATE_BOOLEAN)) return false;
             try { $this->register($id, (string)$token['user_id'], 'legacy', $request, $token['expires_at'] ?? null, [], (string)($token['created_at'] ?? ''), (string)($token['last_used_at'] ?? $token['created_at'] ?? '')); }
             catch (\PDOException $e) {
                 // A different request may have backfilled this token concurrently.
