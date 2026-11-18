@@ -23,7 +23,7 @@ final readonly class AiGaAcceptance
             $checks[] = ['check' => $name, 'status' => $ok ? 'pass' : 'fail', 'detail' => $reason];
         };
         $version = trim((string)@file_get_contents($this->root.'/VERSION'));
-        $record('release_version', $version === '1.7.2' && $this->config->string('app.version') === $version, 'Release and runtime versions must match 1.7.2.');
+        $record('release_version', version_compare($version, '1.7.0', '>=') && $this->config->string('app.version') === $version, 'Release and runtime versions must match.');
         if ($requireProduction) {
             $record('production_environment', strtolower((string)getenv('APP_ENV')) === 'production', 'Set APP_ENV=production.');
             $record('debug_disabled', !filter_var(getenv('APP_DEBUG') ?: 'false', FILTER_VALIDATE_BOOLEAN), 'Disable APP_DEBUG.');

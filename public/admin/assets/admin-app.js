@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.7.1'
+const ADMIN_VERSION = '1.7.3'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -22,6 +22,7 @@ const nav = [
   ['support', '✉', 'AI Support Center', 'Обращения и передача оператору'],
   ['tracking', '📈', 'Счётчики', 'Яндекс Метрика, GA4, GTM, Matomo и Plausible'],
   ['analytics-hub', '📊', 'Analytics Hub', 'Отчёты трафика и поисковой статистики'],
+  ['analytics-insights', '📈', 'AI External Analytics', 'AI-анализ внешней статистики'],
   ['analytics-events', '📊', 'События', 'Правила, цели и диагностика аналитики'],
   ['privacy', '🔒', 'Приватность', 'Согласия, политика и категории'],
   ['integrations', '🔗', 'Интеграции', 'Провайдеры, подключения и секреты'],
@@ -238,6 +239,7 @@ async function routeLoad(route) {
       }
     }
     if (route === 'tracking') await loadSilent('tracking', '/tracking/counters')
+    if (route === 'analytics-insights') await loadSilent('analyticsHub','/analytics/reports')
     if (route === 'analytics-hub') {await loadSilent('analyticsHub','/analytics/reports');const previous=dataOf(state.cache.analyticsHubReport,{});if(previous.connection?.id){const r=state.forms.hubPeriod;await loadSilent('analyticsHubReport',`/analytics/reports/${encodeURIComponent(previous.connection.id)}/data${r?'?'+new URLSearchParams(r):''}`)}}
     if (route === 'analytics-events') await Promise.allSettled([loadSilent('analyticsEvents','/tracking/events'),loadSilent('analyticsJournal','/tracking/events/journal')])
     if (route === 'privacy') await loadSilent('privacy', '/privacy/consent')
@@ -277,7 +279,7 @@ window.addEventListener('hashchange', () => {
 })
 
 function shell(title, subtitle, body, toolbar = '') {
-  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine</div><div class="brand-sub">Admin UI ${ADMIN_VERSION}</div></div></div><nav class="nav">${nav.filter(([id]) => (id !== 'migration' || integrationScope('migration:read')) && (id !== 'integrations' || integrationScope('integrations:read')) && (id !== 'privacy' || integrationScope('privacy:read')) && (id !== 'analytics-hub' || integrationScope('analytics:read')) && (id !== 'diagnostics' || integrationScope('system:read')) && (!['tracking','analytics-events'].includes(id) || integrationScope('tracking:read'))).map(([id, icon, label]) => `<button class="${state.route === id ? 'active' : ''}" data-route="${id}"><span class="emoji">${icon}</span><span>${label}</span></button>`).join('')}</nav><div class="footer-note">API: <span class="code-inline">${API_BASE}</span><br>${state.identity ? `User: ${escapeHtml(state.identity.email || state.identity.name || state.identity.user_id || 'auth')}` : 'Без активной сессии'}</div></aside><main class="main"><div class="topbar"><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle || '')}</p></div><div class="toolbar">${toolbar}<button class="btn secondary" data-action="refresh">Обновить</button>${state.token ? '<button class="btn ghost" data-action="logout">Выйти</button>' : '<button class="btn" data-route="login">Войти</button>'}</div></div>${noticeHtml()}${state.loading ? '<div class="notice">Загрузка...</div>' : ''}${body}</main></div>`
+  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine</div><div class="brand-sub">Admin UI ${ADMIN_VERSION}</div></div></div><nav class="nav">${nav.filter(([id]) => (id !== 'migration' || integrationScope('migration:read')) && (id !== 'integrations' || integrationScope('integrations:read')) && (id !== 'privacy' || integrationScope('privacy:read')) && (!['analytics-hub','analytics-insights'].includes(id) || integrationScope('analytics:read')) && (id !== 'diagnostics' || integrationScope('system:read')) && (!['tracking','analytics-events'].includes(id) || integrationScope('tracking:read'))).map(([id, icon, label]) => `<button class="${state.route === id ? 'active' : ''}" data-route="${id}"><span class="emoji">${icon}</span><span>${label}</span></button>`).join('')}</nav><div class="footer-note">API: <span class="code-inline">${API_BASE}</span><br>${state.identity ? `User: ${escapeHtml(state.identity.email || state.identity.name || state.identity.user_id || 'auth')}` : 'Без активной сессии'}</div></aside><main class="main"><div class="topbar"><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle || '')}</p></div><div class="toolbar">${toolbar}<button class="btn secondary" data-action="refresh">Обновить</button>${state.token ? '<button class="btn ghost" data-action="logout">Выйти</button>' : '<button class="btn" data-route="login">Войти</button>'}</div></div>${noticeHtml()}${state.loading ? '<div class="notice">Загрузка...</div>' : ''}${body}</main></div>`
 }
 
 function noticeHtml() {
@@ -307,6 +309,7 @@ function render() {
   else if (state.route === 'support') body = supportView()
   else if (state.route === 'tracking') body = trackingView()
   else if (state.route === 'analytics-hub') body = analyticsHubView()
+  else if (state.route === 'analytics-insights') body = analyticsInsightsView()
   else if (state.route === 'analytics-events') body = analyticsEventsView()
   else if (state.route === 'privacy') body = privacyView()
   else if (state.route === 'integrations') body = integrationsView()
@@ -464,6 +467,41 @@ function bindIntegrations() {
   document.querySelectorAll('[data-integration-test]').forEach(b=>b.addEventListener('click',()=>{const i=find(b.dataset.integrationTest);request(b,`/integrations/${encodeURIComponent(i.id)}/test`,'POST',{revision:i.revision})}))
 }
 
+function analyticsInsightsView(){
+  if(!integrationScope('analytics:read'))return '<div class="notice error">Недостаточно прав.</div>'
+  const sources=dataOf(state.cache.analyticsHub,{items:[]}).items||[], selected=state.forms.analyticsInsightsSource||sources[0]?.id||''
+  const item=state.forms.analyticsInsightsData, result=item?.available?item:null
+  const f=state.forms.analyticsInsightsPeriod||{}, fmt=v=>v===null||v===undefined?'—':Number(v).toLocaleString('ru-RU',{maximumFractionDigits:2})
+  const quality=q=>q&&!q.complete?' <span class="notice">Детализация может быть неполной</span>':''
+  const changes=result?.changes?.length?table(['Метрика','Текущий период','Предыдущий период','Δ (%)'],result.changes.map(c=>`<tr><td>${escapeHtml(c.label)}</td><td>${escapeHtml(fmt(c.current))}</td><td>${escapeHtml(fmt(c.previous))}</td><td>${escapeHtml(fmt(c.percent))}%</td></tr>`)):'<p>Нет сопоставимых метрик. Синхронизируйте предыдущий равный период в Analytics Hub.</p>'
+  const segments=result?.segments?Object.entries(result.segments).map(([section,group])=>`<h3>${escapeHtml(section)}${quality(group.quality)}</h3>${group.items?.length?table(['Измерение','Показатели'],group.items.map(x=>`<tr><td>${escapeHtml(x.label)}</td><td>${escapeHtml(Object.entries(x.values).map(([k,v])=>k+': '+fmt(v)).join('; '))}</td></tr>`)):'<p>Нет измерений.</p>'}`).join(''):''
+  return `<div class="card"><h2>AI External Analytics</h2><p>Анализ только ранее синхронизированных отчётов: отдельные ресурсы и метрики не суммируются. AI получает только ограниченные числовые сведения.</p><form class="form" data-insights-query><label>Источник</label><select class="input" name="connection_id">${sources.map(x=>`<option value="${escapeHtml(x.id)}" ${x.id===selected?'selected':''}>${escapeHtml(x.name)} · ${escapeHtml(x.provider)}</option>`).join('')}</select><label>Начало (пусто — последний снимок)</label><input class="input" type="date" name="from" value="${escapeHtml(f.from||'')}"><label>Конец</label><input class="input" type="date" name="to" value="${escapeHtml(f.to||'')}"><button class="btn" ${selected?'':'disabled'}>Проанализировать</button></form></div>
+  ${item?`<div class="card"><h2>${item.available?'Аналитические выводы':'Отчёт недоступен'}</h2>${result?`<p>${escapeHtml(result.provider)} · ${escapeHtml(result.from)} — ${escapeHtml(result.to)} · Получено ${escapeHtml(result.fetched_at)}</p><p>Сравнение: ${escapeHtml(result.comparison_status)}</p>${result.warnings?.map(w=>`<p class="notice">${escapeHtml(w)}</p>`).join('')||''}${changes}<h3>Изменения</h3>${result.observations?.map(o=>`<p>${escapeHtml(o.message)} ${escapeHtml(fmt(o.percent))}%</p>`).join('')||''}<h3>Сигналы по дням</h3>${result.daily_signals?.map(x=>`<p>${escapeHtml(x.metric)}: ${escapeHtml(fmt(x.previous_average))} → ${escapeHtml(fmt(x.recent_average))}, ${escapeHtml(fmt(x.percent))}% за равные 7-дневные окна</p>`).join('')||''}${segments}<button class="btn secondary" data-insights-explain>AI-объяснение через OpenAI</button>`:`<p>${escapeHtml(item.message)}</p>`}</div>`:''}
+  ${state.forms.analyticsInsightsAnswer?`<div class="card"><h2>Объяснение модели (не подтверждает причинность)</h2><pre style="white-space:pre-wrap">${escapeHtml(state.forms.analyticsInsightsAnswer)}</pre></div>`:''}`
+}
+function bindAnalyticsInsights(){
+  const f=document.querySelector('[data-insights-query]')
+  f?.addEventListener('submit',async e=>{
+    e.preventDefault();const button=f.querySelector('button');if(button.disabled)return;button.disabled=true
+    try{
+      const fd=new FormData(f), connection_id=fd.get('connection_id'),from=fd.get('from'),to=fd.get('to')
+      if(Boolean(from)!==Boolean(to))throw new Error('Выберите обе даты или оставьте пустыми.')
+      state.forms.analyticsInsightsSource=connection_id;state.forms.analyticsInsightsPeriod=from&&to?{from,to}:{}
+      const query=new URLSearchParams({connection_id,...state.forms.analyticsInsightsPeriod})
+      state.forms.analyticsInsightsData=dataOf(await api('/ai/analytics/insights?'+query))
+      state.forms.analyticsInsightsAnswer='';render()
+    }catch(e){setNotice('error',e.message)}finally{button.disabled=false}
+  })
+  document.querySelector('[data-insights-explain]')?.addEventListener('click',async e=>{
+    const button=e.currentTarget;if(button.disabled)return;button.disabled=true
+    try{
+      const payload={connection_id:state.forms.analyticsInsightsSource,...state.forms.analyticsInsightsPeriod}
+      const data=dataOf(await api('/ai/analytics/explain',{method:'POST',body:JSON.stringify(payload)}))
+      state.forms.analyticsInsightsData=data.insights;state.forms.analyticsInsightsAnswer=data.explanation;render()
+    }catch(e){setNotice('error',e.message)}finally{button.disabled=false}
+  })
+}
+
 function analyticsHubView(){
   if(!integrationScope('analytics:read'))return '<div class="notice error">Недостаточно прав.</div>'
   const payload=state.cache.analyticsHub, hub=dataOf(payload,{items:[]}), items=hub.items||[], writable=integrationScope('analytics:write')&&integrationScope('integrations:secrets'), runnable=integrationScope('analytics:run')
@@ -588,6 +626,7 @@ function bindForms() {
   bindTracking()
   bindAnalyticsEvents()
   bindAnalyticsHub()
+  bindAnalyticsInsights()
   bindIntegrations()
   bindExtensions()
   bindUpdates()

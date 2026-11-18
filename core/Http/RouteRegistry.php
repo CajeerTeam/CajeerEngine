@@ -196,6 +196,8 @@ final class RouteRegistry
             ['DELETE', '/api/v1/knowledge/chat/conversations/{id}', 'api.v1.knowledge.chat.delete', 'knowledge', 'chatDelete', ['content:read']],
             ['POST', '/api/v1/knowledge/chat/ask', 'api.v1.knowledge.chat.ask', 'knowledge', 'chatAsk', ['content:read']],
             ['POST', '/api/v1/knowledge/chat/messages/{id}/feedback', 'api.v1.knowledge.chat.feedback', 'knowledge', 'chatFeedback', ['content:read']],
+            ['GET', '/api/v1/ai/analytics/insights', 'api.v1.ai.analytics.insights', 'aiAnalytics', 'insights', ['analytics:read']],
+            ['POST', '/api/v1/ai/analytics/explain', 'api.v1.ai.analytics.explain', 'aiAnalytics', 'explain', ['analytics:read']],
             ['GET', '/api/v1/ai/status', 'api.v1.ai.status', 'ai', 'status', ['content:read']],
             ['PUT', '/api/v1/ai/settings', 'api.v1.ai.settings', 'ai', 'configure', ['system:write', 'integrations:secrets']],
             ['GET', '/api/v1/ai/tools', 'api.v1.ai.tools', 'ai', 'tools', ['content:read']],

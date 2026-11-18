@@ -1,3 +1,10 @@
+# 1.7.3 — AI External Analytics
+
+- Read-only numeric analytics insights from real Analytics Hub snapshots for each connection, including provider-specific period comparisons, quality warnings, 7-day trend signals and bounded channel/page breakdowns.
+- On-demand OpenAI explanations receive numeric evidence only, never resource credentials, raw provider responses, page paths or account identifiers. Shared token reservation, rate limiting and audit apply.
+- Working `cms_analytics_insights` function tool, API operations, Nuxt UI and production static SPA; deterministic and browser regressions.
+- Existing history, API integrations and sync workers remain unchanged; no new SQL migration is necessary.
+
 # 1.7.2 — AI Actions & Approvals
 
 - Реальные AI-действия: создание черновика, изменение SEO-метаданных, обновление статуса обращения. Сохранение предложения, предварительный просмотр, ручное подтверждение, отклонение, CAS по ревизии и аудит.

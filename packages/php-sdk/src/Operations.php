@@ -60,6 +60,42 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'api_v1_ai_analytics_explain' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/analytics/explain',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_analytics_insights' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/analytics/insights',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'connection_id',
+        'in' => 'query',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'from',
+        'in' => 'query',
+        'required' => false,
+      ),
+      2 => 
+      array (
+        'name' => 'to',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'api_v1_ai_chat' => 
   array (
     'method' => 'POST',

@@ -27,7 +27,7 @@ try {
     putenv('OPENAI_API_KEY=sk-test-ga-012345678901234567890123456789');
     $report = $service->run();
     $checks = array_column($report['checks'], 'status', 'check');
-    $check($report['version'] === '1.7.2', 'GA version is the actual release version');
+    $check($report['version'] === trim((string)file_get_contents($root.'/VERSION')), 'GA version is the actual release version');
     $check($checks['release_version'] === 'pass' && $checks['admin_assets'] === 'pass', 'GA release and published admin assets match');
     $check($checks['openai_configuration'] === 'pass' && $checks['credential_decryption'] === 'pass', 'Credential readiness verifies decryption without exposing key');
     $check(!str_contains(json_encode($report, JSON_THROW_ON_ERROR), 'sk-test-ga-'), 'Acceptance never logs provider secrets');

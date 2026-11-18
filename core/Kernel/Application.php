@@ -321,7 +321,11 @@ final class Application
             $c->get(AiSeoAssistant::class), $c->get(\CajeerEngine\AI\AiCmsDiagnostics::class),
             $c->get(\CajeerEngine\AI\AiKnowledgeBase::class),
             $c->get(\CajeerEngine\Analytics\Reporting\AnalyticsHub::class), $c->get(AuditLogger::class),
-            $c->get(\CajeerEngine\AI\AiActions::class), $c->get(\CajeerEngine\AI\AiSupportCenter::class)
+            $c->get(\CajeerEngine\AI\AiActions::class), $c->get(\CajeerEngine\AI\AiSupportCenter::class), $c->get(\CajeerEngine\AI\AiExternalAnalytics::class)
+        ));
+        $container->set(\CajeerEngine\AI\AiExternalAnalytics::class, fn (ServiceContainer $c): \CajeerEngine\AI\AiExternalAnalytics => new \CajeerEngine\AI\AiExternalAnalytics(
+            $c->get(\CajeerEngine\Analytics\Reporting\AnalyticsHub::class), $c->get(DatabaseManager::class),
+            $c->get(AiSettings::class), $c->get(OpenAiClient::class)
         ));
         $container->set(AiChat::class, fn (ServiceContainer $c): AiChat => new AiChat(
             $c->get(DatabaseManager::class), $c->get(AiSettings::class), $c->get(OpenAiClient::class), $c->get(AiTools::class)
@@ -483,6 +487,9 @@ final class Application
         $container->set('controller.knowledge', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\KnowledgeController => new \CajeerEngine\Api\Controller\KnowledgeController(
             $c->get(\CajeerEngine\AI\AiKnowledgeBase::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class),
             $c->get(AiKnowledgeChat::class)
+        ));
+        $container->set('controller.aiAnalytics', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\AiAnalyticsController => new \CajeerEngine\Api\Controller\AiAnalyticsController(
+            $c->get(\CajeerEngine\AI\AiExternalAnalytics::class), $c->get(RateLimiter::class), $c->get(AuditLogger::class)
         ));
         $container->set('controller.ai', fn (ServiceContainer $c): AiController => new AiController(
             $c->get(AiChat::class), $c->get(AiSettings::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class),

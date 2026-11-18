@@ -24,6 +24,7 @@ final readonly class AiTools
         private AuditLogger $audit,
         private AiActions $actions,
         private AiSupportCenter $support,
+        private ?AiExternalAnalytics $externalAnalytics = null,
     ) {}
 
     private const SPECS = [
@@ -56,6 +57,10 @@ final readonly class AiTools
             'scope'=>'content:read','description'=>'Read support ticket status and revision for a proposed operator action. No visitor messages or contact details.',
             'parameters'=>['ticket_id'=>['type'=>'string']],
         ],
+        'cms_analytics_insights' => [
+            'scope'=>'analytics:read', 'description'=>'Read deterministic, evidence-backed findings from one already synchronized external analytics resource. No live provider calls; never combine providers. Reports quality limitations and unavailable comparisons.',
+            'parameters'=>['connection_id'=>['type'=>'string'],'from'=>['type'=>'string','description'=>'YYYY-MM-DD or empty for latest'], 'to'=>['type'=>'string','description'=>'YYYY-MM-DD or empty for latest']],
+        ],
         'cms_analytics_report' => [
             'scope'=>'analytics:read','description'=>'Read previously synced analytics report, no live sync or write operations.',
             'parameters'=>['connection_id'=>['type'=>'string'],'from'=>['type'=>'string','description'=>'YYYY-MM-DD or empty for latest'],'to'=>['type'=>'string','description'=>'YYYY-MM-DD or empty for latest']],
@@ -68,6 +73,7 @@ final readonly class AiTools
         $allowed = [];
         foreach (self::SPECS as $name=>$spec) {
             if (!self::allows($scopes, $spec['scope'])) continue;
+            if ($name === 'cms_analytics_insights' && !isset($this->externalAnalytics)) continue;
             $properties = $spec['parameters'];
             $allowed[] = [
                 'type'=>'function', 'name'=>$name, 'description'=>$spec['description'], 'strict'=>true,
@@ -83,7 +89,7 @@ final readonly class AiTools
     {
         $list = [];
         foreach (self::SPECS as $name=>$spec) {
-            if (self::allows($scopes,$spec['scope'])) $list[] = ['name'=>$name, 'description'=>$spec['description'], 'scope'=>$spec['scope']];
+            if (self::allows($scopes,$spec['scope']) && ($name !== 'cms_analytics_insights' || isset($this->externalAnalytics))) $list[] = ['name'=>$name, 'description'=>$spec['description'], 'scope'=>$spec['scope']];
         }
         if ($actionsEnabled) $list = array_merge($list, $this->actions->catalog($scopes));
         return $list;
@@ -146,6 +152,7 @@ final readonly class AiTools
                 'cms_diagnostics_run' => $this->diagnosticReport($arguments),
                 'cms_knowledge_search' => $this->searchKnowledge($arguments),
                 'cms_analytics_report' => $this->analyticsReport($arguments),
+                'cms_analytics_insights' => $this->analyticsInsights($arguments),
                 'cms_support_ticket_get' => $this->supportTicket($arguments),
                 default => throw new \DomainException('Unknown AI tool.'),
             };
@@ -226,6 +233,24 @@ final readonly class AiTools
         $ticket = $this->support->agentView($id);
         return ['ticket_id'=>$id, 'status'=>$ticket['status'], 'priority'=>$ticket['priority'],
             'revision'=>(int)$ticket['revision'], 'needs_human'=>(bool)$ticket['needs_human']];
+    }
+
+    private function analyticsInsights(array $args): array
+    {
+        if (!isset($this->externalAnalytics)) throw new \DomainException('Analytics insights unavailable.');
+        $id = self::string($args,'connection_id',32);
+        if (!preg_match('/^[a-f0-9]{32}$/D',$id)) throw new \InvalidArgumentException('Invalid analytics connection ID.');
+        $from = self::string($args,'from',10,true);
+        $to = self::string($args,'to',10,true);
+        if (($from === '') !== ($to === '')) throw new \InvalidArgumentException('Both report dates required.');
+        $result = $this->externalAnalytics->insights($id,$from === '' ? null : $from,$to === '' ? null : $to);
+        // Tool responses are numeric evidence, not free-form page titles or query strings.
+        unset($result['segments']);
+        $result['changes'] = array_slice($result['changes'] ?? [],0,8);
+        $result['observations'] = array_slice($result['observations'] ?? [],0,8);
+        $result['daily_signals'] = array_slice($result['daily_signals'] ?? [],0,4);
+        unset($result['connection_id'],$result['periods']);
+        return $result;
     }
 
     private function analyticsReport(array $args): array

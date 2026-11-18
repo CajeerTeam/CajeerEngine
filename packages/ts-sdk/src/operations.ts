@@ -42,6 +42,34 @@ export const operations = {
         ],
         "bodyRequired": false
     },
+    "api_v1_ai_analytics_explain": {
+        "method": "POST",
+        "path": "/ai/analytics/explain",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_ai_analytics_insights": {
+        "method": "GET",
+        "path": "/ai/analytics/insights",
+        "parameters": [
+            {
+                "name": "connection_id",
+                "in": "query",
+                "required": true
+            },
+            {
+                "name": "from",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "to",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
     "api_v1_ai_chat": {
         "method": "POST",
         "path": "/ai/chat",
