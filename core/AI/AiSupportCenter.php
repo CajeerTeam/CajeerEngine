@@ -319,9 +319,12 @@ final readonly class AiSupportCenter
                 foreach ($answer['sources'] as $source) {
                     if (!$this->knowledge->isCurrentSource($source['id'], (int)$source['revision'], 'public')) return;
                 }
+                // Compare-and-swap the ticket FIRST. A second worker, operator reply or
+                // handoff cannot leave an orphaned/duplicate AI message on losing the race.
+                $claim = $pdo->prepare('UPDATE ce_support_tickets SET status = ?, needs_human = 0, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = 1 AND status = ? AND needs_human = 1');
+                $claim->execute(['waiting', time(), $ticketId, 'open']);
+                if ($claim->rowCount() !== 1) return;
                 self::insertMessage($pdo, $ticketId, 'ai', $answer['text'], null, $answer['sources']);
-                $pdo->prepare('UPDATE ce_support_tickets SET status = ?, needs_human = 0, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = 1')
-                    ->execute(['waiting', time(), $ticketId]);
             });
         } catch (\Throwable) { /* Fail open to the human queue, never publish guessed AI text. */ }
     }

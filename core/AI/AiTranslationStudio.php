@@ -218,7 +218,9 @@ final readonly class AiTranslationStudio
         $period = gmdate('Y-m'); $now = time(); $job = self::id();
         $this->reserve($uid, $period, $reserve, (int)$status['monthly_token_limit'], $job, $now + 180, $now);
         try {
-            $response = $this->client->complete($this->settings->key(), (string)$status['model'], $input, (int)$status['max_output_tokens']);
+            $key = $this->settings->key();
+            try { $response = $this->client->complete($key, (string)$status['model'], $input, (int)$status['max_output_tokens']); }
+            finally { if (function_exists('sodium_memzero')) sodium_memzero($key); }
             $translated = json_decode(trim($response['text']), true, 512, JSON_THROW_ON_ERROR);
             if (!is_array($translated) || array_diff_key($translated, $collection['segments']) !== [] || array_diff_key($collection['segments'], $translated) !== []) {
                 throw new \DomainException('OpenAI did not return the required segment mapping.');

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.9 — AI Security & Acceptance
+
+- **Provider credential boundary:** all OpenAI Responses calls now reject accidental disclosure of API keys, JWT/Bearer tokens, private keys and known server credentials before sending any HTTP data. Oversized provider contexts fail closed.
+- **Atomic support auto-replies:** compare-and-swap the ticket revision before inserting the answer; duplicate and competing workers cannot append an AI reply after an operator/visitor handoff.
+- **AI data lifecycle:** production opt-in retention utility for aged AI/RAG conversations, expired editorial/translation proposals and *closed* support tickets; bounded transactional batches with preview, verified rollback and preservation of active tasks, open tickets and usage ledgers.
+- **Key hygiene:** diagnostic OpenAI credentials are explicitly zeroized after use.
+- **Acceptance:** offline credential-boundary tests and real PDO/SQLite retention rollback tests are mandatory in release CI; extended support job idempotency test.
+- No new public API routes or database migrations; existing AI Editor, SEO, Translation, Knowledge and Support APIs remain compatible.
+
 ## 1.6.8 — AI Support Center
 
 - Live public visitor ticket widget with capability-based ticket access, rate limits, ticket messages and operator handoff.

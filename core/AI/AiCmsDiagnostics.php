@@ -177,7 +177,9 @@ final readonly class AiCmsDiagnostics
         $now = time(); $period = gmdate('Y-m'); $job = self::id();
         $this->reserve($userId, $period, $reserve, (int)$status['monthly_token_limit'], $job, $now + 180, $now);
         try {
-            $answer = $this->client->complete($this->settings->key(), (string)$status['model'], $input, $maxOutput);
+            $key = $this->settings->key();
+            try { $answer = $this->client->complete($key, (string)$status['model'], $input, $maxOutput); }
+            finally { if (function_exists('sodium_memzero')) sodium_memzero($key); }
             $explanation = trim((string)$answer['text']);
             if ($explanation === '' || strlen($explanation) > 12000 || !preg_match('//u', $explanation)) throw new \DomainException('Invalid AI explanation.');
             $used = max(0, (int)$answer['usage']['input_tokens']) + max(0, (int)$answer['usage']['output_tokens']);

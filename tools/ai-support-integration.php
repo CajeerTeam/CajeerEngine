@@ -106,6 +106,8 @@ try {
     $second = $service->create($input);
     $service->autoReply($second['ticket_id']);
     $aiTranscript = $service->visitorView($second['ticket_id'], $second['access_token']);
+    $service->autoReply($second['ticket_id']); // Retries must not duplicate messages or spend additional tokens.
+    $check(count($service->visitorView($second['ticket_id'], $second['access_token'])['messages']) === 2, 'Repeated AI job is idempotent after first delivery');
     $check(count($aiTranscript['messages'])===2 && $aiTranscript['messages'][1]['role']==='ai' && $aiTranscript['status']==='waiting', 'Automated public response is delivered from live KB evidence');
     $kb->saveDocument(['title'=>$public['title'],'slug'=>$public['slug'], 'body'=>'Весь предыдущий текст устарел и заменён.',
         'locale'=>'ru', 'visibility'=>'public','status'=>'published','expected_revision'=>(int)$public['revision']],$public['id']);

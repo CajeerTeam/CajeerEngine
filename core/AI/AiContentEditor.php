@@ -160,7 +160,9 @@ final readonly class AiContentEditor
         $period = gmdate('Y-m'); $now = time(); $jobId = self::id(); $lease = $now + 180;
         $this->reserve($userId, $period, $reserve, (int)$status['monthly_token_limit'], $jobId, $lease, $now);
         try {
-            $response = $this->client->complete($this->settings->key(), $status['model'], $input, (int)$status['max_output_tokens']);
+            $key = $this->settings->key();
+            try { $response = $this->client->complete($key, $status['model'], $input, (int)$status['max_output_tokens']); }
+            finally { if (function_exists('sodium_memzero')) sodium_memzero($key); }
             $text = trim($response['text']);
             if ($text === '' || strlen($text) > 16000 || !preg_match('//u', $text)) throw new \DomainException('AI returned invalid editorial text.');
             if ($ctx['field_type'] === 'richtext') {

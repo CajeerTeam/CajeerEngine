@@ -12,6 +12,8 @@ class OpenAiClient
     /** @return array{text:string,usage:array{input_tokens:int,output_tokens:int},response_id:string} */
     public function complete(#[\SensitiveParameter] string $key, string $model, array $input, int $maxOutput, ?callable $onDelta = null): array
     {
+        // Enforce the same credential boundary for chat, editing, RAG, support and diagnostics.
+        AiOutboundSafety::assertNoCredentials($input);
         if (!function_exists('curl_init')) throw new AiProviderException('PHP ext-curl is required for OpenAI requests.', 503);
         $url = 'https://api.openai.com/v1/responses';
         try {

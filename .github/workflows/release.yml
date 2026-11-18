@@ -108,6 +108,12 @@ jobs:
         run: php tools/ai-knowledge-integration.php --require-db
       - name: AI Knowledge Chat RAG real PDO, private sessions, source revocation and shared budget
         run: php tools/ai-knowledge-chat-integration.php --require-db
+      - name: AI outbound credential boundary (offline, fail closed)
+        run: php tools/ai-security-regression.php
+      - name: AI Support CAS and retention SQL fault injection
+        run: python3 tools/ai-sql-resilience-regression.py
+      - name: AI retention, SQL rollback and active-session preservation (real PDO)
+        run: php tools/ai-retention-integration.php --require-db
       - name: AI Support Center visitor capability, operator queue, grounded AI and handoff acceptance
         run: php tools/ai-support-integration.php --require-db
       - name: AI Support Center SQL schema and optimistic update regression
