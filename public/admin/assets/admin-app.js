@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.6.2'
+const ADMIN_VERSION = '1.6.3'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -14,6 +14,7 @@ const nav = [
   ['users', '👥', 'Доступ', 'Пользователи, роли, tokens'],
   ['identity', '🔑', 'Identity Center', 'SkiF4er ID: привязки, пользователи и сессии'],
   ['ai', '◈', 'AI Assistant', 'ChatGPT через OpenAI API'],
+  ['seo', '🔎', 'AI SEO Assistant', 'Аудит страниц и SEO-оптимизация'],
   ['tracking', '📈', 'Счётчики', 'Яндекс Метрика, GA4, GTM, Matomo и Plausible'],
   ['analytics-hub', '📊', 'Analytics Hub', 'Отчёты трафика и поисковой статистики'],
   ['analytics-events', '📊', 'События', 'Правила, цели и диагностика аналитики'],
@@ -46,6 +47,7 @@ const state = {
     mediaAlt: '',
     user: { name: '', email: '', password: '', roles: 'admin' },
     identitySearch: '', identityLinked: 'all', identityOffset: 0, identitySelected: '',
+    seo: {type:'',entry:'',field:'seo_title',instructions:'',audit:null,batch:null,proposal:null,busy:false},
     aiSelected: null, aiMessages: [], aiBusy: false, aiEditor: {field:'title',mode:'generate',instructions:'',selection:'',busy:false,proposal:null},
     role: { handle: '', name: '', permissions: 'content:read,content:write' },
     token: { name: 'Admin token', scopes: 'content:read,content:write' },
@@ -199,6 +201,12 @@ async function routeLoad(route) {
     if (route === 'users') await Promise.allSettled([loadSilent('users', '/users'), loadSilent('roles', '/roles'), loadSilent('tokens', '/api-tokens')])
     if (route === 'identity') await Promise.allSettled([loadSilent('identity', '/identity/account'), loadSilent('sessions', '/auth/sessions'), ...(integrationScope('users:read') ? [loadIdentityUsers()] : [])])
     if (route === 'ai') await Promise.allSettled([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations')])
+    if (route === 'seo') {
+      await loadSilent('seoTypes','/content-types')
+      const available=asArray(state.cache.seoTypes)
+      if(!available.some(t=>t.handle===state.forms.seo.type))state.forms.seo.type=available[0]?.handle||''
+      if(state.forms.seo.type)await loadSilent('seoEntries','/content/'+encodeURIComponent(state.forms.seo.type)+'?status=all&limit=200&offset=0')
+    }
     if (route === 'tracking') await loadSilent('tracking', '/tracking/counters')
     if (route === 'analytics-hub') {await loadSilent('analyticsHub','/analytics/reports');const previous=dataOf(state.cache.analyticsHubReport,{});if(previous.connection?.id){const r=state.forms.hubPeriod;await loadSilent('analyticsHubReport',`/analytics/reports/${encodeURIComponent(previous.connection.id)}/data${r?'?'+new URLSearchParams(r):''}`)}}
     if (route === 'analytics-events') await Promise.allSettled([loadSilent('analyticsEvents','/tracking/events'),loadSilent('analyticsJournal','/tracking/events/journal')])
@@ -261,6 +269,7 @@ function render() {
   else if (state.route === 'users') body = usersView()
   else if (state.route === 'identity') body = identityView()
   else if (state.route === 'ai') body = aiView()
+  else if (state.route === 'seo') body = seoView()
   else if (state.route === 'tracking') body = trackingView()
   else if (state.route === 'analytics-hub') body = analyticsHubView()
   else if (state.route === 'analytics-events') body = analyticsEventsView()
@@ -530,6 +539,7 @@ function bindForms() {
   bindMigration()
   bindContentTypes()
   bindContent()
+  bindSeo()
   bindMedia()
   bindCms()
   bindUsers()
@@ -768,6 +778,60 @@ function contentView() {
     const proposed=proposal?`<div><strong>После</strong><pre class="ai-editor-text">${escapeHtml(proposal.proposed)}</pre></div>`:'';
     return `<section class="card" style="margin-top:18px"><h2>AI Content Editor</h2><p class="muted">Предложение не изменяет CMS до подтверждения. Изменения сохранённой записи защищены номером ревизии.</p><form data-ai-editor-form class="form"><div class="split"><div class="form-row"><label>Поле</label><select class="input" name="field">${targetFields.map(f=>`<option value="${escapeHtml(f.handle)}" ${editor.field===f.handle?'selected':''}>${escapeHtml(f.label||f.handle)}</option>`).join('')}</select></div><div class="form-row"><label>Операция</label><select class="input" name="mode" ${selectedEntry?'':'disabled'}>${[['generate','Генерация'],['rewrite','Переписать'],['shorten','Сократить'],['expand','Расширить'],['proofread','Исправить'],['tone','Изменить тон']].map(([id,label])=>`<option value="${id}" ${editor.mode===id?'selected':''}>${label}</option>`).join('')}</select></div></div><div class="form-row"><label>Задание / тема</label><textarea class="input" name="instructions" rows="3" maxlength="3000" placeholder="Что написать или изменить">${escapeHtml(editor.instructions)}</textarea></div>${selectedEntry?`<div class="form-row"><label>Выделенный фрагмент (необязательно; точная строка из сохранённого поля)</label><textarea class="input" name="selection" rows="2" maxlength="12000">${escapeHtml(editor.selection)}</textarea></div>`:''}<button class="btn secondary" type="submit" ${editor.busy?'disabled':''}>${editor.busy?'Генерация…':'Создать предложение'}</button></form>${proposal?`<div class="ai-editor-compare">${original}${proposed}</div><p class="muted">Токены: ${Number(proposal.usage?.input_tokens||0)} / ${Number(proposal.usage?.output_tokens||0)}. Сначала проверьте текст.</p><div class="toolbar"><button class="btn" data-ai-editor-accept ${editor.busy?'disabled':''}>${selectedEntry?'Применить как новую ревизию':'Перенести в черновик'}</button><button class="btn secondary" data-ai-editor-reject>Отклонить</button></div>`:''}</section>`;
   })()}`
+}
+
+
+function seoView() {
+  const f=state.forms.seo,types=asArray(state.cache.seoTypes),entries=asArray(state.cache.seoEntries),r=f.audit;
+  const heading=(label,options)=>`<label>${label}<select class="input" name="${options.name}">${options.values.map(([value,title])=>`<option value="${escapeHtml(value)}" ${options.current===value?'selected':''}>${escapeHtml(title)}</option>`).join('')}</select></label>`;
+  const typesHtml=heading('Тип контента',{name:'type',values:types.map(t=>[t.handle,(t.name||t.handle)+' / '+t.handle]),current:f.type});
+  const entriesHtml=heading('Материал',{name:'entry',values:[['','Выберите страницу'],...entries.map(e=>[e.id,(e.title||e.id)+' · '+e.status+' · '+e.locale])],current:f.entry});
+  const reports=f.batch?.reports||[];
+  const batch=reports.length?`<section class="card"><h2>Проверено опубликованных страниц: ${reports.length} из ${Number(f.batch?.meta?.available||reports.length)}</h2>${table(['Материал','Балл','Замечания',''],reports.map(x=>`<tr><td>${escapeHtml(x.title)}</td><td>${Number(x.score)}/100</td><td>${x.issues.length}</td><td><button class="btn small secondary" data-seo-open="${escapeHtml(x.entry_id)}">Открыть</button></td></tr>`))}</section>`:'';
+  const issues=r?.issues||[];
+  const report=r?`<section class="card"><h2>SEO-аудит: ${escapeHtml(r.title)} · ${Number(r.score)}/100</h2><p>Ревизия ${Number(r.revision)} · ${escapeHtml(r.status)} · URL ${escapeHtml(r.path||'(нет)')}</p><p><strong>SEO Title:</strong> ${escapeHtml(r.seo.title||'(нет)')}<br><strong>Description:</strong> ${escapeHtml(r.seo.description||'(нет)')}<br><strong>Canonical:</strong> ${escapeHtml(r.seo.canonical_url||'(автоматический)')}<br><strong>Noindex:</strong> ${r.seo.noindex?'Да':'Нет'}</p><p>Слов: ${Number(r.stats.words)} · H1: ${Number(r.stats.headings.h1)} · H2: ${Number(r.stats.headings.h2)} · Проверено внутренних ссылок: ${Number(r.stats.internal_links_checked)}</p>${issues.length?table(['Приоритет','Замечание','Действие'],issues.map(i=>`<tr><td>${escapeHtml(i.severity)}</td><td>${escapeHtml(i.message)}</td><td>${escapeHtml(i.action)}</td></tr>`)):'<p>Выбранные проверки не выявили замечаний.</p>'}<p class="muted">${escapeHtml(r.notes)}</p><div class="card"><h3>AI-рекомендация</h3><form data-seo-propose class="form">${heading('Поле',{name:'field',values:[['seo_title','SEO Title'],['meta_description','Meta Description']],current:f.field})}<label>Ключевая фраза / рекомендации<textarea class="input" name="instructions" rows="3" maxlength="1500">${escapeHtml(f.instructions)}</textarea></label><button class="btn secondary" ${f.busy?'disabled':''} type="submit">${f.busy?'Выполняется…':'Сгенерировать предложение'}</button></form>${f.proposal?`<h3>Сравнение: ревизия ${Number(f.proposal.expected_revision)}</h3><div class="ai-editor-compare"><div><strong>Текущее значение</strong><pre class="ai-editor-text">${escapeHtml(f.proposal.original||'(пусто)')}</pre></div><div><strong>Предложение</strong><pre class="ai-editor-text">${escapeHtml(f.proposal.proposed)}</pre></div></div><p class="muted">Токены: ${Number(f.proposal.usage?.input_tokens||0)} / ${Number(f.proposal.usage?.output_tokens||0)}</p><div class="toolbar"><button class="btn" data-seo-accept>Применить как новую ревизию</button><button class="btn secondary" data-seo-reject>Отклонить</button></div>`:''}</div></section>`:'';
+  return `<section class="card"><h2>Анализ страниц и SEO-оптимизация</h2><p>Проверка читает сохранённые данные и маршруты CMS, без запросов к внешним сайтам. AI-рекомендации не применяются автоматически.</p><div class="toolbar"><div style="min-width:200px">${typesHtml}</div><div style="min-width:250px">${entriesHtml}</div><button class="btn" data-seo-audit ${f.busy?'disabled':''}>${f.busy?'Проверка…':'Анализировать'}</button><button class="btn secondary" data-seo-batch ${f.busy?'disabled':''}>Проверить опубликованные (до 30)</button></div></section>${batch}${report}`;
+}
+function bindSeo() {
+  if(state.route!=='seo')return;
+  const f=state.forms.seo;
+  document.querySelector('[name="type"]')?.addEventListener('change',async e=>{
+    f.type=e.target.value;f.entry='';f.audit=null;f.proposal=null;f.batch=null;
+    await routeLoad('seo');render();
+  });
+  document.querySelector('[name="entry"]')?.addEventListener('change',e=>{f.entry=e.target.value;f.audit=null;f.proposal=null;render()});
+  const audit=async id=>{
+    if(!id||f.busy)return;f.busy=true;f.proposal=null;
+    try{f.audit=dataOf(await api('/ai/seo/audit?'+new URLSearchParams({type:f.type,entry_id:id})));f.entry=id;setNotice('ok','SEO-аудит завершён.')}
+    catch(e){setNotice('error',e.message,e.payload)}finally{f.busy=false;render()}
+  };
+  document.querySelector('[data-seo-audit]')?.addEventListener('click',()=>audit(f.entry));
+  document.querySelectorAll('[data-seo-open]').forEach(b=>b.addEventListener('click',()=>audit(b.dataset.seoOpen)));
+  document.querySelector('[data-seo-batch]')?.addEventListener('click',async()=>{
+    if(f.busy)return;f.busy=true;
+    try{f.batch=dataOf(await api('/ai/seo/batch?'+new URLSearchParams({type:f.type,limit:'30'})));setNotice('ok','Пакетная проверка завершена.')}
+    catch(e){setNotice('error',e.message,e.payload)}finally{f.busy=false;render()}
+  });
+  const form=document.querySelector('[data-seo-propose]');
+  form?.addEventListener('input',()=>{f.proposal=null;f.field=form.elements.field.value;f.instructions=form.elements.instructions.value});
+  form?.addEventListener('submit',async e=>{
+    e.preventDefault();if(f.busy||!f.audit)return;f.busy=true;f.proposal=null;
+    try{f.proposal=dataOf(await api('/ai/seo/proposals',{method:'POST',body:JSON.stringify({type:f.type,entry_id:f.audit.entry_id,field:f.field,instructions:f.instructions})}));setNotice('ok','SEO-предложение готово. Проверьте перед сохранением.')}
+    catch(err){setNotice('error',err.message,err.payload)}finally{f.busy=false;render()}
+  });
+  document.querySelector('[data-seo-reject]')?.addEventListener('click',()=>{f.proposal=null;render()});
+  document.querySelector('[data-seo-accept]')?.addEventListener('click',async()=>{
+    if(!f.proposal||!f.audit||f.busy)return;
+    const published=f.audit.status==='published';
+    if(published&&!confirm('SEO-данные опубликованной страницы будут изменены на сайте. Продолжить?'))return;
+    f.busy=true;
+    try{
+      await api('/ai/editor/proposals/'+encodeURIComponent(f.proposal.id)+'/apply',{method:'POST',body:JSON.stringify({confirm_published:published})});
+      f.proposal=null;f.audit=dataOf(await api('/ai/seo/audit?'+new URLSearchParams({type:f.type,entry_id:f.entry})));
+      await loadSilent('seoEntries','/content/'+encodeURIComponent(f.type)+'?status=all&limit=200&offset=0');
+      setNotice('ok','SEO-правка применена как новая ревизия.');
+    }catch(err){setNotice('error',err.message,err.payload)}finally{f.busy=false;render()}
+  });
 }
 
 function bindContent() {

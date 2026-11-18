@@ -72,6 +72,46 @@ export const operations = {
         "parameters": [],
         "bodyRequired": true
     },
+    "api_v1_ai_seo_audit": {
+        "method": "GET",
+        "path": "/ai/seo/audit",
+        "parameters": [
+            {
+                "name": "type",
+                "in": "query",
+                "required": true
+            },
+            {
+                "name": "entry_id",
+                "in": "query",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_seo_batch": {
+        "method": "GET",
+        "path": "/ai/seo/batch",
+        "parameters": [
+            {
+                "name": "type",
+                "in": "query",
+                "required": true
+            },
+            {
+                "name": "limit",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_seo_propose": {
+        "method": "POST",
+        "path": "/ai/seo/proposals",
+        "parameters": [],
+        "bodyRequired": true
+    },
     "api_v1_ai_settings": {
         "method": "PUT",
         "path": "/ai/settings",

@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.3] — AI SEO Assistant (2026-11-18)
+
+- Real content-backed SEO audit for existing CMS entries, public routes, metadata, heading structure, images and root-relative internal links.
+- Bounded batch review of published entries with actionable diagnostics and an explicit heuristic score.
+- AI-generated SEO Title and Meta Description proposals using saved page content, shared OpenAI budget, ownership checks and ordinary CMS revision approval; no automatic publication.
+- Fixed reserved SEO field persistence and validation for all content types, including canonical and noindex, matching the public renderer.
+- Nuxt and shipped static SPA SEO interfaces, 205 synchronized OpenAPI/SDK operations, regression and PDO acceptance tests, deployment guide.
+
+
 ## [1.6.2] — AI Content Editor (2026-11-18)
 
 - Real AI drafting of titles, text, richtext and textual block fields via the configured OpenAI Responses API.

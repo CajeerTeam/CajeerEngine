@@ -121,6 +121,31 @@ final readonly class ContentEntryValidator
             $normalized[$handle] = $this->value($handle, (string) ($field['type'] ?? 'text'), $data[$handle], is_array($field['settings'] ?? null) ? $field['settings'] : []);
         }
 
+        // SEO metadata belongs to the public renderer, not a user-defined content field.
+        // Preserve it across ordinary saves and AI proposal application for every content type.
+        foreach (['seo_title', 'meta_description', 'canonical_url', 'seo_noindex'] as $seoField) {
+            if (!array_key_exists($seoField, $data)) continue;
+            $value = $data[$seoField];
+            if ($seoField === 'seo_noindex') {
+                $normalized[$seoField] = $value === null ? false : $this->booleanValue($seoField, $value);
+                continue;
+            }
+            if ($value === null) { $normalized[$seoField] = null; continue; }
+            if (!is_string($value) || !preg_match('//u', $value)) throw new \InvalidArgumentException('Invalid SEO metadata.');
+            $value = trim($value);
+            $limits = ['seo_title' => 180, 'meta_description' => 320, 'canonical_url' => 1500];
+            if ((function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : preg_match_all('/./us', $value)) > $limits[$seoField]) throw new \InvalidArgumentException('SEO metadata exceeds the field limit.');
+            if ($seoField === 'canonical_url' && $value !== '') {
+                // No javascript:, fragments, query aliases, non-HTTP origins or credentials.
+                if (preg_match('~[\x00-\x20\x7f]|[?#]~', $value) ||
+                    (!str_starts_with($value, '/') &&
+                    (!preg_match('~^https://[^/]+(?:/.*)?$~iD', $value) || !filter_var($value, FILTER_VALIDATE_URL))) ||
+                    str_starts_with($value, '//') || parse_url($value, PHP_URL_USER) !== null || parse_url($value, PHP_URL_PASS) !== null) {
+                    throw new \InvalidArgumentException('Invalid canonical URL.');
+                }
+            }
+            $normalized[$seoField] = $value;
+        }
         return $normalized;
     }
 

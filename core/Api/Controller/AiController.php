@@ -6,6 +6,7 @@ namespace CajeerEngine\Api\Controller;
 
 use CajeerEngine\AI\AiChat;
 use CajeerEngine\AI\AiContentEditor;
+use CajeerEngine\AI\AiSeoAssistant;
 use CajeerEngine\AI\AiProviderException;
 use CajeerEngine\AI\AiSettings;
 use CajeerEngine\Audit\AuditLogger;
@@ -18,7 +19,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /** Admin-only chat endpoints. Authorization/CSRF/step-up also run in the core middleware. */
 final readonly class AiController
 {
-    public function __construct(private AiChat $chat, private AiSettings $settings, private AuditLogger $audit, private RateLimiter $limiter, private AiContentEditor $editor) {}
+    public function __construct(private AiChat $chat, private AiSettings $settings, private AuditLogger $audit, private RateLimiter $limiter, private AiContentEditor $editor, private AiSeoAssistant $seo) {}
 
     private function user(Request $request): string
     {
@@ -99,6 +100,48 @@ final readonly class AiController
         $result = $this->editor->apply($uid, (string)($params['id'] ?? ''), $body['confirm_published'] ?? false);
         $this->audit->record('ai.editor.applied', $uid, ['proposal_id' => $params['id'], 'type' => $result['type'], 'entry_id' => $result['entry']['id'], 'revision' => $result['entry']['revision']]);
         return $this->ok($result);
+    }
+
+    public function seoAudit(Request $request): JsonResponse
+    {
+        $this->user($request);
+        return $this->ok($this->seo->audit((string)$request->query->get('type', ''), (string)$request->query->get('entry_id', '')));
+    }
+
+    public function seoBatch(Request $request): JsonResponse
+    {
+        $this->user($request);
+        $limit = filter_var($request->query->get('limit', '30'), FILTER_VALIDATE_INT);
+        if ($limit === false) throw new \InvalidArgumentException('Invalid SEO batch limit.');
+        return $this->ok($this->seo->batch((string)$request->query->get('type', ''), $limit));
+    }
+
+    public function seoPropose(Request $request): JsonResponse
+    {
+        $uid = $this->user($request);
+        $data = $this->body($request);
+        if (array_diff(array_keys($data), ['type', 'entry_id', 'field', 'instructions']) !== [] ||
+            !is_string($data['type'] ?? null) || !is_string($data['entry_id'] ?? null) ||
+            !in_array($data['field'] ?? null, ['seo_title', 'meta_description'], true) ||
+            !is_string($data['instructions'] ?? null) || strlen($data['instructions']) > 1500) {
+            throw new \InvalidArgumentException('Invalid AI SEO request.');
+        }
+        // The audit confirms the target exists before any tokens can be charged.
+        $this->seo->audit($data['type'], $data['entry_id']);
+        $hit = $this->limiter->hit('ai-seo-user', $uid, 6, 60);
+        if (!$hit['allowed']) return new JsonResponse(['error' => ['code' => 'ai_seo_rate_limit', 'message' => 'SEO generation rate limit reached.']], 429,
+            ['Retry-After' => (string)$hit['retry_after'], 'Cache-Control' => 'no-store']);
+        try {
+            $result = $this->editor->propose($uid, [
+                'type' => $data['type'], 'entry_id' => $data['entry_id'], 'field' => $data['field'],
+                'mode' => $data['field'] === 'seo_title' ? 'seo_title' : 'seo_description',
+                'instructions' => $data['instructions'],
+            ]);
+            $this->audit->record('ai.seo.proposed', $uid, ['proposal_id' => $result['id'], 'entry_id' => $data['entry_id'], 'field' => $data['field']]);
+            return $this->ok($result);
+        } catch (AiProviderException $e) {
+            return new JsonResponse(['error' => ['code' => 'ai_provider_unavailable', 'message' => $e->getMessage()]], $e->httpStatus, ['Cache-Control'=>'no-store']);
+        }
     }
 
     private function throttle(string $uid): ?JsonResponse

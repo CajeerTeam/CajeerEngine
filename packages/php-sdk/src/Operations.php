@@ -102,6 +102,57 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'api_v1_ai_seo_audit' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/seo/audit',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'query',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'entry_id',
+        'in' => 'query',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_seo_batch' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/seo/batch',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'type',
+        'in' => 'query',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'limit',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_seo_propose' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/seo/proposals',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
   'api_v1_ai_settings' => 
   array (
     'method' => 'PUT',
