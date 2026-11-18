@@ -529,6 +529,12 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "get_IdentityAccount": {
+        "method": "GET",
+        "path": "/identity/account",
+        "parameters": [],
+        "bodyRequired": false
+    },
     "get_ImportExportDownload": {
         "method": "GET",
         "path": "/import-export/download/{file}",
@@ -1397,6 +1403,18 @@ export const operations = {
             }
         ],
         "bodyRequired": false
+    },
+    "post_IdentityLinkStart": {
+        "method": "POST",
+        "path": "/identity/link/start",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "post_IdentityUnlink": {
+        "method": "POST",
+        "path": "/identity/unlink",
+        "parameters": [],
+        "bodyRequired": true
     },
     "post_ImportExportExport": {
         "method": "POST",

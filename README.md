@@ -16,7 +16,11 @@ php bin/cajeer admin:assets --check
 php bin/cajeer doctor
 ```
 
-## Production Stable 1.5.1 — SkiF4er ID Authentication Core
+## SkiF4er ID Account Linking & Provisioning (1.5.2)
+
+The existing OIDC login now supports safe self-service linking from `/admin/#/identity` after local password/2FA confirmation, and optional new-user provisioning with a verified email. Matching email **never** merges accounts. Enable registration explicitly with `SKIF4ER_ID_AUTO_PROVISION=true`; default is disabled. Provisioned users cannot self-unlink until a verified local login alternative exists. Apply SQL migration `0027_oidc_account_linking.sql`. See [Account linking guide](docs/identity-account-linking.md).
+
+## SkiF4er ID Authentication Core (introduced in 1.5.1)
 
 Optional confidential OIDC login with Authorization Code + PKCE, exact SkiF4er ID issuer, JWKS/RS256 validation, encrypted one-time browser transactions, operator-linked accounts and existing local RBAC sessions. Off by default; current local login remains available. See [deployment guide](docs/skif4er-id-authentication.md).
 

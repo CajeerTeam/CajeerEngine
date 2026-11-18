@@ -163,7 +163,7 @@ final class Application
         $response->headers->set('traceparent',$trace->header());
         $response->headers->set('X-Runtime-Ms',(string)round($duration*1000));
         $this->container->get(RuntimeLogger::class)->info('HTTP request handled',$trace->fields()+['request_id'=>(string)$request->attributes->get('request_id',''),'method'=>$request->getMethod(),'route'=>$route,'status'=>$response->getStatusCode(),'duration_ms'=>round($duration*1000,3)]);
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.5.0'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.5.2'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -337,7 +337,7 @@ final class Application
             $enabled = filter_var(getenv('SKIF4ER_ID_ENABLED') ?: 'false', FILTER_VALIDATE_BOOLEAN);
             $clientId = trim((string)(getenv('SKIF4ER_ID_CLIENT_ID') ?: ''));
             $secret = (string)(getenv('SKIF4ER_ID_CLIENT_SECRET') ?: '');
-            if (!$enabled) return new OidcController($cfg, null);
+            if (!$enabled) return new OidcController($cfg, null, $c->get(AuthService::class));
             $base = rtrim($cfg->string('app.url'), '/');
             try {
                 if (!extension_loaded('curl') || !extension_loaded('openssl') || !extension_loaded('sodium')) {
@@ -346,11 +346,15 @@ final class Application
                 $client = new OidcClient($clientId, $secret, $base . '/auth/oidc/callback');
                 $vault = new SecretVault((string)(getenv('SKIF4ER_ID_TRANSACTION_KEY') ?: getenv('INTEGRATIONS_KEY') ?: getenv('APP_KEY') ?: ''));
                 $vault->seal('oidc:startup-check', 'ok'); // Fail closed on missing/invalid protected key.
-                return new OidcController($cfg, new OidcLogin($client, new OidcStore($c->get(DatabaseManager::class), $vault), $c->get(AuthService::class)));
+                return new OidcController($cfg, new OidcLogin(
+                    $client, new OidcStore($c->get(DatabaseManager::class), $vault), $c->get(AuthService::class),
+                    $c->get(UserRepository::class), $c->get(RoleRepository::class), $c->get(PasswordHasher::class),
+                    $c->get(AuditLogRepository::class), filter_var(getenv('SKIF4ER_ID_AUTO_PROVISION') ?: 'false', FILTER_VALIDATE_BOOLEAN)
+                ), $c->get(AuthService::class));
             } catch (\Throwable) {
                 $c->get(RuntimeLogger::class)->warning('Identity OIDC disabled', ['code'=>'oidc_configuration_invalid']);
                 // A misconfigured optional identity provider must never disable local login.
-                return new OidcController($cfg, null);
+                return new OidcController($cfg, null, $c->get(AuthService::class));
             }
         });
         $container->set('controller.users', fn (ServiceContainer $c): UserController => new UserController($c->get(UserRepository::class), $c->get(PasswordHasher::class)));

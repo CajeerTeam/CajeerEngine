@@ -1,4 +1,4 @@
-# SkiF4er ID — CajeerEngine 1.5.1
+# SkiF4er ID — CajeerEngine 1.5.2
 
 ## Working scope
 
@@ -33,3 +33,13 @@ Backend OIDC Authorization Code + PKCE S256, real TLS exchanges against `https:/
 ## Testing
 
 `php tools/oidc-regression.php` exercises RS256 signing/verification with generated keys and a controlled HTTP response transport; `python3 tools/oidc-sqlite-regression.py` tests the real SQLite schema, unique identities and single-use transaction. `php tools/oidc-db-regression.php --require-db` checks actual PDO SQLite one-time state and ciphertext round-trips in release CI. `python3 tools/oidc-admin-browser-regression.py` checks the production login button in Chromium. These tests do not replace an end-to-end trial against an operator-registered Keycloak client; production activation requires that separate trial.
+
+## Account linking & opt-in provisioning (1.5.2)
+
+After signing in with a **local** account (HttpOnly `ce_session`), open `/admin/#/identity` (or the Nuxt `/identity` page). The linking form requires the current local password and, if enabled, the current 2FA code. The backend POSTs to `/api/v1/identity/link/start`, verifies the local secret using `AuthService::confirmSensitiveAction`, then creates an expiring, one-use OIDC transaction bound to that same local session ID. Only after SkiF4er ID supplies a valid signed ID token does the backend write the issuer/subject link. The pending transaction is rejected if that local session was revoked or expired. Linking an already claimed `sub`, or reassigning an account already linked to another `sub`, fails. Never link by email alone.
+
+`GET /api/v1/identity/account` reports the current user's link status without revealing the OIDC subject. `POST /api/v1/identity/unlink` requires local password/2FA and a CSRF-protected cookie session. Provisioned OIDC-only accounts cannot unlink until a verified local login method has been set up; this release does not implement that method.
+
+Optional registration of **new** users is disabled by default. Set `SKIF4ER_ID_AUTO_PROVISION=true` only if external registration is intended. A missing link may then create a user only when the signed ID token has `email_verified: true`, a valid email not present in CajeerEngine, and a safe `viewer` role. A strong undisclosed password is stored via the normal PasswordHasher. Existing emails are never auto-merged or auto-linked. The generated password cannot be used to sign in; local password setup/recovery is a separate process. Disable auto-provision to require operator prelinks.
+
+Existing local accounts, 2FA configuration, roles, API tokens and normal login remain unchanged. OAuth tokens remain server-side. OIDC registration and unlinking do **not** propagate global logout; Session Manager/Back-Channel Logout is scheduled for later releases. To run the isolated DB regression in CI, enable PHP `pdo_sqlite`, `mbstring`, `sodium` and `openssl`. Apply `0027_oidc_account_linking.sql` on SQLite/PostgreSQL/MySQL before enabling new functionality.

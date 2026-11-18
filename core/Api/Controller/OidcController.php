@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CajeerEngine\Api\Controller;
 
 use CajeerEngine\Identity\OidcLogin;
+use CajeerEngine\Security\AuthService;
 use CajeerEngine\Runtime\ConfigRepository;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -15,7 +16,7 @@ use Symfony\Component\HttpFoundation\Response;
 /** Browser redirects only; ID/access/refresh tokens are never emitted into a response. */
 final readonly class OidcController
 {
-    public function __construct(private ConfigRepository $config, private ?OidcLogin $login) {}
+    public function __construct(private ConfigRepository $config, private ?OidcLogin $login, private ?AuthService $auth = null) {}
 
     public function status(Request $request): JsonResponse
     {
@@ -51,12 +52,74 @@ final readonly class OidcController
         if (!is_string($code) || !is_string($state) || !is_string($browser)) return $response;
         try {
             $session = $this->login->finish($code, $state, $browser, $request);
-            $response = new RedirectResponse('/admin/', 303);
-            $response->headers->setCookie(Cookie::create('ce_session', $session['access_token'], new \DateTimeImmutable((string)$session['expires_at']), '/api/v1', null, true, true, false, Cookie::SAMESITE_STRICT));
+            $response = new RedirectResponse(($session['linked'] ?? false) === true ? '/admin/#/identity' : '/admin/', 303);
+            if (($session['linked'] ?? false) !== true) {
+                $response->headers->setCookie(Cookie::create('ce_session', $session['access_token'], new \DateTimeImmutable((string)$session['expires_at']), '/api/v1', null, true, true, false, Cookie::SAMESITE_STRICT));
+            }
             $response->headers->clearCookie('ce_oidc_tx', '/auth/oidc', null, true, true, Cookie::SAMESITE_LAX);
             $response->headers->set('Cache-Control', 'no-store');
             $response->headers->set('Referrer-Policy', 'no-referrer');
         } catch (\Throwable) { /* Fail closed and keep existing session unchanged. */ }
         return $response;
     }
+
+    public function account(Request $request): JsonResponse
+    {
+        $user = $this->currentUser($request);
+        if ($user === null) return new JsonResponse(['error'=>['code'=>'session_required','message'=>'Требуется защищённая браузерная сессия.']], 403);
+        if ($this->login === null) return new JsonResponse(['data'=>['enabled'=>false, 'linked'=>false]], 200, ['Cache-Control'=>'no-store']);
+        return new JsonResponse(['data'=>['enabled'=>true] + $this->login->accountStatus((string)$user['user_id'])], 200, ['Cache-Control'=>'no-store']);
+    }
+
+    /** Recent local password + 2FA confirmation and CSRF are required before contacting the IdP. */
+    public function linkStart(Request $request): Response
+    {
+        $identity = $this->currentUser($request);
+        if ($identity === null || $this->login === null || $this->auth === null || !$request->isSecure()) {
+            return $this->linkError('link_unavailable', 'Привязка требует HTTPS, активную сессию и настроенный SkiF4er ID.', 403);
+        }
+        $payload = $request->attributes->get('json');
+        if (!is_array($payload) || !is_string($payload['password'] ?? null) || strlen($payload['password']) > 1024) return $this->linkError('validation_failed', 'Введите текущий пароль.', 422);
+        $code = $payload['two_factor_code'] ?? null;
+        if (!is_null($code) && (!is_string($code) || strlen($code) > 128)) return $this->linkError('validation_failed', 'Некорректный 2FA код.', 422);
+        if (!$this->auth->confirmSensitiveAction($identity, $payload['password'], $code)) return $this->linkError('reauthentication_required', 'Неверный пароль или код 2FA.', 403);
+        try {
+            if ($this->login->accountStatus((string)$identity['user_id'])['linked']) return $this->linkError('already_linked', 'SkiF4er ID уже привязан.', 409);
+            $tx = $this->login->begin((string)$identity['user_id'], (string)$identity['token_id']);
+            $response = new JsonResponse(['data'=>['authorization_url'=>$tx['url']]], 200, ['Cache-Control'=>'no-store']);
+            $response->headers->setCookie(Cookie::create('ce_oidc_tx', $tx['browser'], new \DateTimeImmutable('+5 minutes'), '/auth/oidc', null, true, true, false, Cookie::SAMESITE_LAX));
+            return $response;
+        } catch (\Throwable) { return $this->linkError('link_failed', 'Не удалось начать безопасную привязку.', 409); }
+    }
+
+    public function unlink(Request $request): JsonResponse
+    {
+        $identity = $this->currentUser($request);
+        if ($identity === null || $this->login === null || $this->auth === null || !$request->isSecure()) {
+            return $this->linkError('unlink_unavailable', 'Для отвязки необходима защищённая браузерная сессия.', 403);
+        }
+        $payload = $request->attributes->get('json');
+        if (!is_array($payload) || !is_string($payload['password'] ?? null) || strlen($payload['password']) > 1024) return $this->linkError('validation_failed', 'Введите текущий пароль.', 422);
+        $code = $payload['two_factor_code'] ?? null;
+        if (!is_null($code) && (!is_string($code) || strlen($code) > 128)) return $this->linkError('validation_failed', 'Некорректный 2FA код.', 422);
+        if (!$this->auth->confirmSensitiveAction($identity, $payload['password'], $code)) return $this->linkError('reauthentication_required', 'Неверный пароль или код 2FA.', 403);
+        try {
+            return new JsonResponse(['data'=>['unlinked'=>$this->login->unlink((string)$identity['user_id'])]], 200, ['Cache-Control'=>'no-store']);
+        } catch (\RuntimeException $e) {
+            return $this->linkError('unlink_denied', $e->getMessage(), 409);
+        }
+    }
+
+    private function currentUser(Request $request): ?array
+    {
+        $identity = $request->attributes->get('auth');
+        return is_array($identity) && ($identity['session'] ?? false) === true && ($identity['cookie'] ?? false) === true
+            && is_string($identity['user_id'] ?? null) && is_string($identity['token_id'] ?? null) ? $identity : null;
+    }
+
+    private function linkError(string $code, string $message, int $status): JsonResponse
+    {
+        return new JsonResponse(['error'=>['code'=>$code, 'message'=>$message]], $status, ['Cache-Control'=>'no-store']);
+    }
+
 }

@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.5.1'
+const ADMIN_VERSION = '1.5.2'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -12,6 +12,7 @@ const nav = [
   ['media', '🖼️', 'Media', 'Загрузка и управление файлами'],
   ['cms', '🌐', 'CMS', 'Тема, меню, редиректы, preview'],
   ['users', '👥', 'Доступ', 'Пользователи, роли, tokens'],
+  ['identity', '🔑', 'SkiF4er ID', 'Привязка внешнего аккаунта и безопасность'],
   ['tracking', '📈', 'Счётчики', 'Яндекс Метрика, GA4, GTM, Matomo и Plausible'],
   ['analytics-hub', '📊', 'Analytics Hub', 'Отчёты трафика и поисковой статистики'],
   ['analytics-events', '📊', 'События', 'Правила, цели и диагностика аналитики'],
@@ -173,6 +174,7 @@ async function routeLoad(route) {
     if (route === 'media') await loadSilent('media', mediaQuery())
     if (route === 'cms') await Promise.allSettled([loadSilent('cmsOverview', '/cms'), loadSilent('theme', '/cms/theme'), loadSilent('navigation', '/cms/navigation'), loadSilent('redirects', '/cms/redirects'), loadSilent('publicRoutes', `/cms/routes?limit=100&offset=${state.forms.routeOffset || 0}`)])
     if (route === 'users') await Promise.allSettled([loadSilent('users', '/users'), loadSilent('roles', '/roles'), loadSilent('tokens', '/api-tokens')])
+    if (route === 'identity') await loadSilent('identity', '/identity/account')
     if (route === 'tracking') await loadSilent('tracking', '/tracking/counters')
     if (route === 'analytics-hub') {await loadSilent('analyticsHub','/analytics/reports');const previous=dataOf(state.cache.analyticsHubReport,{});if(previous.connection?.id){const r=state.forms.hubPeriod;await loadSilent('analyticsHubReport',`/analytics/reports/${encodeURIComponent(previous.connection.id)}/data${r?'?'+new URLSearchParams(r):''}`)}}
     if (route === 'analytics-events') await Promise.allSettled([loadSilent('analyticsEvents','/tracking/events'),loadSilent('analyticsJournal','/tracking/events/journal')])
@@ -223,6 +225,7 @@ function render() {
   else if (state.route === 'media') body = mediaView()
   else if (state.route === 'cms') body = cmsView()
   else if (state.route === 'users') body = usersView()
+  else if (state.route === 'identity') body = identityView()
   else if (state.route === 'tracking') body = trackingView()
   else if (state.route === 'analytics-hub') body = analyticsHubView()
   else if (state.route === 'analytics-events') body = analyticsEventsView()
@@ -494,6 +497,7 @@ function bindForms() {
   bindMedia()
   bindCms()
   bindUsers()
+  bindIdentity()
   bindPrivacy()
   bindTracking()
   bindAnalyticsEvents()
@@ -833,3 +837,39 @@ function systemView() {
 document.addEventListener('click',async e=>{if(e.target.closest('[data-ops-refresh]')){await routeLoad('system');render()}})
 
 bootstrap()
+
+
+function identityView() {
+  const cached = state.cache.identity
+  if (cached?.error) return `<div class="notice error">${escapeHtml(cached.error.message)}</div>`
+  const data = dataOf(cached)
+  if (!data) return '<div class="card">Загрузка статуса SkiF4er ID…</div>'
+  if (!data.enabled) return '<div class="card"><h2>SkiF4er ID</h2><p>Провайдер отключён. Локальный вход продолжает работать.</p></div>'
+  const linked = data.linked === true
+  return `<div class="card"><h2>SkiF4er ID</h2><p>${linked ? 'Внешняя учётная запись привязана.' : 'Внешняя учётная запись не привязана.'}</p>${data.provisioned ? '<p>Аккаунт создан через SkiF4er ID. Для отвязки необходимо сначала настроить проверенный локальный способ входа.</p>' : ''}${data.created_at ? `<p class="muted">Дата привязки: ${escapeHtml(data.created_at)}</p>` : ''}<form class="form" data-identity-form><div class="form-row"><label>Текущий пароль CajeerEngine</label><input class="input" name="password" type="password" autocomplete="current-password" required maxlength="1024"></div><div class="form-row"><label>Код 2FA (если включён)</label><input class="input" name="two_factor_code" autocomplete="one-time-code" maxlength="128"></div><div class="toolbar">${linked ? `<button class="btn danger" type="submit" ${data.provisioned ? 'disabled' : ''}>Отвязать SkiF4er ID</button>` : '<button class="btn" type="submit">Привязать через SkiF4er ID</button>'}</div></form><p class="muted">Подтвердите локальные credentials, затем войдите в SkiF4er ID. Связывание по совпадающему email запрещено.</p></div>`
+}
+function bindIdentity() {
+  const form = document.querySelector('[data-identity-form]')
+  if (!form) return
+  form.addEventListener('submit', async e => {
+    e.preventDefault()
+    const linked = dataOf(state.cache.identity, {}).linked === true
+    if (linked && !confirm('Отвязать SkiF4er ID от текущей учётной записи?')) return
+    const f = new FormData(form)
+    const payload = {password: String(f.get('password') || ''), two_factor_code: String(f.get('two_factor_code') || '')}
+    const btn = form.querySelector('[type=submit]'); btn.disabled = true
+    try {
+      const result = await api(linked ? '/identity/unlink' : '/identity/link/start', {method: 'POST', body: JSON.stringify(payload)})
+      form.reset()
+      if (!linked) {
+        const url = dataOf(result, {}).authorization_url
+        if (!url || !url.startsWith('https://id.skif4er.ru/realms/skif4er/')) throw new Error('Получен недопустимый адрес авторизации.')
+        window.location.assign(url)
+      } else {
+        await loadSilent('identity', '/identity/account')
+        setNotice('ok', 'Внешний аккаунт отвязан.')
+      }
+    } catch (error) { setNotice('error', error.message, error.payload) }
+    finally { btn.disabled = false }
+  })
+}

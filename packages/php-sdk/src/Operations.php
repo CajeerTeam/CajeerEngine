@@ -693,6 +693,15 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'get_IdentityAccount' => 
+  array (
+    'method' => 'GET',
+    'path' => '/identity/account',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
   'get_ImportExportDownload' => 
   array (
     'method' => 'GET',
@@ -1838,6 +1847,24 @@ final class Operations {
       ),
     ),
     'bodyRequired' => false,
+  ),
+  'post_IdentityLinkStart' => 
+  array (
+    'method' => 'POST',
+    'path' => '/identity/link/start',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'post_IdentityUnlink' => 
+  array (
+    'method' => 'POST',
+    'path' => '/identity/unlink',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
   ),
   'post_ImportExportExport' => 
   array (

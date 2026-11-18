@@ -19,7 +19,7 @@ final readonly class RateLimitMiddleware implements MiddlewareInterface
     public function process(Request $request, callable $next): Response
     {
         $path = rawurldecode($request->getPathInfo());
-        $bucket = $path === '/api/v1/public/analytics/events' ? 'analytics' : ((str_starts_with($path, '/api/v1/auth/') || str_starts_with($path, '/auth/oidc/')) ? 'auth' : 'global');
+        $bucket = $path === '/api/v1/public/analytics/events' ? 'analytics' : ((str_starts_with($path, '/api/v1/auth/') || str_starts_with($path, '/api/v1/identity/') || str_starts_with($path, '/auth/oidc/')) ? 'auth' : 'global');
         $limit = $this->config->int('security.rate_limits.' . $bucket, $bucket === 'auth' ? 20 : ($bucket === 'analytics' ? 60 : 120));
         $window = $this->config->int('security.rate_limits.window_seconds', 60);
         $identity = ($request->getClientIp() ?: 'unknown');

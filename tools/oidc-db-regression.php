@@ -23,6 +23,7 @@ $cfg->set('database.connections.sqlite.database', ':memory:');
 $db=new DatabaseManager($cfg);
 $pdo=$db->connection();
 $pdo->exec(file_get_contents(dirname(__DIR__).'/migrations/sqlite/0026_skif4er_oidc.sql'));
+$pdo->exec(file_get_contents(dirname(__DIR__).'/migrations/sqlite/0027_oidc_account_linking.sql'));
 $pdo->exec('CREATE TABLE ce_users(id TEXT PRIMARY KEY,email TEXT,name TEXT,status TEXT,two_factor_enabled INTEGER,last_login_at TEXT, disabled_at TEXT,created_at TEXT,updated_at TEXT)');
 $pdo->exec('CREATE TABLE ce_roles (id TEXT PRIMARY KEY,handle TEXT)');
 $pdo->exec('CREATE TABLE ce_user_roles (user_id TEXT,role_id TEXT)');
@@ -41,7 +42,7 @@ $tx=$store->save('state-one','nonce-one','verifier-one');
 try{$store->consume('state-one','wrong-browser');throw new RuntimeException('wrong browser accepted');}
 catch(RuntimeException $e){if($e->getMessage()==='wrong browser accepted')throw $e;}
 $valid=$store->consume('state-one',$tx['browser']);
-if($valid!==['nonce'=>'nonce-one','verifier'=>'verifier-one'])throw new RuntimeException('PKCE verifier not recovered');
+if($valid!==['nonce'=>'nonce-one','verifier'=>'verifier-one','purpose'=>'login','user_id'=>null,'session_id'=>null])throw new RuntimeException('PKCE verifier not recovered');
 try{$store->consume('state-one',$tx['browser']);throw new RuntimeException('replayed state accepted');}
 catch(RuntimeException $e){if($e->getMessage()==='replayed state accepted')throw $e;}
 echo "PASS encrypted PKCE transaction, browser binding and replay rejection\n";

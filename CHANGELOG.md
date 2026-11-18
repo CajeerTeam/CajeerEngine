@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.2 — SkiF4er ID Account Linking & Provisioning
+
+- Self-service OIDC account linking: local session, password + optional 2FA reauthentication, short-lived PKCE redirect and atomic `(issuer, sub)` link. Callback refuses expired or revoked initiating sessions.
+- Self-service unlink requires local reauthentication; OIDC-only provisioned users cannot remove their sole login method.
+- Opt-in new-user provisioning requires `email_verified: true`, an unused email and verified safe viewer permissions. Existing emails are never merged automatically. New local password is random and undisclosed.
+- Identity status and forms in shipped production Admin SPA and Nuxt source; SQL migration 0027 for SQLite, PostgreSQL and MySQL, CI and real SQLite checks.
+- Does not implement global SSO logout, per-device session management, public password reset or a full live Keycloak acceptance test.
+
 ## 1.5.1 — SkiF4er ID Authentication Core
 
 - Working confidential-client OIDC Authorization Code + PKCE S256 against the SkiF4er ID issuer, with HTTPS pinned discovery, token exchange, JWKS and RS256 claim validation.
