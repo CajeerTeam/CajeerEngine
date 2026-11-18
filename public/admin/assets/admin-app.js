@@ -58,7 +58,7 @@ const state = {
     knowledgeChat: {active:null,messages:[],busy:false,visibility:'all',locale:'',question:''},
     support: {selected:null,status:'',offset:0,busy:false,reply:'',draft:'',draftSources:[],assignee:'',priority:'normal',ticketStatus:'open'},
     translation: {type:'',entry:'',locale:'en',instructions:'',updateExisting:false,overview:null,glossary:[],proposal:null,busy:false,batch:null,batchSelection:[],batchUpdateExisting:false},
-    aiSelected: null, aiMessages: [], aiBusy: false, aiToolsEnabled: false, aiToolsRunning: [], aiEditor: {field:'title',mode:'generate',instructions:'',selection:'',busy:false,proposal:null},
+    aiSelected: null, aiMessages: [], aiBusy: false, aiToolsEnabled: false, aiActionsEnabled: false, aiActionsBusy: false, aiToolsRunning: [], aiEditor: {field:'title',mode:'generate',instructions:'',selection:'',busy:false,proposal:null},
     role: { handle: '', name: '', permissions: 'content:read,content:write' },
     token: { name: 'Admin token', scopes: 'content:read,content:write' },
     redirect: { from: '', to: '/', status: 301, enabled: true },
@@ -210,7 +210,7 @@ async function routeLoad(route) {
     if (route === 'cms') await Promise.allSettled([loadSilent('cmsOverview', '/cms'), loadSilent('theme', '/cms/theme'), loadSilent('navigation', '/cms/navigation'), loadSilent('redirects', '/cms/redirects'), loadSilent('publicRoutes', `/cms/routes?limit=100&offset=${state.forms.routeOffset || 0}`)])
     if (route === 'users') await Promise.allSettled([loadSilent('users', '/users'), loadSilent('roles', '/roles'), loadSilent('tokens', '/api-tokens')])
     if (route === 'identity') await Promise.allSettled([loadSilent('identity', '/identity/account'), loadSilent('sessions', '/auth/sessions'), ...(integrationScope('users:read') ? [loadIdentityUsers()] : [])])
-    if (route === 'ai') await Promise.allSettled([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations')])
+    if (route === 'ai') await Promise.allSettled([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations'),loadSilent('aiTools','/ai/tools'),loadSilent('aiActions','/ai/actions')])
     if (route === 'diagnostics') await loadSilent('aiDiagnostics','/ai/diagnostics?window_minutes='+state.forms.diagnostics.window)
     if (route === 'knowledge') await Promise.allSettled([loadSilent('kbCategories','/knowledge/categories'),loadSilent('kbDocuments','/knowledge/documents?limit=30&offset='+state.forms.knowledge.offset),loadSilent('kbTypes','/content-types')])
     if (route === 'knowledge-chat') await Promise.allSettled([loadSilent('kbChatConversations','/knowledge/chat/conversations'),loadSilent('aiStatus','/ai/status')])
@@ -611,22 +611,49 @@ function aiView() {
   const rows = conversations.map(c => `<div class="ai-thread"><button type="button" class="btn small ${selected === c.id ? '' : 'secondary'}" data-ai-open="${escapeHtml(c.id)}">${escapeHtml(c.title)}</button><button type="button" class="btn small ghost" data-ai-rename="${escapeHtml(c.id)}" title="Переименовать">✎</button><button type="button" class="btn small danger" data-ai-delete="${escapeHtml(c.id)}" title="Удалить">×</button></div>`).join('')
   const content = messages.map(m => `<article class="ai-bubble ${m.role === 'user' ? 'user' : 'assistant'}"><strong>${m.role === 'user' ? 'Вы' : 'ChatGPT'}</strong><div>${escapeHtml(m.content)}</div>${Array.isArray(m.tools)&&m.tools.length?'<small>Инструменты: '+escapeHtml(m.tools.map(t=>t.name+' ('+t.status+')').join(', '))+'</small>':''}</article>`).join('')
   const tools = asArray(state.cache.aiTools)
-  const toolPanel = tools.length ? `<div class="ai-tools-panel"><label><input type="checkbox" data-ai-tools-toggle ${f.aiToolsEnabled?'checked':''} ${f.aiBusy?'disabled':''}> Разрешить инструментам читать данные CMS и передавать результаты в OpenAI</label><details><summary>Доступные инструменты (${tools.length})</summary><ul>${tools.map(t=>`<li><code>${escapeHtml(t.name)}</code> — ${escapeHtml(t.description)}</li>`).join('')}</ul></details></div>` : ''
+  const actionTools = tools.filter(t=>t.requires_approval)
+  const canWrite = integrationScope('content:write')
+  const pendingActions = asArray(state.cache.aiActions)
+  const toolPanel = tools.length ? `<div class="ai-tools-panel"><label><input type="checkbox" data-ai-tools-toggle ${f.aiToolsEnabled?'checked':''} ${f.aiBusy?'disabled':''}> Разрешить инструментам читать данные CMS и передавать результаты в OpenAI</label>${canWrite&&actionTools.length?`<label><input type="checkbox" data-ai-actions-toggle ${f.aiActionsEnabled?'checked':''} ${f.aiBusy||!f.aiToolsEnabled?'disabled':''}> Разрешить AI подготовить действия для ручного подтверждения</label>`:''}<details><summary>Доступные инструменты (${tools.length})</summary><ul>${tools.map(t=>`<li><code>${escapeHtml(t.name)}</code> — ${escapeHtml(t.description)}</li>`).join('')}</ul></details></div>` : ''
+  const actionsView = canWrite ? `<section class="card" style="margin-top:18px"><h2>AI Actions · Подтверждение (${pendingActions.length})</h2><p class="muted">Модель готовит только предложения. Применение требует вашего подтверждения.</p><button type="button" class="btn secondary small" data-ai-actions-refresh>Обновить</button>${pendingActions.map(a=>`<article class="card" style="margin-top:10px"><h3>${escapeHtml(a.action)}</h3><p class="muted">Ревизия: ${escapeHtml(String(a.expected_revision??'новый черновик'))}</p><div class="split"><div><strong>Было</strong><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(JSON.stringify(a.before,null,2))}</pre></div><div><strong>Предложено</strong><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(JSON.stringify(a.payload,null,2))}</pre></div></div><div class="row-actions"><button type="button" class="btn" data-ai-action-approve="${escapeHtml(a.id)}" ${f.aiActionsBusy?'disabled':''}>Применить</button><button type="button" class="btn secondary" data-ai-action-reject="${escapeHtml(a.id)}" ${f.aiActionsBusy?'disabled':''}>Отклонить</button></div></article>`).join('')||'<p>Нет ожидающих предложений.</p>'}</section>` : ''
   const settingsView = canManage ? `<details class="card"><summary><strong>Настройки OpenAI</strong></summary><form data-ai-settings class="form" style="margin-top:14px"><div class="form-row"><label>API-ключ (пустое поле сохраняет текущий)</label><input class="input" name="api_key" type="password" autocomplete="off" placeholder="sk-..."></div><div class="form-row"><label>Модель</label><input class="input" name="model" required value="${escapeHtml(status.model || 'gpt-4.1-mini')}"></div><div class="form-row"><label>Лимит токенов ответа</label><input class="input" name="max_output_tokens" type="number" min="128" max="4096" value="${Number(status.max_output_tokens || 1024)}" required></div><div class="form-row"><label>Месячный бюджет токенов на пользователя</label><input class="input" name="monthly_token_limit" type="number" min="1000" max="10000000" value="${Number(status.monthly_token_limit || 250000)}" required></div><div class="row-actions"><button type="submit" class="btn">Сохранить настройки</button><button type="button" class="btn danger" data-ai-remove-key>Удалить сохранённый ключ</button></div><p class="muted">Требуются system:write и integrations:secrets, CSRF и повторное подтверждение в Identity Center.</p></form></details>` : ''
-  const html = `<div class="card"><p>OpenAI: <strong>${status.configured ? 'подключён' : 'не настроен'}</strong> · Модель: <code>${escapeHtml(status.model || '—')}</code> · Ключ: ${escapeHtml(status.credential_source || 'none')}</p>${!status.configured ? '<p class="muted">Администратор должен настроить OpenAI API-ключ.</p>' : ''}</div><div class="ai-layout"><aside class="card"><button class="btn" data-ai-new ${f.aiBusy ? 'disabled' : ''}>Новый диалог</button><div class="ai-threads">${rows || '<p class="muted">Диалогов нет</p>'}</div></aside><section class="card"><h2>${escapeHtml(title)}</h2><div class="ai-messages" aria-live="polite">${content || '<p class="muted">Отправьте первое сообщение.</p>'}<article class="ai-bubble assistant" data-ai-stream style="display:${f.aiBusy ? '' : 'none'}"><strong>ChatGPT</strong><div>Генерация…</div></article></div><form data-ai-chat class="form">${toolPanel}<textarea class="input" rows="4" maxlength="12000" name="message" placeholder="Сообщение для ChatGPT" ${!status.configured || f.aiBusy ? 'disabled' : ''} required></textarea><button class="btn" type="submit" ${!status.configured || f.aiBusy ? 'disabled' : ''}>${f.aiBusy ? 'Генерация…' : 'Отправить'}</button></form></section></div>${settingsView}`
+  const html = `<div class="card"><p>OpenAI: <strong>${status.configured ? 'подключён' : 'не настроен'}</strong> · Модель: <code>${escapeHtml(status.model || '—')}</code> · Ключ: ${escapeHtml(status.credential_source || 'none')}</p>${!status.configured ? '<p class="muted">Администратор должен настроить OpenAI API-ключ.</p>' : ''}</div><div class="ai-layout"><aside class="card"><button class="btn" data-ai-new ${f.aiBusy ? 'disabled' : ''}>Новый диалог</button><div class="ai-threads">${rows || '<p class="muted">Диалогов нет</p>'}</div></aside><section class="card"><h2>${escapeHtml(title)}</h2><div class="ai-messages" aria-live="polite">${content || '<p class="muted">Отправьте первое сообщение.</p>'}<article class="ai-bubble assistant" data-ai-stream style="display:${f.aiBusy ? '' : 'none'}"><strong>ChatGPT</strong><div>Генерация…</div></article></div><form data-ai-chat class="form">${toolPanel}<textarea class="input" rows="4" maxlength="12000" name="message" placeholder="Сообщение для ChatGPT" ${!status.configured || f.aiBusy ? 'disabled' : ''} required></textarea><button class="btn" type="submit" ${!status.configured || f.aiBusy ? 'disabled' : ''}>${f.aiBusy ? 'Генерация…' : 'Отправить'}</button></form></section></div>${actionsView}${settingsView}`
   // Handlers are bound after render in bindForms; no raw model output is interpreted as HTML.
   return html
 }
 
 async function aiRefresh() {
-  await Promise.all([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations'),loadSilent('aiTools','/ai/tools')])
+  await Promise.all([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations'),loadSilent('aiTools','/ai/tools'),loadSilent('aiActions','/ai/actions')])
 }
 
 function bindAi() {
   if (state.route !== 'ai') return
   const f = state.forms
-  document.querySelector('[data-ai-tools-toggle]')?.addEventListener('change',e=>{f.aiToolsEnabled=!!e.target.checked})
+  document.querySelector('[data-ai-tools-toggle]')?.addEventListener('change',e=>{f.aiToolsEnabled=!!e.target.checked;if(!f.aiToolsEnabled)f.aiActionsEnabled=false;render()})
+  document.querySelector('[data-ai-actions-toggle]')?.addEventListener('change',e=>{f.aiActionsEnabled=!!e.target.checked})
   const guard = async (action) => { try { await action() } catch(e) { setNotice('error',e.message,e.payload) } }
+  document.querySelector('[data-ai-actions-refresh]')?.addEventListener('click',()=>guard(async()=>{await loadSilent('aiActions','/ai/actions');render()}))
+  document.querySelectorAll('[data-ai-action-approve]').forEach(el=>el.addEventListener('click',()=>guard(async()=>{
+    if(f.aiActionsBusy)return
+    const a=asArray(state.cache.aiActions).find(x=>x.id===el.dataset.aiActionApprove)
+    if(!a||!confirm('Применить действие '+a.action+'?'))return
+    let confirmPublished=false
+    if(a.before?.status==='published'){
+      if(!confirm('Подтвердите изменение опубликованной страницы.'))return
+      confirmPublished=true
+    }
+    f.aiActionsBusy=true
+    try{
+      await api('/ai/actions/'+encodeURIComponent(a.id)+'/approve',{method:'POST',body:JSON.stringify({confirm:true,confirm_published:confirmPublished})})
+      await aiRefresh();render();setNotice('ok','AI-действие применено.')
+    }finally{f.aiActionsBusy=false}
+  })))
+  document.querySelectorAll('[data-ai-action-reject]').forEach(el=>el.addEventListener('click',()=>guard(async()=>{
+    if(f.aiActionsBusy)return
+    const id=el.dataset.aiActionReject
+    await api('/ai/actions/'+encodeURIComponent(id)+'/reject',{method:'POST',body:'{}'})
+    await aiRefresh();render();setNotice('ok','Предложение отклонено.')
+  })))
   document.querySelector('[data-ai-new]')?.addEventListener('click', () => { if(f.aiBusy)return;f.aiSelected=null;f.aiMessages=[];render() })
   document.querySelectorAll('[data-ai-open]').forEach(el => el.addEventListener('click', () => guard(async()=>{
     if(f.aiBusy)return
@@ -669,7 +696,7 @@ function bindAi() {
     try{
       const headers={'Accept':'text/event-stream','Content-Type':'application/json'}
       if(state.csrf)headers['X-CSRF-Token']=state.csrf
-      const response=await fetch(API_BASE+'/ai/chat/stream',{method:'POST',credentials:'same-origin',cache:'no-store',headers,body:JSON.stringify({conversation_id:f.aiSelected,message,tools_enabled:f.aiToolsEnabled&&asArray(state.cache.aiTools).length>0})})
+      const response=await fetch(API_BASE+'/ai/chat/stream',{method:'POST',credentials:'same-origin',cache:'no-store',headers,body:JSON.stringify({conversation_id:f.aiSelected,message,tools_enabled:f.aiToolsEnabled&&asArray(state.cache.aiTools).length>0,actions_enabled:f.aiToolsEnabled&&f.aiActionsEnabled&&integrationScope('content:write')})})
       if(!response.ok||!response.body){const err=await response.json().catch(()=>({}));throw new Error(err?.error?.message||'OpenAI HTTP '+response.status)}
       const reader=response.body.getReader(),decoder=new TextDecoder('utf-8');let pending=''
       const handle=frame=>{

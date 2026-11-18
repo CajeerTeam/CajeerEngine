@@ -57,12 +57,12 @@ final readonly class AiChat
     }
 
     /** @return array<string,mixed> */
-    public function send(string $userId, ?string $id, string $message, ?callable $onDelta = null, bool $toolsEnabled = false, array $scopes = [], ?callable $onTool = null): array
+    public function send(string $userId, ?string $id, string $message, ?callable $onDelta = null, bool $toolsEnabled = false, array $scopes = [], ?callable $onTool = null, bool $actionsEnabled = false): array
     {
         $message = trim($message);
         if ($message === '' || strlen($message) > 12000 || !preg_match('//u', $message)) throw new \InvalidArgumentException('Message must be valid UTF-8 and 1–12000 bytes.');
         if ($id !== null && !preg_match('/^[a-f0-9-]{32,36}$/D', $id)) throw new \InvalidArgumentException('Invalid conversation identifier.');
-        $definitions = ($toolsEnabled && $this->tools !== null) ? $this->tools->definitions($scopes) : [];
+        $definitions = ($toolsEnabled && $this->tools !== null) ? $this->tools->definitions($scopes, $actionsEnabled) : [];
         $settings = $this->settings->status();
         if (!$settings['configured']) throw new \DomainException('OpenAI API key is not configured.');
         $key = $this->settings->key();
@@ -123,7 +123,7 @@ final readonly class AiChat
             $result = $definitions === []
                 ? $this->client->complete($key, $settings['model'], $prepared['input'], $settings['max_output_tokens'], $onDelta)
                 : $this->client->completeWithTools($key, $settings['model'], $prepared['input'], $settings['max_output_tokens'], $definitions,
-                    fn(string $name, array $args): array => $this->tools->execute($name, $args, $scopes, $userId), $onDelta, $onTool);
+                    fn(string $name, array $args): array => $this->tools->execute($name, $args, $scopes, $userId, $actionsEnabled), $onDelta, $onTool);
             $result['tools'] ??= [];
             if (count($result['tools']) > 8) throw new \RuntimeException('Too many tool calls.');
             $created = (int)round(microtime(true) * 1000000);

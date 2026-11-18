@@ -1,5 +1,47 @@
 // Generated from api/openapi.yaml. Do not edit.
 export const operations = {
+    "api_v1_ai_actions": {
+        "method": "GET",
+        "path": "/ai/actions",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "api_v1_ai_actions_approve": {
+        "method": "POST",
+        "path": "/ai/actions/{id}/approve",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_ai_actions_reject": {
+        "method": "POST",
+        "path": "/ai/actions/{id}/reject",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_ai_actions_show": {
+        "method": "GET",
+        "path": "/ai/actions/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
     "api_v1_ai_chat": {
         "method": "POST",
         "path": "/ai/chat",

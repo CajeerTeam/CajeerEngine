@@ -22,6 +22,8 @@ final readonly class AiTools
         private AiKnowledgeBase $knowledge,
         private AnalyticsHub $analytics,
         private AuditLogger $audit,
+        private AiActions $actions,
+        private AiSupportCenter $support,
     ) {}
 
     private const SPECS = [
@@ -50,6 +52,10 @@ final readonly class AiTools
             'scope'=>'content:read','description'=>'Search published indexed knowledge base documents. Visibility can include internal administrator docs.',
             'parameters'=>['query'=>['type'=>'string'],'visibility'=>['type'=>'string','enum'=>['all','public','internal']],'locale'=>['type'=>'string','description'=>'Language code or empty string'],'limit'=>['type'=>'integer','description'=>'1 to 8']],
         ],
+        'cms_support_ticket_get' => [
+            'scope'=>'content:read','description'=>'Read support ticket status and revision for a proposed operator action. No visitor messages or contact details.',
+            'parameters'=>['ticket_id'=>['type'=>'string']],
+        ],
         'cms_analytics_report' => [
             'scope'=>'analytics:read','description'=>'Read previously synced analytics report, no live sync or write operations.',
             'parameters'=>['connection_id'=>['type'=>'string'],'from'=>['type'=>'string','description'=>'YYYY-MM-DD or empty for latest'],'to'=>['type'=>'string','description'=>'YYYY-MM-DD or empty for latest']],
@@ -57,7 +63,7 @@ final readonly class AiTools
     ];
 
     /** @return list<array<string,mixed>> */
-    public function definitions(array $scopes): array
+    public function definitions(array $scopes, bool $actionsEnabled = false): array
     {
         $allowed = [];
         foreach (self::SPECS as $name=>$spec) {
@@ -68,16 +74,18 @@ final readonly class AiTools
                 'parameters'=>['type'=>'object', 'properties'=>$properties, 'required'=>array_keys($properties), 'additionalProperties'=>false],
             ];
         }
+        if ($actionsEnabled) $allowed = array_merge($allowed, $this->actions->definitions($scopes));
         return $allowed;
     }
 
     /** @return list<array{name:string,description:string,scope:string}> */
-    public function catalog(array $scopes): array
+    public function catalog(array $scopes, bool $actionsEnabled = false): array
     {
         $list = [];
         foreach (self::SPECS as $name=>$spec) {
             if (self::allows($scopes,$spec['scope'])) $list[] = ['name'=>$name, 'description'=>$spec['description'], 'scope'=>$spec['scope']];
         }
+        if ($actionsEnabled) $list = array_merge($list, $this->actions->catalog($scopes));
         return $list;
     }
 
@@ -115,8 +123,15 @@ final readonly class AiTools
     }
 
     /** Validate model arguments before invoking any service; never trust a model's claimed permissions. */
-    public function execute(string $name, array $arguments, array $scopes, string $userId): array
+    public function execute(string $name, array $arguments, array $scopes, string $userId, bool $actionsEnabled = false): array
     {
+        if (str_starts_with($name, 'cms_action_')) {
+            if (!$actionsEnabled) throw new \DomainException('AI action proposals are disabled for this request.');
+            $proposal = $this->actions->prepare($name, $arguments, $userId, $scopes);
+            // The model receives an opaque reference only; the admin UI owns the full preview.
+            return ['action_id'=>$proposal['id'], 'action'=>$proposal['action'], 'state'=>'pending',
+                'requires_approval'=>true, 'message'=>'Open AI Actions in the admin panel and explicitly approve or reject.'];
+        }
         $spec = self::SPECS[$name] ?? null;
         if ($spec === null || !self::allows($scopes, $spec['scope'])) throw new \DomainException('AI tool not permitted.');
         if (array_diff(array_keys($arguments), array_keys($spec['parameters'])) !== [] || array_diff(array_keys($spec['parameters']), array_keys($arguments)) !== [])
@@ -131,6 +146,7 @@ final readonly class AiTools
                 'cms_diagnostics_run' => $this->diagnosticReport($arguments),
                 'cms_knowledge_search' => $this->searchKnowledge($arguments),
                 'cms_analytics_report' => $this->analyticsReport($arguments),
+                'cms_support_ticket_get' => $this->supportTicket($arguments),
                 default => throw new \DomainException('Unknown AI tool.'),
             };
             // No raw credentials or unbounded database values may reach OpenAI.
@@ -202,6 +218,14 @@ final readonly class AiTools
         return ['status'=>$report['status']??'unknown','generated_at'=>$report['generated_at']??'',
             'window_minutes'=>$report['window_minutes']??0,'summary'=>$report['summary']??[],
             'readiness'=>$report['readiness']??[],'issues'=>array_slice($report['issues']??[],0,12)];
+    }
+
+    private function supportTicket(array $args): array
+    {
+        $id = self::id(['id'=>self::string($args,'ticket_id',36)]);
+        $ticket = $this->support->agentView($id);
+        return ['ticket_id'=>$id, 'status'=>$ticket['status'], 'priority'=>$ticket['priority'],
+            'revision'=>(int)$ticket['revision'], 'needs_human'=>(bool)$ticket['needs_human']];
     }
 
     private function analyticsReport(array $args): array

@@ -29,7 +29,7 @@ $config->set('database.connections.sqlite.database', ':memory:');
 $db = new DatabaseManager($config);
 $pdo = $db->connection();
 $pdo->exec('PRAGMA foreign_keys = ON');
-foreach (['0031_ai_chat', '0032_ai_content_editor', '0033_ai_translation_studio', '0035_ai_knowledge_chat', '0036_ai_support_center'] as $migration) {
+foreach (['0031_ai_chat', '0032_ai_content_editor', '0033_ai_translation_studio', '0035_ai_knowledge_chat', '0036_ai_support_center', '0038_ai_actions'] as $migration) {
     $pdo->exec((string)file_get_contents($root.'/migrations/sqlite/'.$migration.'.sql'));
 }
 $now = 1800000000;
@@ -80,7 +80,7 @@ $check((int)$pdo->query('SELECT COUNT(*) FROM ce_ai_conversations')->fetchColumn
     && (int)$pdo->query('SELECT COUNT(*) FROM ce_ai_messages')->fetchColumn() === 3, 'Parent and transcript retained on rollback');
 $pdo->exec('DROP TRIGGER deny_retention');
 $removed = $service->run(90, 100, true, $now);
-$check($removed['deleted'] === ['chat'=>1,'knowledge_chat'=>1,'closed_support'=>1,'editor_proposals'=>1,'translation_proposals'=>1], 'All eligible records were deleted');
+$check($removed['deleted'] === ['chat'=>1,'knowledge_chat'=>1,'closed_support'=>1,'editor_proposals'=>1,'translation_proposals'=>1,'action_proposals'=>0], 'All eligible records were deleted');
 $check((int)$pdo->query('SELECT COUNT(*) FROM ce_ai_messages')->fetchColumn() === 2
     && (int)$pdo->query('SELECT COUNT(*) FROM ce_ai_kb_messages')->fetchColumn() === 1
     && (int)$pdo->query('SELECT COUNT(*) FROM ce_support_messages')->fetchColumn() === 2, 'Child transcripts cascade or delete atomically');

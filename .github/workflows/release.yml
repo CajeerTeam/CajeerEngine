@@ -90,6 +90,12 @@ jobs:
         run: php tools/ai-tools-regression.php
       - name: AI Tools PDO Knowledge Base execution, tool history and budget acceptance
         run: php tools/ai-tools-integration.php --require-db
+      - name: AI Actions real CMS, support, ACL and optimistic approval (PDO SQLite)
+        run: php tools/ai-actions-integration.php --require-db
+      - name: AI Actions SQL transactional rollback and idempotency
+        run: python3 tools/ai-actions-sqlite-regression.py
+      - name: AI Actions production static admin approval UI (Chromium)
+        run: python3 tools/ai-actions-browser.py
       - name: OpenAI AI Chat credential encryption and rotation
         run: php tools/ai-vault-regression.php
       - name: AI Chat real PDO SQLite persistence, ownership and budget acceptance

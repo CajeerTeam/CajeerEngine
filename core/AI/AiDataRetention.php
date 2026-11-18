@@ -45,6 +45,10 @@ final readonly class AiDataRetention
                 'table' => 'ce_ai_translation_proposals', 'condition' => 'expires_at < ?',
                 'params' => [$now],
             ],
+            'action_proposals' => [
+                'table' => 'ce_ai_actions', 'condition' => 'state <> ? AND expires_at < ?',
+                'params' => ['running', $cutoff],
+            ],
         ];
         $result = ['applied' => $apply, 'days' => $days, 'cutoff' => gmdate(DATE_ATOM, $cutoff), 'batch' => $batch, 'deleted' => [], 'more_possible' => false];
         foreach ($plans as $key => $plan) {

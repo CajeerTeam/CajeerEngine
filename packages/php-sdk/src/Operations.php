@@ -6,6 +6,60 @@ namespace CajeerEngine\ExtensionSdk;
 /** Generated from api/openapi.yaml. */
 final class Operations {
     public const ALL = array (
+  'api_v1_ai_actions' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/actions',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_actions_approve' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/actions/{id}/approve',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_actions_reject' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/actions/{id}/reject',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_actions_show' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/actions/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'api_v1_ai_chat' => 
   array (
     'method' => 'POST',

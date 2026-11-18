@@ -2,6 +2,7 @@
 const api = useAdminApi()
 const auth = useAdminAuth()
 type Conversation = { id: string; title: string; updated_at: number; total_input_tokens: number; total_output_tokens: number }
+type PendingAction = { id: string; action: string; payload: Record<string, unknown>; before: Record<string, unknown> | null; expected_revision: number | null; state: string; expires_at: number }
 type ToolRun = { name: string; status: string; duration_ms: number }
 type Message = { id: string; role: 'user' | 'assistant'; content: string; created_at: number; tools?: ToolRun[] }
 type AiStatus = { configured: boolean; credential_source: string; model: string; max_output_tokens: number; monthly_token_limit: number }
@@ -11,7 +12,10 @@ const active = ref<string | null>(null)
 const messages = ref<Message[]>([])
 const prompt = ref('')
 const toolsEnabled = ref(false)
-const availableTools = ref<{ name: string; description: string; scope: string }[]>([])
+const actionsEnabled = ref(false)
+const pendingActions = ref<PendingAction[]>([])
+const actionBusy = ref(false)
+const availableTools = ref<{ name: string; description: string; scope: string; requires_approval?: boolean }[]>([])
 const workingTools = ref<ToolRun[]>([])
 const partial = ref('')
 const loading = ref(false)
@@ -23,6 +27,12 @@ const editingModel = ref('gpt-4.1-mini')
 const editingOutput = ref(1024)
 const editingBudget = ref(250000)
 const configuring = ref(false)
+const canWrite = computed(() => {
+  const scopes = (auth.identity.value as { scopes?: string[] } | null)?.scopes || []
+  return scopes.includes('*') || scopes.includes('content:write')
+})
+const readTools = computed(() => availableTools.value.filter(tool => !tool.requires_approval))
+const actionTools = computed(() => availableTools.value.filter(tool => tool.requires_approval))
 const canManage = computed(() => {
   const scopes = (auth.identity.value as { scopes?: string[] } | null)?.scopes || []
   return scopes.includes('*') || (scopes.includes('system:write') && scopes.includes('integrations:secrets'))
@@ -30,14 +40,16 @@ const canManage = computed(() => {
 const load = async () => {
   loading.value = true; error.value = ''
   try {
-    const [s, list, tools] = await Promise.all([
+    const [s, list, tools, actions] = await Promise.all([
       api.request<{ data: AiStatus }>('/ai/status'),
       api.request<{ data: Conversation[] }>('/ai/conversations'),
-      api.request<{ data: { name:string;description:string;scope:string }[] }>('/ai/tools'),
+      api.request<{ data: { name:string;description:string;scope:string;requires_approval?:boolean }[] }>('/ai/tools'),
+      api.request<{data:PendingAction[]}>('/ai/actions'),
     ])
     settings.value = s.data
     conversations.value = list.data
     availableTools.value = tools.data
+    pendingActions.value = actions.data
     editingModel.value = s.data.model
     editingOutput.value = s.data.max_output_tokens
     editingBudget.value = s.data.monthly_token_limit
@@ -52,6 +64,32 @@ const open = async (id: string | null) => {
     try { messages.value = (await api.request<{ data: Message[] }>('/ai/conversations/' + encodeURIComponent(id))).data }
     catch (e) { error.value = e instanceof Error ? e.message : 'Ошибка загрузки диалога.' }
   }
+}
+const refreshActions = async () => {
+  pendingActions.value = (await api.request<{ data: PendingAction[] }>('/ai/actions')).data
+}
+const approveAction = async (action: PendingAction) => {
+  if (actionBusy.value || !window.confirm('Применить предложенное действие '+action.action+'?')) return
+  let confirmPublished = false
+  if (action.before?.status === 'published') {
+    if (!window.confirm('Материал опубликован. Подтвердите изменение действующей страницы.')) return
+    confirmPublished = true
+  }
+  actionBusy.value = true; error.value = ''; info.value = ''
+  try {
+    await api.request('/ai/actions/' + encodeURIComponent(action.id) + '/approve', {method:'POST', body:JSON.stringify({confirm:true,confirm_published:confirmPublished})})
+    await refreshActions(); info.value = 'Действие применено. Изменения записаны в CMS.'
+  } catch (e) { error.value = e instanceof Error ? e.message : 'Не удалось применить действие.' }
+  finally { actionBusy.value = false }
+}
+const rejectAction = async (action: PendingAction) => {
+  if (actionBusy.value) return
+  actionBusy.value = true; error.value = ''
+  try {
+    await api.request('/ai/actions/' + encodeURIComponent(action.id) + '/reject', {method:'POST', body:'{}'})
+    await refreshActions(); info.value = 'Предложение отклонено.'
+  } catch(e) { error.value = e instanceof Error ? e.message : 'Не удалось отклонить действие.' }
+  finally { actionBusy.value = false }
 }
 const refreshList = async () => {
   conversations.value = (await api.request<{ data: Conversation[] }>('/ai/conversations')).data
@@ -96,7 +134,7 @@ const submit = async () => {
     const headers = new Headers({ Accept: 'text/event-stream', 'Content-Type': 'application/json' })
     if (api.csrf.value) headers.set('X-CSRF-Token', api.csrf.value)
     const response = await fetch(api.baseUrl + '/ai/chat/stream', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers,
-      body: JSON.stringify({ conversation_id: active.value, message: text, tools_enabled: toolsEnabled.value && availableTools.value.length > 0 }) })
+      body: JSON.stringify({ conversation_id: active.value, message: text, tools_enabled: toolsEnabled.value && readTools.value.length > 0, actions_enabled: toolsEnabled.value && actionsEnabled.value && canWrite.value }) })
     if (!response.ok || !response.body) {
       const payload = await response.json().catch(() => null)
       throw new Error(payload?.error?.message || 'Ошибка AI HTTP ' + response.status)
@@ -126,7 +164,7 @@ const submit = async () => {
       }
     }
     if (!done) throw new Error('Поток AI завершился до сохранения ответа.')
-    await openSaved()
+    await openSaved(); await refreshActions()
   } catch (e) { error.value = e instanceof Error ? e.message : 'AI временно недоступен.'; if (!done) { messages.value = messages.value.filter(m => !m.id.startsWith('pending-')); prompt.value = text } }
   finally { sending.value = false }
 }
@@ -161,14 +199,30 @@ const openSaved = async () => {
           <p v-if="!messages.length && !sending">Создайте диалог и отправьте первое сообщение.</p>
         </div>
         <form class="ce-ai-compose" @submit.prevent="submit">
-          <label v-if="availableTools.length" class="ce-ai-tools-switch"><input v-model="toolsEnabled" type="checkbox" :disabled="sending"> Разрешить AI-инструментам читать данные CMS и передавать результаты в OpenAI</label>
-          <details v-if="availableTools.length"><summary>Доступные AI Tools ({{ availableTools.length }})</summary><ul><li v-for="tool in availableTools" :key="tool.name"><code>{{ tool.name }}</code> — {{ tool.description }}</li></ul></details>
+          <label v-if="readTools.length" class="ce-ai-tools-switch"><input v-model="toolsEnabled" type="checkbox" :disabled="sending"> Разрешить AI-инструментам читать данные CMS и передавать результаты в OpenAI</label>
+          <label v-if="actionTools.length && canWrite" class="ce-ai-tools-switch"><input v-model="actionsEnabled" type="checkbox" :disabled="sending || !toolsEnabled"> Разрешить ChatGPT готовить действия для ручного подтверждения (без автоматического выполнения)</label>
+          <details v-if="availableTools.length"><summary>Доступные AI Tools ({{ availableTools.length }})</summary><ul><li v-for="tool in availableTools" :key="tool.name"><code>{{ tool.name }}</code> — {{ tool.description }}{{ tool.requires_approval ? " (требует подтверждения)" : "" }}</li></ul></details>
           <textarea v-model="prompt" rows="4" maxlength="12000" placeholder="Введите сообщение для ChatGPT" :disabled="sending || !settings?.configured" />
           <button type="submit" :disabled="sending || !prompt.trim() || !settings?.configured">{{ sending ? 'Отправка…' : 'Отправить' }}</button>
           <small>Модель: {{ settings?.model || '—' }}. Ответы могут содержать ошибки.</small>
         </form>
       </div>
     </div>
+    <section v-if="canWrite" class="ce-ai-settings" aria-label="Ожидающие подтверждения действия">
+      <h2>AI Actions · Ожидают подтверждения ({{ pendingActions.length }})</h2>
+      <p>AI может создать предложение, но только вы решаете, применять ли изменение. Перед применением проверяется актуальность данных и права.</p>
+      <button type="button" :disabled="actionBusy" @click="refreshActions">Обновить список</button>
+      <article v-for="action in pendingActions" :key="action.id" class="ce-ai-action">
+        <h3>{{ action.action }}</h3>
+        <small>Действует до {{ new Date(action.expires_at * 1000).toLocaleString() }} · Ревизия {{ action.expected_revision ?? 'новый черновик' }}</small>
+        <div class="ce-ai-action-diff">
+          <div><strong>Текущее состояние</strong><pre>{{ JSON.stringify(action.before, null, 2) }}</pre></div>
+          <div><strong>Предложенное действие</strong><pre>{{ JSON.stringify(action.payload, null, 2) }}</pre></div>
+        </div>
+        <div class="ce-ai-action-buttons"><button type="button" :disabled="actionBusy || sending" @click="approveAction(action)">Применить</button><button type="button" :disabled="actionBusy" @click="rejectAction(action)">Отклонить</button></div>
+      </article>
+      <p v-if="!pendingActions.length">Предложений, ожидающих подтверждения, нет.</p>
+    </section>
     <details v-if="canManage && settings" class="ce-ai-settings">
       <summary>Настройки OpenAI</summary>
       <form @submit.prevent="saveSettings">
@@ -187,4 +241,5 @@ const openSaved = async () => {
 
 <style scoped>
 .ce-ai{max-width:1300px}.ce-ai-layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:18px;margin-top:20px}.ce-ai-sidebar,.ce-ai-main,.ce-ai-settings{border:1px solid #e2e8f0;border-radius:12px;padding:15px;background:white}.ce-ai-sidebar{max-height:65vh;overflow:auto}.ce-ai-item{display:flex;align-items:center;gap:4px;padding:7px 0;border-bottom:1px solid #e2e8f0}.ce-ai-title{flex:1;text-align:left;overflow-wrap:anywhere}.ce-ai-title[aria-current=page]{font-weight:bold}.ce-ai-item button{border:0;border-radius:5px;background:#f1f5f9;padding:7px;cursor:pointer}.ce-ai-messages{height:min(54vh,650px);min-height:250px;overflow-y:auto;display:flex;flex-direction:column;gap:13px}.ce-ai-message{padding:12px;border-radius:10px;background:#f1f5f9}.ce-ai-message.user{background:#eaf2ff}.ce-ai-message p{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0 0}.ce-ai-compose{display:grid;gap:10px;margin-top:14px}.ce-ai-compose textarea,.ce-ai-settings input{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px}.ce-ai-compose button,.ce-ai-settings button,.ce-ai-sidebar>button{padding:10px;border:0;border-radius:8px;background:#155eef;color:white;cursor:pointer}.ce-ai-compose button:disabled{opacity:.5}.ce-ai-settings{margin-top:20px}.ce-ai-settings form{display:grid;gap:12px;padding-top:14px}.ce-ai-settings label{display:grid;gap:5px}.ce-ai-settings button[type=button]{background:#64748b}.ce-ai-error{color:#b42318}.ce-ai-notice{padding:12px;background:#fff4dc;margin-bottom:12px}@media(max-width:850px){.ce-ai-layout{grid-template-columns:1fr}.ce-ai-sidebar{max-height:190px}}
+.ce-ai-action{border-top:1px solid #d7dfe9;padding:16px 0}.ce-ai-action-diff{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.ce-ai-action pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f9;padding:10px;border-radius:8px;max-height:250px;overflow:auto}.ce-ai-action-buttons{display:flex;gap:10px;margin-top:10px}@media(max-width:800px){.ce-ai-action-diff{grid-template-columns:1fr}}
 </style>

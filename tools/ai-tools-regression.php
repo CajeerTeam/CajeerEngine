@@ -19,11 +19,16 @@ function reject171(callable $fn, string $message): void {
     throw new RuntimeException('FAIL '.$message);
 }
 $tools = (new ReflectionClass(AiTools::class))->newInstanceWithoutConstructor();
+$actionProposals = (new ReflectionClass(\CajeerEngine\AI\AiActions::class))->newInstanceWithoutConstructor();
+(new ReflectionProperty(AiTools::class,'actions'))->setValue($tools,$actionProposals);
 $public = $tools->catalog(['content:read']);
-check171(count($public) === 4, 'content-read scope exposes content, SEO and knowledge only');
+check171(count($public) === 5, 'content-read scope exposes content, SEO, knowledge and support status without write access');
 check171(count($tools->catalog(['system:read'])) === 1, 'diagnostics permission scoped separately');
 check171(count($tools->catalog(['analytics:read'])) === 1, 'analytics permission scoped separately');
 check171(count($tools->catalog([])) === 0, 'no scopes means no model tools');
+check171(count($tools->definitions(['*'],true)) === count($tools->definitions(['*'])) + 3, 'action tools are opt-in and carry mandatory strict JSON schemas');
+check171(count(array_filter($tools->catalog(['content:read'],true),static fn($tool)=>!empty($tool['requires_approval'])))===0, 'read-only RBAC excludes action proposals');
+reject171(fn()=>$tools->execute('cms_action_update_seo',[],['*'],'someone'), 'action proposal execution requires explicit request opt-in');
 reject171(fn()=>$tools->execute('cms_diagnostics_run',['window_minutes'=>60],['content:read'],'someone'), 'forbidden tool cannot execute');
 reject171(fn()=>$tools->execute('cms_shell',['command'=>'whoami'],['*'],'someone'), 'unregistered functions fail closed');
 foreach ($tools->definitions(['*']) as $declaration) {
