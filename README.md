@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## AI CMS Diagnostics (1.6.5)
+
+В админке раздел **AI CMS Diagnostics** предоставляет актуальные проверки БД, storage, очередей, scheduler, cache, search, backup, worker и security hardening. Диагностический отчёт не требует OpenAI; отдельная кнопка отправляет только агрегированные и очищенные показатели в существующий OpenAI Responses API, используя общий токен-бюджет. Подробнее: [руководство](docs/ai-cms-diagnostics-1.6.5.md).
+
 ## Установка
 
 - PHP 8.4.1+, mbstring, sodium, Phar, PDO и драйвер выбранной БД, openssl, fileinfo.

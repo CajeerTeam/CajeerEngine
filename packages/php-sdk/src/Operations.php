@@ -78,6 +78,30 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'api_v1_ai_diagnostics_explain' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/diagnostics/explain',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_diagnostics_snapshot' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/diagnostics',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'window_minutes',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'api_v1_ai_editor_apply' => 
   array (
     'method' => 'POST',

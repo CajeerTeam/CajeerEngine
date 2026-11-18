@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CajeerEngine\Api\Controller;
 
 use CajeerEngine\AI\AiChat;
+use CajeerEngine\AI\AiCmsDiagnostics;
 use CajeerEngine\AI\AiContentEditor;
 use CajeerEngine\AI\AiSeoAssistant;
 use CajeerEngine\AI\AiTranslationStudio;
@@ -20,7 +21,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /** Admin-only chat endpoints. Authorization/CSRF/step-up also run in the core middleware. */
 final readonly class AiController
 {
-    public function __construct(private AiChat $chat, private AiSettings $settings, private AuditLogger $audit, private RateLimiter $limiter, private AiContentEditor $editor, private AiSeoAssistant $seo, private AiTranslationStudio $translations, private \CajeerEngine\Queue\ManagedQueueDriverInterface $queue) {}
+    public function __construct(private AiChat $chat, private AiSettings $settings, private AuditLogger $audit, private RateLimiter $limiter, private AiContentEditor $editor, private AiSeoAssistant $seo, private AiTranslationStudio $translations, private \CajeerEngine\Queue\ManagedQueueDriverInterface $queue, private AiCmsDiagnostics $diagnostics) {}
 
     private function user(Request $request): string
     {
@@ -101,6 +102,35 @@ final readonly class AiController
         $result = $this->editor->apply($uid, (string)($params['id'] ?? ''), $body['confirm_published'] ?? false);
         $this->audit->record('ai.editor.applied', $uid, ['proposal_id' => $params['id'], 'type' => $result['type'], 'entry_id' => $result['entry']['id'], 'revision' => $result['entry']['revision']]);
         return $this->ok($result);
+    }
+
+    public function diagnosticsSnapshot(Request $request): JsonResponse
+    {
+        $this->user($request);
+        $value = filter_var($request->query->get('window_minutes', '60'), FILTER_VALIDATE_INT);
+        if ($value === false) throw new \InvalidArgumentException('Invalid diagnostic window.');
+        return $this->ok($this->diagnostics->snapshot($value));
+    }
+
+    public function diagnosticsExplain(Request $request): JsonResponse
+    {
+        $uid = $this->user($request);
+        $body = $this->body($request);
+        if (array_diff(array_keys($body), ['window_minutes', 'focus']) !== []) throw new \InvalidArgumentException('Unknown diagnostic parameter.');
+        $window = $body['window_minutes'] ?? 60;
+        $focus = $body['focus'] ?? '';
+        if (!is_int($window) || !is_string($focus)) throw new \InvalidArgumentException('Invalid diagnostic parameter.');
+        $hit = $this->limiter->hit('ai-diagnostics-user', $uid, 3, 60);
+        if (!$hit['allowed']) return new JsonResponse(['error' => ['code' => 'ai_diagnostics_rate_limit', 'message' => 'Лимит AI-диагностики: 3 запроса в минуту.']],
+            429, ['Retry-After' => (string)$hit['retry_after'], 'Cache-Control' => 'no-store']);
+        try {
+            $result = $this->diagnostics->explain($uid, $window, $focus);
+            $this->audit->record('ai.diagnostics.explained', $uid, ['issue' => $focus !== '' ? $focus : 'all', 'issue_count' => $result['diagnostics']['summary']['total']]);
+            return $this->ok($result);
+        } catch (AiProviderException $exception) {
+            return new JsonResponse(['error' => ['code' => 'ai_provider_unavailable', 'message' => $exception->getMessage()]],
+                $exception->httpStatus, ['Cache-Control' => 'no-store']);
+        }
     }
 
     public function seoAudit(Request $request): JsonResponse

@@ -54,6 +54,24 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "api_v1_ai_diagnostics_explain": {
+        "method": "POST",
+        "path": "/ai/diagnostics/explain",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_ai_diagnostics_snapshot": {
+        "method": "GET",
+        "path": "/ai/diagnostics",
+        "parameters": [
+            {
+                "name": "window_minutes",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
     "api_v1_ai_editor_apply": {
         "method": "POST",
         "path": "/ai/editor/proposals/{id}/apply",

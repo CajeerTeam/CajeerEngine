@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.5 — AI CMS Diagnostics
+
+- Read-only operational analysis of database, queue, scheduler, storage, cache, search, backups, workers and recent sanitized runtime event counts.
+- Optional OpenAI explanation with strict server-side allowlisting, per-user rate limits and shared token budget. No secret disclosure or automatic fixes.
+- Nuxt and production SPA diagnostic dashboards, drill-down, export and explicit, actionable remediation guidance.
+
+
 ## [1.6.4] — AI Translation Studio (2026-11-18)
 
 - Production AI translation of CMS text, rich text and block fields, terminology glossary, draft localization approval, revision checks, stale-source detection and separate admin interfaces.

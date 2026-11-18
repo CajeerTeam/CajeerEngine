@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.6.4'
+const ADMIN_VERSION = '1.6.5'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -16,6 +16,7 @@ const nav = [
   ['ai', '◈', 'AI Assistant', 'ChatGPT через OpenAI API'],
   ['seo', '🔎', 'AI SEO Assistant', 'Аудит страниц и SEO-оптимизация'],
   ['translations', '🌐', 'AI Translation Studio', 'Переводы и локализации'],
+  ['diagnostics', '⚙️', 'AI CMS Diagnostics', 'Проверка состояния CMS и объяснение проблем'],
   ['tracking', '📈', 'Счётчики', 'Яндекс Метрика, GA4, GTM, Matomo и Plausible'],
   ['analytics-hub', '📊', 'Analytics Hub', 'Отчёты трафика и поисковой статистики'],
   ['analytics-events', '📊', 'События', 'Правила, цели и диагностика аналитики'],
@@ -49,6 +50,7 @@ const state = {
     user: { name: '', email: '', password: '', roles: 'admin' },
     identitySearch: '', identityLinked: 'all', identityOffset: 0, identitySelected: '',
     seo: {type:'',entry:'',field:'seo_title',instructions:'',audit:null,batch:null,proposal:null,busy:false},
+    diagnostics: {window:60,focus:'',explanation:null,usage:null,busy:false},
     translation: {type:'',entry:'',locale:'en',instructions:'',updateExisting:false,overview:null,glossary:[],proposal:null,busy:false,batch:null,batchSelection:[],batchUpdateExisting:false},
     aiSelected: null, aiMessages: [], aiBusy: false, aiEditor: {field:'title',mode:'generate',instructions:'',selection:'',busy:false,proposal:null},
     role: { handle: '', name: '', permissions: 'content:read,content:write' },
@@ -203,6 +205,7 @@ async function routeLoad(route) {
     if (route === 'users') await Promise.allSettled([loadSilent('users', '/users'), loadSilent('roles', '/roles'), loadSilent('tokens', '/api-tokens')])
     if (route === 'identity') await Promise.allSettled([loadSilent('identity', '/identity/account'), loadSilent('sessions', '/auth/sessions'), ...(integrationScope('users:read') ? [loadIdentityUsers()] : [])])
     if (route === 'ai') await Promise.allSettled([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations')])
+    if (route === 'diagnostics') await loadSilent('aiDiagnostics','/ai/diagnostics?window_minutes='+state.forms.diagnostics.window)
     if (route === 'seo') {
       await loadSilent('seoTypes','/content-types')
       const available=asArray(state.cache.seoTypes)
@@ -265,7 +268,7 @@ window.addEventListener('hashchange', () => {
 })
 
 function shell(title, subtitle, body, toolbar = '') {
-  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine</div><div class="brand-sub">Admin UI ${ADMIN_VERSION}</div></div></div><nav class="nav">${nav.filter(([id]) => (id !== 'migration' || integrationScope('migration:read')) && (id !== 'integrations' || integrationScope('integrations:read')) && (id !== 'privacy' || integrationScope('privacy:read')) && (id !== 'analytics-hub' || integrationScope('analytics:read')) && (!['tracking','analytics-events'].includes(id) || integrationScope('tracking:read'))).map(([id, icon, label]) => `<button class="${state.route === id ? 'active' : ''}" data-route="${id}"><span class="emoji">${icon}</span><span>${label}</span></button>`).join('')}</nav><div class="footer-note">API: <span class="code-inline">${API_BASE}</span><br>${state.identity ? `User: ${escapeHtml(state.identity.email || state.identity.name || state.identity.user_id || 'auth')}` : 'Без активной сессии'}</div></aside><main class="main"><div class="topbar"><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle || '')}</p></div><div class="toolbar">${toolbar}<button class="btn secondary" data-action="refresh">Обновить</button>${state.token ? '<button class="btn ghost" data-action="logout">Выйти</button>' : '<button class="btn" data-route="login">Войти</button>'}</div></div>${noticeHtml()}${state.loading ? '<div class="notice">Загрузка...</div>' : ''}${body}</main></div>`
+  return `<div class="shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine</div><div class="brand-sub">Admin UI ${ADMIN_VERSION}</div></div></div><nav class="nav">${nav.filter(([id]) => (id !== 'migration' || integrationScope('migration:read')) && (id !== 'integrations' || integrationScope('integrations:read')) && (id !== 'privacy' || integrationScope('privacy:read')) && (id !== 'analytics-hub' || integrationScope('analytics:read')) && (id !== 'diagnostics' || integrationScope('system:read')) && (!['tracking','analytics-events'].includes(id) || integrationScope('tracking:read'))).map(([id, icon, label]) => `<button class="${state.route === id ? 'active' : ''}" data-route="${id}"><span class="emoji">${icon}</span><span>${label}</span></button>`).join('')}</nav><div class="footer-note">API: <span class="code-inline">${API_BASE}</span><br>${state.identity ? `User: ${escapeHtml(state.identity.email || state.identity.name || state.identity.user_id || 'auth')}` : 'Без активной сессии'}</div></aside><main class="main"><div class="topbar"><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle || '')}</p></div><div class="toolbar">${toolbar}<button class="btn secondary" data-action="refresh">Обновить</button>${state.token ? '<button class="btn ghost" data-action="logout">Выйти</button>' : '<button class="btn" data-route="login">Войти</button>'}</div></div>${noticeHtml()}${state.loading ? '<div class="notice">Загрузка...</div>' : ''}${body}</main></div>`
 }
 
 function noticeHtml() {
@@ -289,6 +292,7 @@ function render() {
   else if (state.route === 'ai') body = aiView()
   else if (state.route === 'seo') body = seoView()
   else if (state.route === 'translations') body = translationsView()
+  else if (state.route === 'diagnostics') body = diagnosticsView()
   else if (state.route === 'tracking') body = trackingView()
   else if (state.route === 'analytics-hub') body = analyticsHubView()
   else if (state.route === 'analytics-events') body = analyticsEventsView()
@@ -560,6 +564,7 @@ function bindForms() {
   bindContent()
   bindSeo()
   bindTranslations()
+  bindDiagnostics()
   bindMedia()
   bindCms()
   bindUsers()
@@ -800,6 +805,45 @@ function contentView() {
   })()}`
 }
 
+
+function diagnosticsView(){
+  if(!integrationScope('system:read'))return '<div class="notice error">Недостаточно прав для диагностики.</div>'
+  const f=state.forms.diagnostics,cached=state.cache.aiDiagnostics
+  const r=dataOf(cached)
+  const notice=cached?.error?`<p class="notice error">${escapeHtml(cached.error.message)}</p>`:''
+  const windows=[[15,'15 минут'],[60,'1 час'],[360,'6 часов'],[1440,'24 часа']]
+  const choices=windows.map(([n,t])=>`<option value="${n}" ${n===f.window?'selected':''}>${t}</option>`).join('')
+  const head=`<section class="card"><h2>AI CMS Diagnostics</h2><p>Проверка БД, storage, очередей, scheduler, кеша, поиска, backup и worker. Без изменения конфигурации. OpenAI получает только очищенные показатели без секретов и строк логов.</p><div class="toolbar"><label>Период runtime-событий <select class="input" data-diagnostics-window>${choices}</select></label><button class="btn" data-diagnostics-refresh ${f.busy?'disabled':''}>Проверить CMS</button><button class="btn secondary" data-diagnostics-export ${r?'':'disabled'}>Экспорт JSON</button></div>${notice}</section>`
+  if(!r)return head+'<div class="card">Отчёт загружается…</div>'
+  const summary=`<div class="card"><h2>Состояние: ${escapeHtml(r.status)}</h2><p>Проверено: ${escapeHtml(r.generated_at)} · замечаний ${Number(r.summary?.total||0)} · критичных ${Number(r.summary?.critical||0)} · высоких ${Number(r.summary?.high||0)}</p><p>Накопленные HTTP-метрики: ${Number(r.http?.requests||0)} запросов, ${Number(r.http?.errors_5xx||0)} ошибок 5xx, среднее ${escapeHtml(r.http?.average_ms??'—')} мс.</p></div>`
+  const rows=Object.entries(r.checks||{}).map(([key,v])=>`<tr><td>${escapeHtml(key)}</td><td>${v.ok?'OK':'Проблема'}</td><td>${escapeHtml(v.driver||'—')}</td><td>${escapeHtml(v.latency_ms??'—')} мс</td><td>${v.counts?`pending ${Number(v.counts.pending)} / failed ${Number(v.counts.failed)}`:v.documents!==undefined?`Документов: ${Number(v.documents)}`:v.age_seconds!==undefined?`Backup: ${escapeHtml(v.age_seconds??'—')} с`:'—'}</td></tr>`)
+  const checks=`<div class="card"><h2>Проверки сервисов</h2>${table(['Сервис','Статус','Драйвер','Задержка','Данные'],rows)}</div>`
+  const issues=(r.issues||[]).map(i=>`<tr><td>${escapeHtml(i.severity)}</td><td><strong>${escapeHtml(i.title)}</strong><br>${escapeHtml(i.reason)}<br><small>${escapeHtml(i.code)}</small></td><td>${escapeHtml(i.action)}${i.command?`<pre>${escapeHtml(i.command)}</pre>`:''}</td></tr>`)
+  const problems=`<div class="card"><h2>Рекомендации</h2>${issues.length?table(['Приоритет','Обнаружено','Проверка и устранение'],issues):'<p>Текущие проверки не выявили отклонений.</p>'}</div>`
+  const focus=[`<option value="">Все проблемы</option>`,...(r.issues||[]).map(i=>`<option value="${escapeHtml(i.code)}" ${f.focus===i.code?'selected':''}>${escapeHtml(i.title)}</option>`)].join('')
+  const ai=`<section class="card"><h2>Объяснение ChatGPT</h2><p>OpenAI получает только обезличенные коды, статусы и агрегаты. Никаких автоматических действий.</p><div class="toolbar"><label>Фокус <select class="input" data-diagnostics-focus>${focus}</select></label><button class="btn" data-diagnostics-explain ${f.busy?'disabled':''}>${f.busy?'Анализ…':'Объяснить через ChatGPT'}</button></div>${f.explanation?`<pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(f.explanation)}</pre><p>Токены: ${Number(f.usage?.input_tokens||0)} / ${Number(f.usage?.output_tokens||0)}</p>`:''}<p class="muted">Предлагаемые команды требуют отдельной проверки оператором и здесь не выполняются.</p></section>`
+  return head+summary+checks+problems+ai
+}
+function bindDiagnostics(){
+  if(state.route!=='diagnostics')return
+  const f=state.forms.diagnostics
+  document.querySelector('[data-diagnostics-window]')?.addEventListener('change',e=>{f.window=Number(e.target.value);f.explanation=null;routeLoad('diagnostics').then(render)})
+  document.querySelector('[data-diagnostics-focus]')?.addEventListener('change',e=>{f.focus=e.target.value;f.explanation=null})
+  document.querySelector('[data-diagnostics-refresh]')?.addEventListener('click',()=>{f.explanation=null;f.usage=null;routeLoad('diagnostics').then(render)})
+  document.querySelector('[data-diagnostics-explain]')?.addEventListener('click',async()=>{
+    if(f.busy)return;f.busy=true;render()
+    try{
+      const value=dataOf(await api('/ai/diagnostics/explain',{method:'POST',body:JSON.stringify({window_minutes:f.window,focus:f.focus})}))
+      state.cache.aiDiagnostics={data:value.diagnostics};f.explanation=value.explanation;f.usage=value.usage
+      setNotice('ok','AI объяснение получено. Система не изменялась.')
+    }catch(e){setNotice('error',e.message)}finally{f.busy=false;render()}
+  })
+  document.querySelector('[data-diagnostics-export]')?.addEventListener('click',()=>{
+    const value=dataOf(state.cache.aiDiagnostics);if(!value)return
+    const blob=new Blob([JSON.stringify({diagnostics:value,explanation:f.explanation,usage:f.usage},null,2)],{type:'application/json'})
+    const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='cajeer-ai-diagnostics.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
+  })
+}
 
 function seoView() {
   const f=state.forms.seo,types=asArray(state.cache.seoTypes),entries=asArray(state.cache.seoEntries),r=f.audit;
