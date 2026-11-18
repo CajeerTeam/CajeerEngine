@@ -16,6 +16,10 @@ php bin/cajeer admin:assets --check
 php bin/cajeer doctor
 ```
 
+## SSO & Global Logout (1.5.4)
+
+SkiF4er ID uses Keycloak SSO for cross-application sign-on. Registered OIDC browser sessions support RP-Initiated Logout and signed, replay-protected Back-Channel Logout; local password sessions and personal API tokens are not revoked by an IdP logout. See `docs/skif4er-sso-global-logout.md`.
+
 ## Unified Session Management (1.5.3)
 
 The Identity page now lists local and SkiF4er ID browser sessions and lets the account owner revoke one, the others, or all. New sessions are registered in SQL; existing active sessions are imported on their next valid request. Session rotation replaces the cookie and CSRF credential. Configure `SESSION_IDLE_MINUTES` (default 720) and run migration `0028_unified_sessions.sql` before using the new build. External SSO back-channel logout is scheduled for 1.5.4; local revocation does not terminate a Keycloak SSO browser session. See `docs/unified-session-management.md`.

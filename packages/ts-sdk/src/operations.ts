@@ -1232,6 +1232,12 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "post_AuthOidcGlobalLogout": {
+        "method": "POST",
+        "path": "/auth/oidc/logout",
+        "parameters": [],
+        "bodyRequired": false
+    },
     "post_CmsBootstrap": {
         "method": "POST",
         "path": "/cms/bootstrap",

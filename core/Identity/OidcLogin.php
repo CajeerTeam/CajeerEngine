@@ -9,6 +9,7 @@ use CajeerEngine\Database\Repository\UserRepository;
 use CajeerEngine\Database\Repository\RoleRepository;
 use CajeerEngine\Database\Repository\AuditLogRepository;
 use CajeerEngine\Security\PasswordHasher;
+use CajeerEngine\Database\Repository\UserSessionRepository;
 use Symfony\Component\HttpFoundation\Request;
 
 /** Functional OIDC login orchestration, no email auto-link and no browser exposure of tokens. */
@@ -17,7 +18,7 @@ final readonly class OidcLogin
     public function __construct(
         private OidcClient $client, private OidcStore $store, private AuthService $auth,
         private UserRepository $users, private RoleRepository $roles, private PasswordHasher $passwords,
-        private AuditLogRepository $audit, private bool $autoProvision = false,
+        private AuditLogRepository $audit, private bool $autoProvision = false, private ?UserSessionRepository $sessions = null,
     ) {}
 
     /** @return array{url:string,browser:string} */
@@ -48,6 +49,48 @@ final readonly class OidcLogin
             $this->audit->record('identity.oidc_provisioned', $userId, ['provider'=>'skif4er', 'subject_digest'=>hash('sha256', $claims['sub'])]);
         }
         return $this->auth->loginExternal($userId, $claims, $request);
+    }
+
+    /** Locally revoke the current OIDC session before returning the pinned Keycloak logout URL. */
+    public function globalLogout(Request $request, string $postLogoutUrl): string
+    {
+        $identity = $request->attributes->get('auth');
+        if (!is_array($identity) || ($identity['cookie'] ?? false) !== true || ($identity['session'] ?? false) !== true
+            || !is_string($identity['token_id'] ?? null) || !is_string($identity['user_id'] ?? null) || $this->sessions === null) {
+            throw new \RuntimeException('A current browser session is required.');
+        }
+        $session = $this->sessions->find($identity['token_id']);
+        if ($session === null || ($session['provider'] ?? '') !== 'skif4er' || $session['revoked_at'] !== null) {
+            throw new \RuntimeException('Global logout requires a SkiF4er ID browser session.');
+        }
+        // Resolve remote endpoint first. An unavailable provider must not silently produce a false global logout.
+        $url = $this->client->endSessionUrl($postLogoutUrl);
+        if (!$this->auth->logout($request)) throw new \RuntimeException('Local logout failed.');
+        $this->audit->record('identity.oidc_global_logout_started', $identity['user_id'], ['provider'=>'skif4er']);
+        return $url;
+    }
+
+    /** Signed, public server-to-server notification from Keycloak. */
+    public function backchannel(string $logoutToken): array
+    {
+        if ($this->sessions === null) throw new \RuntimeException('OIDC session registry unavailable.');
+        return $this->applyVerifiedBackchannel($this->verifyBackchannel($logoutToken));
+    }
+
+    public function verifyBackchannel(string $logoutToken): array
+    {
+        return $this->client->validateLogoutToken($logoutToken);
+    }
+
+    public function applyVerifiedBackchannel(array $claims): array
+    {
+        if ($this->sessions === null) throw new \RuntimeException('OIDC session registry unavailable.');
+        $outcome = $this->sessions->applyBackchannelLogout($claims);
+        $this->audit->record('identity.oidc_backchannel_logout', null, [
+            'provider'=>'skif4er', 'revoked_count'=>$outcome['revoked_count'],
+            'replayed'=>$outcome['already_processed'],
+        ]);
+        return $outcome;
     }
 
     public function accountStatus(string $userId): array { return $this->store->statusForUser($this->client->issuer(), $userId); }

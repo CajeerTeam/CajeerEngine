@@ -1623,6 +1623,15 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'post_AuthOidcGlobalLogout' => 
+  array (
+    'method' => 'POST',
+    'path' => '/auth/oidc/logout',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
   'post_CmsBootstrap' => 
   array (
     'method' => 'POST',

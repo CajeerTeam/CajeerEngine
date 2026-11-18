@@ -61,6 +61,25 @@ final class OidcClient
     /** @return array<string,mixed> */
     public function validateIdToken(string $jwt, string $nonce): array
     {
+        $claims = $this->verifiedJwt($jwt);
+        $now = time(); $aud = $claims['aud'] ?? null;
+        $audiences = is_string($aud) ? [$aud] : (is_array($aud) ? $aud : []);
+        if (($claims['iss'] ?? null) !== self::ISSUER || !in_array($this->clientId, $audiences, true)
+            || (count($audiences) > 1 && ($claims['azp'] ?? null) !== $this->clientId)
+            || (isset($claims['azp']) && $claims['azp'] !== $this->clientId)
+            || !is_int($claims['exp'] ?? null) || $claims['exp'] <= $now - 30
+            || !is_int($claims['iat'] ?? null) || $claims['iat'] > $now + 60
+            || (isset($claims['nbf']) && (!is_int($claims['nbf']) || $claims['nbf'] > $now + 60))
+            || !is_string($claims['nonce'] ?? null) || !hash_equals($nonce, $claims['nonce'])
+            || !is_string($claims['sub'] ?? null) || strlen($claims['sub']) < 1 || strlen($claims['sub']) > 255) {
+            throw new \RuntimeException('OIDC identity claims rejected.');
+        }
+        return $claims;
+    }
+
+    /** Verified, signed JWT claims. Signature validation is shared by ID and logout tokens. */
+    private function verifiedJwt(string $jwt): array
+    {
         $parts = explode('.', $jwt);
         if (count($parts) !== 3 || strlen($jwt) > 16384) throw new \RuntimeException('Malformed OIDC JWT.');
         [$h, $p, $signature] = $parts;
@@ -77,22 +96,51 @@ final class OidcClient
         if ($key === null) throw new \RuntimeException('Unknown OIDC signing key.');
         $pem = self::rsaPem((string) ($key['n'] ?? ''), (string) ($key['e'] ?? ''));
         if (openssl_verify($h.'.'.$p, self::decodeBase64Url($signature), $pem, OPENSSL_ALGO_SHA256) !== 1) throw new \RuntimeException('OIDC signature invalid.');
-        $now = time(); $aud = $claims['aud'] ?? null;
-        $audiences = is_string($aud) ? [$aud] : (is_array($aud) ? $aud : []);
-        if (($claims['iss'] ?? null) !== self::ISSUER || !in_array($this->clientId, $audiences, true)
-            || (count($audiences) > 1 && ($claims['azp'] ?? null) !== $this->clientId)
-            || (isset($claims['azp']) && $claims['azp'] !== $this->clientId)
-            || !is_int($claims['exp'] ?? null) || $claims['exp'] <= $now - 30
-            || !is_int($claims['iat'] ?? null) || $claims['iat'] > $now + 60
-            || (isset($claims['nbf']) && (!is_int($claims['nbf']) || $claims['nbf'] > $now + 60))
-            || !is_string($claims['nonce'] ?? null) || !hash_equals($nonce, $claims['nonce'])
-            || !is_string($claims['sub'] ?? null) || strlen($claims['sub']) < 1 || strlen($claims['sub']) > 255) {
-            throw new \RuntimeException('OIDC identity claims rejected.');
-        }
         return $claims;
     }
 
-    /** @return array{authorization_endpoint:string,token_endpoint:string,jwks_uri:string} */
+    /** Validate signed OIDC Back-Channel Logout 1.0 token. No nonce is permitted. */
+    public function validateLogoutToken(string $jwt): array
+    {
+        $claims = $this->verifiedJwt($jwt);
+        $aud = $claims['aud'] ?? null;
+        $audiences = is_string($aud) ? [$aud] : (is_array($aud) ? $aud : []);
+        $now = time();
+        $event = $claims['events']['http://schemas.openid.net/event/backchannel-logout'] ?? null;
+        $sub = $claims['sub'] ?? null;
+        $sid = $claims['sid'] ?? null;
+        $jti = $claims['jti'] ?? null;
+        if (($claims['iss'] ?? null) !== self::ISSUER
+            || !in_array($this->clientId, $audiences, true)
+            || (count($audiences) > 1 && ($claims['azp'] ?? null) !== $this->clientId)
+            || (isset($claims['azp']) && $claims['azp'] !== $this->clientId)
+            || !is_int($claims['iat'] ?? null) || $claims['iat'] > $now + 60 || $claims['iat'] < $now - 600
+            || !is_int($claims['exp'] ?? null) || $claims['exp'] <= $now - 30 || $claims['exp'] > $claims['iat'] + 900
+            || (isset($claims['nbf']) && (!is_int($claims['nbf']) || $claims['nbf'] > $now + 60))
+            || array_key_exists('nonce', $claims)
+            || !is_array($claims['events'] ?? null) || array_is_list($claims['events'])
+            || count($claims['events']) !== 1 || !is_array($event) || $event !== []
+            || !is_string($jti) || $jti === '' || strlen($jti) > 255
+            || ($sub === null && $sid === null)
+            || ($sub !== null && (!is_string($sub) || $sub === '' || strlen($sub) > 255 || preg_match('/[\x00-\x1f\x7f]/', $sub)))
+            || ($sid !== null && (!is_string($sid) || $sid === '' || strlen($sid) > 512 || preg_match('/[\x00-\x1f\x7f]/', $sid)))
+        ) throw new \RuntimeException('OIDC logout token rejected.');
+        return ['iss'=>self::ISSUER, 'sub'=>$sub, 'sid'=>$sid, 'jti'=>$jti, 'exp'=>$claims['exp']];
+    }
+
+    /** Pinned Keycloak RP-Initiated Logout endpoint with an exact registered HTTPS callback. */
+    public function endSessionUrl(string $postLogoutUrl): string
+    {
+        $parts = parse_url($postLogoutUrl);
+        if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https' || ($parts['host'] ?? null) !== (parse_url($this->callbackUrl, PHP_URL_HOST))
+            || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment']) || isset($parts['query'])
+            || ($parts['path'] ?? '') !== '/auth/oidc/logout/complete') throw new \RuntimeException('Invalid post logout redirect URI.');
+        $url = $this->configuration()['end_session_endpoint'] ?? null;
+        if (!is_string($url)) throw new \RuntimeException('OIDC provider does not offer RP-initiated logout.');
+        return $url.'?'.http_build_query(['client_id'=>$this->clientId, 'post_logout_redirect_uri'=>$postLogoutUrl], '', '&', PHP_QUERY_RFC3986);
+    }
+
+    /** @return array{authorization_endpoint:string,token_endpoint:string,jwks_uri:string,end_session_endpoint?:string} */
     private function configuration(): array
     {
         if ($this->discovery !== null) return $this->discovery;
@@ -103,6 +151,10 @@ final class OidcClient
             $url = $document[$name] ?? null;
             if (!is_string($url) || !self::pinnedUrl($url)) throw new \RuntimeException('OIDC discovery contains an unsafe endpoint.');
             $result[$name] = $url;
+        }
+        if (isset($document['end_session_endpoint'])) {
+            if (!is_string($document['end_session_endpoint']) || !self::pinnedUrl($document['end_session_endpoint'])) throw new \RuntimeException('Unsafe OIDC logout endpoint.');
+            $result['end_session_endpoint'] = $document['end_session_endpoint'];
         }
         return $this->discovery = $result;
     }
@@ -134,7 +186,7 @@ final class OidcClient
         try {
             curl_setopt_array($handle, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_FOLLOWLOCATION=>false, CURLOPT_CONNECTTIMEOUT=>5, CURLOPT_TIMEOUT=>10,
                 CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2, CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,
-                CURLOPT_HTTPHEADER=>$headers, CURLOPT_USERAGENT=>'CajeerEngine-OIDC/1.5.1', CURLOPT_MAXREDIRS=>0]);
+                CURLOPT_HTTPHEADER=>$headers, CURLOPT_USERAGENT=>'CajeerEngine-OIDC/1.5.4', CURLOPT_MAXREDIRS=>0]);
             if ($method === 'POST') curl_setopt_array($handle, [CURLOPT_POST=>true, CURLOPT_POSTFIELDS=>$body]);
             $content = curl_exec($handle);
             if ($content === false || strlen($content) > 262144) throw new \RuntimeException('OIDC network request failed or response too large.');

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.4 — SkiF4er ID SSO & Global Logout
+
+- RP-Initiated Logout initiated by an authenticated, CSRF-protected browser POST; immediately revoke the local OIDC session and redirect through the pinned Keycloak end-session endpoint.
+- Keycloak Back-Channel Logout: verify signed RS256 JWT using JWKS, audience, issuer, timestamps, event, `jti`, `sid` and/or `sub`; reject nonce and malformed events.
+- Atomic SQL replay detection and targeted revocation of OIDC browser sessions only, preserving local password sessions and unrelated API tokens.
+- Track hashed OIDC subject for precise revocation, retain sid provenance on session rotation, and support sessions created before 1.5.4.
+- Admin SPA / Nuxt global logout control, release CI regressions, documentation and migration `0029_oidc_global_logout.sql`.
+
 ## 1.5.3 — Unified Session Management
 
 - Local and SkiF4er OIDC sessions now have a durable per-device SQL registry. Existing 1.5.2 `admin-session` credentials are backfilled on first valid use.

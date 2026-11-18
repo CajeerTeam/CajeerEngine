@@ -28,6 +28,17 @@ const revokeAll = async () => {
   try { await api.request('/auth/sessions/revoke-all',{method:'POST',body:'{}'});await navigateTo('/login') }
   catch(e) { sessionError.value=e instanceof Error ? e.message : 'Ошибка отзыва.' }
 }
+const globalLogout = async () => {
+  if (!confirm('Завершить текущую сессию SkiF4er ID и выйти из приложений SSO?')) return
+  sessionError.value = ''
+  try {
+    const result = await api.request<{data:{authorization_url:string;local_session_revoked:boolean}}>('/auth/oidc/logout',{method:'POST',body:'{}'})
+    const uri = new URL(result.data.authorization_url)
+    if (uri.origin !== 'https://id.skif4er.ru' || uri.pathname !== '/realms/skif4er/protocol/openid-connect/logout') throw new Error('Некорректный OIDC logout URL')
+    api.setCsrf(null)
+    window.location.assign(uri.toString())
+  } catch(e) { sessionError.value = e instanceof Error ? e.message : 'Глобальный выход не выполнен.' }
+}
 const rotate = async () => {
   try { const result=await api.request<{data:{csrf_token:string}}>('/auth/sessions/rotate',{method:'POST',body:'{}'});
     api.setCsrf(result.data.csrf_token);await loadSessions() }
@@ -84,6 +95,7 @@ const submit = async () => {
       <button type="button" @click="rotate">Обновить текущую сессию</button>
       <button type="button" @click="revokeOthers">Завершить остальные</button>
       <button type="button" @click="revokeAll">Завершить все</button>
+      <button v-if="sessions.some(s => s.current && s.provider === 'skif4er')" type="button" @click="globalLogout">Выйти из SkiF4er ID (SSO)</button>
     </section>
   </section>
 </template>

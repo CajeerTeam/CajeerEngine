@@ -24,14 +24,17 @@ final readonly class UserSessionRepository
         $sid = $claims['sid'] ?? null;
         $sidHash = is_string($sid) && $sid !== '' ? hash('sha256', $sid) : null;
         if ($provider === 'skif4er' && is_string($claims['sid_hash'] ?? null) && preg_match('/^[a-f0-9]{64}$/D', $claims['sid_hash'])) $sidHash = $claims['sid_hash'];
+        $sub = $claims['sub'] ?? null;
+        $subHash = $provider === 'skif4er' && is_string($sub) && $sub !== '' ? hash('sha256', $sub) : null;
+        if ($provider === 'skif4er' && is_string($claims['sub_hash'] ?? null) && preg_match('/^[a-f0-9]{64}$/D', $claims['sub_hash'])) $subHash = $claims['sub_hash'];
         $issuer = $provider === 'skif4er' ? 'https://id.skif4er.ru/realms/skif4er' : null;
         $userAgent = substr(preg_replace('/[\x00-\x1f\x7f]/', '', (string) $request->headers->get('User-Agent', '')) ?? '', 0, 255);
         $ip = self::ipHint($request->getClientIp());
-        $stmt = $this->database->connection()->prepare('INSERT INTO ce_user_sessions (token_id, user_id, provider, user_agent, ip_hint, issuer, oidc_sid_hash, expires_at, created_at, last_seen_at) VALUES (:token_id, :user_id, :provider, :user_agent, :ip_hint, :issuer, :oidc_sid_hash, :expires_at, :created_at, :last_seen_at)');
+        $stmt = $this->database->connection()->prepare('INSERT INTO ce_user_sessions (token_id, user_id, provider, user_agent, ip_hint, issuer, oidc_sid_hash, oidc_sub_hash, expires_at, created_at, last_seen_at) VALUES (:token_id, :user_id, :provider, :user_agent, :ip_hint, :issuer, :oidc_sid_hash, :oidc_sub_hash, :expires_at, :created_at, :last_seen_at)');
         $stmt->execute([
             'token_id'=>$tokenId, 'user_id'=>$userId, 'provider'=>$provider,
             'user_agent'=>$userAgent, 'ip_hint'=>$ip, 'issuer'=>$issuer,
-            'oidc_sid_hash'=>$sidHash, 'expires_at'=>$expiresAt,
+            'oidc_sid_hash'=>$sidHash, 'oidc_sub_hash'=>$subHash, 'expires_at'=>$expiresAt,
             'created_at'=>$legacyCreated ?? gmdate('Y-m-d H:i:s'),
             'last_seen_at'=>$legacySeen ?? gmdate('Y-m-d H:i:s'),
         ]);
@@ -72,7 +75,7 @@ final readonly class UserSessionRepository
     /** @return array<string,mixed>|null */
     public function find(string $id): ?array
     {
-        $stmt = $this->database->connection()->prepare('SELECT token_id, user_id, provider, user_agent, ip_hint, issuer, oidc_sid_hash, created_at, last_seen_at, expires_at, revoked_at FROM ce_user_sessions WHERE token_id = :id');
+        $stmt = $this->database->connection()->prepare('SELECT token_id, user_id, provider, user_agent, ip_hint, issuer, oidc_sid_hash, oidc_sub_hash, created_at, last_seen_at, expires_at, revoked_at FROM ce_user_sessions WHERE token_id = :id');
         $stmt->execute(['id'=>$id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return is_array($row) ? $row : null;
@@ -116,6 +119,47 @@ final readonly class UserSessionRepository
             $count = 0;
             foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $id) if ($this->revoke((string)$id,$userId)) $count++;
             return $count;
+        });
+    }
+
+    /** Atomically apply a verified logout event and record its jti for replay defense. */
+    public function applyBackchannelLogout(array $claims): array
+    {
+        $issuer = (string)$claims['iss']; $sub = $claims['sub'] ?? null; $sid = $claims['sid'] ?? null;
+        $jtiHash = hash('sha256', $issuer."\0".(string)$claims['jti']);
+        $subHash = is_string($sub) ? hash('sha256', $sub) : null;
+        $sidHash = is_string($sid) ? hash('sha256', $sid) : null;
+        return $this->database->transaction(function (PDO $pdo) use ($issuer, $sub, $sid, $subHash, $sidHash, $jtiHash, $claims): array {
+            $pdo->prepare('DELETE FROM ce_oidc_logout_replay WHERE expires_at < :now')->execute(['now'=>time()]);
+            $probe = $pdo->prepare('SELECT jti_hash FROM ce_oidc_logout_replay WHERE jti_hash = :jti');
+            $probe->execute(['jti'=>$jtiHash]);
+            if ($probe->fetchColumn() !== false) return ['already_processed'=>true, 'revoked_count'=>0];
+            $insert = $pdo->prepare('INSERT INTO ce_oidc_logout_replay (jti_hash, issuer, expires_at) VALUES (:jti, :issuer, :exp)');
+            $insert->execute(['jti'=>$jtiHash, 'issuer'=>$issuer, 'exp'=>(int)$claims['exp']]);
+            // When both sid and sub are given they must describe the same local identity.
+            // Existing pre-1.5.4 sessions may not yet have a subject digest; resolve their owner through the linked identity.
+            $owner = null;
+            if ($subHash !== null) {
+                $ownerStmt = $pdo->prepare('SELECT user_id FROM ce_oidc_identities WHERE issuer = :issuer AND subject = :sub');
+                $ownerStmt->execute(['issuer'=>$issuer, 'sub'=>$sub]);
+                $owner = $ownerStmt->fetchColumn();
+            }
+            $conditions = ['s.provider = :provider', 's.issuer = :issuer', 's.revoked_at IS NULL', "t.name = 'admin-session'", 't.revoked_at IS NULL'];
+            $args = ['provider'=>'skif4er', 'issuer'=>$issuer];
+            if ($sidHash !== null) { $conditions[] = 's.oidc_sid_hash = :sid_hash'; $args['sid_hash']=$sidHash; }
+            if ($subHash !== null) {
+                if ($owner !== false && is_string($owner)) {
+                    $conditions[] = "(s.oidc_sub_hash = :sub_hash OR (s.oidc_sub_hash IS NULL AND s.user_id = :owner))";
+                    $args['sub_hash']=$subHash; $args['owner']=$owner;
+                } else { $conditions[] = 's.oidc_sub_hash = :sub_hash'; $args['sub_hash']=$subHash; }
+            }
+            $find = $pdo->prepare('SELECT s.token_id, s.user_id FROM ce_user_sessions s INNER JOIN ce_api_tokens t ON t.id = s.token_id AND t.user_id = s.user_id WHERE '.implode(' AND ', $conditions));
+            $find->execute($args);
+            $count = 0;
+            foreach ($find->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                if ($this->revoke((string)$row['token_id'], (string)$row['user_id'])) $count++;
+            }
+            return ['already_processed'=>false, 'revoked_count'=>$count];
         });
     }
 

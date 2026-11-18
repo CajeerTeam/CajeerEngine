@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.5.3'
+const ADMIN_VERSION = '1.5.4'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -847,7 +847,7 @@ function identityView() {
   const identityPanel = !data ? '<div class="card">Загрузка статуса SkiF4er ID…</div>' : !data.enabled
     ? '<div class="card"><h2>SkiF4er ID</h2><p>Провайдер отключён. Локальный вход продолжает работать.</p></div>'
     : `<div class="card"><h2>SkiF4er ID</h2><p>${data.linked ? 'Внешняя учётная запись привязана.' : 'Внешняя учётная запись не привязана.'}</p>${data.provisioned ? '<p>Аккаунт создан через SkiF4er ID. Для отвязки сначала настройте локальный вход.</p>' : ''}${data.created_at ? `<p class="muted">Дата привязки: ${escapeHtml(data.created_at)}</p>` : ''}<form class="form" data-identity-form><div class="form-row"><label>Текущий пароль CajeerEngine</label><input class="input" name="password" type="password" autocomplete="current-password" required maxlength="1024"></div><div class="form-row"><label>Код 2FA (если включён)</label><input class="input" name="two_factor_code" autocomplete="one-time-code" maxlength="128"></div><div class="toolbar">${data.linked ? `<button class="btn danger" type="submit" ${data.provisioned ? 'disabled' : ''}>Отвязать SkiF4er ID</button>` : '<button class="btn" type="submit">Привязать через SkiF4er ID</button>'}</div></form><p class="muted">Привязка требует локальный пароль и подтверждение SkiF4er ID. Email не используется для объединения аккаунтов.</p></div>`
-  const sessionsPanel = `<div class="card"><h2>Активные сессии</h2><p>Отзыв немедленно блокирует доступ на выбранном устройстве. Обычные API-токены не затрагиваются.</p>${state.cache.sessions?.error ? `<p class="notice error">${escapeHtml(state.cache.sessions.error.message)}</p>` : ''}<div style="overflow-x:auto"><table class="table"><thead><tr><th>Устройство</th><th>Источник</th><th>Последняя активность</th><th>Срок действия</th><th></th></tr></thead><tbody>${sessions.map(session => `<tr><td>${escapeHtml(session.device || 'Браузер')} ${session.current ? '<strong>(текущая)</strong>' : ''}<br><span class="muted">${escapeHtml(session.network || '')}</span></td><td>${escapeHtml(session.provider)}</td><td>${escapeHtml(session.last_seen_at)}</td><td>${escapeHtml(session.expires_at || '—')}</td><td><button class="btn secondary" type="button" data-session-revoke="${escapeHtml(session.id)}">Завершить</button></td></tr>`).join('') || '<tr><td colspan="5">Активных сессий нет</td></tr>'}</tbody></table></div><div class="toolbar"><button class="btn secondary" data-session-rotate>Обновить текущую сессию</button><button class="btn secondary" data-session-others>Завершить остальные</button><button class="btn danger" data-session-all>Завершить все</button></div></div>`
+  const sessionsPanel = `<div class="card"><h2>Активные сессии</h2><p>Отзыв немедленно блокирует доступ на выбранном устройстве. Обычные API-токены не затрагиваются.</p>${state.cache.sessions?.error ? `<p class="notice error">${escapeHtml(state.cache.sessions.error.message)}</p>` : ''}<div style="overflow-x:auto"><table class="table"><thead><tr><th>Устройство</th><th>Источник</th><th>Последняя активность</th><th>Срок действия</th><th></th></tr></thead><tbody>${sessions.map(session => `<tr><td>${escapeHtml(session.device || 'Браузер')} ${session.current ? '<strong>(текущая)</strong>' : ''}<br><span class="muted">${escapeHtml(session.network || '')}</span></td><td>${escapeHtml(session.provider)}</td><td>${escapeHtml(session.last_seen_at)}</td><td>${escapeHtml(session.expires_at || '—')}</td><td><button class="btn secondary" type="button" data-session-revoke="${escapeHtml(session.id)}">Завершить</button></td></tr>`).join('') || '<tr><td colspan="5">Активных сессий нет</td></tr>'}</tbody></table></div><div class="toolbar"><button class="btn secondary" data-session-rotate>Обновить текущую сессию</button><button class="btn secondary" data-session-others>Завершить остальные</button><button class="btn danger" data-session-all>Завершить все</button>${sessions.some(s => s.current && s.provider === "skif4er") ? '<button class="btn secondary" data-session-global>Выйти из SkiF4er ID (SSO)</button>' : ''}</div></div>`
   return identityPanel + sessionsPanel
 }
 function bindSessionActions() {
@@ -868,6 +868,15 @@ function bindSessionActions() {
   document.querySelector('[data-session-all]')?.addEventListener('click',async () => {
     if (!confirm('Завершить ВСЕ браузерные сессии, включая текущую?')) return
     try { await api('/auth/sessions/revoke-all',{method:'POST',body:'{}'});exit() } catch(e){setNotice('error',e.message);render()}
+  })
+  document.querySelector('[data-session-global]')?.addEventListener('click', async () => {
+    if (!confirm('Завершить текущую сессию и выполнить глобальный выход SkiF4er ID?')) return
+    try {
+      const result = dataOf(await api('/auth/oidc/logout',{method:'POST',body:'{}'}))
+      const u = new URL(result.authorization_url)
+      if (u.origin !== 'https://id.skif4er.ru' || u.pathname !== '/realms/skif4er/protocol/openid-connect/logout') throw new Error('Недопустимый адрес выхода')
+      exit(); window.location.assign(u.toString())
+    } catch(e) { setNotice('error',e.message);render() }
   })
   document.querySelector('[data-session-rotate]')?.addEventListener('click',async () => {
     try { const result=dataOf(await api('/auth/sessions/rotate',{method:'POST',body:'{}'}));

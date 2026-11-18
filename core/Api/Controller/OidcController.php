@@ -20,7 +20,7 @@ final readonly class OidcController
 
     public function status(Request $request): JsonResponse
     {
-        return new JsonResponse(['data'=>['enabled'=>$this->login !== null, 'provider'=>'SkiF4er ID']], 200, ['Cache-Control'=>'no-store']);
+        return new JsonResponse(['data'=>['enabled'=>$this->login !== null, 'provider'=>'SkiF4er ID', 'global_logout'=>$this->login !== null]], 200, ['Cache-Control'=>'no-store']);
     }
 
     public function start(Request $request): Response
@@ -60,6 +60,53 @@ final readonly class OidcController
             $response->headers->set('Cache-Control', 'no-store');
             $response->headers->set('Referrer-Policy', 'no-referrer');
         } catch (\Throwable) { /* Fail closed and keep existing session unchanged. */ }
+        return $response;
+    }
+
+    /** Authenticated, CSRF-protected browser POST; no logout on a GET or from a Bearer token. */
+    public function globalLogout(Request $request): Response
+    {
+        if ($this->login === null) return new JsonResponse(['error'=>['code'=>'oidc_disabled','message'=>'SkiF4er ID отключён.']], 503);
+        if (!$request->isSecure()) return new JsonResponse(['error'=>['code'=>'https_required','message'=>'Требуется HTTPS.']], 403);
+        try {
+            $base = rtrim($this->config->string('app.url'), '/');
+            $url = $this->login->globalLogout($request, $base.'/auth/oidc/logout/complete');
+            $response = new JsonResponse(['data'=>['authorization_url'=>$url, 'local_session_revoked'=>true]], 200, ['Cache-Control'=>'no-store']);
+            $response->headers->clearCookie('ce_session', '/api/v1', null, true, true, Cookie::SAMESITE_STRICT);
+            return $response;
+        } catch (\Throwable) {
+            return new JsonResponse(['error'=>['code'=>'global_logout_failed','message'=>'Глобальный выход не выполнен. Проверьте подключение и активную сессию SkiF4er ID.']], 409, ['Cache-Control'=>'no-store']);
+        }
+    }
+
+    /** Keycloak sends application/x-www-form-urlencoded logout_token, not a browser cookie. */
+    public function backchannel(Request $request): JsonResponse
+    {
+        $headers = ['Cache-Control'=>'no-store'];
+        if ($this->login === null || !$request->isSecure()) return new JsonResponse(['error'=>'unavailable'], 403, $headers);
+        $type = strtolower((string)$request->headers->get('Content-Type',''));
+        if (!str_starts_with($type, 'application/x-www-form-urlencoded') || strlen($request->getContent()) > 20000) {
+            return new JsonResponse(['error'=>'invalid_request'], 400, $headers);
+        }
+        $token = $request->request->get('logout_token');
+        if (!is_string($token) || $token === '' || strlen($token) > 16384) return new JsonResponse(['error'=>'invalid_request'], 400, $headers);
+        try { $claims = $this->login->verifyBackchannel($token); }
+        catch (\Throwable) { return new JsonResponse(['error'=>'invalid_logout_token'], 400, $headers); }
+        try {
+            $this->login->applyVerifiedBackchannel($claims);
+            return new JsonResponse([], 200, $headers);
+        } catch (\Throwable) {
+            // A database fault must not ACK receipt; Keycloak may retry delivery.
+            return new JsonResponse(['error'=>'temporarily_unavailable'], 503, $headers);
+        }
+    }
+
+    /** This callback has no side effects. It is safe even if the provider returns an error. */
+    public function logoutComplete(Request $request): RedirectResponse
+    {
+        $response = new RedirectResponse('/admin/#/login', 303);
+        $response->headers->set('Cache-Control','no-store');
+        $response->headers->set('Referrer-Policy','no-referrer');
         return $response;
     }
 

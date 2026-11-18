@@ -187,7 +187,7 @@ final readonly class AuthService
         $database = $sessions->database();
         $token = $database->transaction(function (\PDO $pdo) use ($sessions, $old, $oldId, $uid, $scopes, $request): array {
             $ttlDays = max(1, $this->config->int('security.sessions.ttl_days', 14));
-            $new = $this->issueSession($uid, $scopes, $ttlDays, (string)$old['provider'], $request, ['sid_hash'=>$old['oidc_sid_hash']]);
+            $new = $this->issueSession($uid, $scopes, $ttlDays, (string)$old['provider'], $request, ['sid_hash'=>$old['oidc_sid_hash'], 'sub_hash'=>$old['oidc_sub_hash']]);
             if (!$sessions->revoke($oldId, $uid)) throw new \RuntimeException('Session changed during rotation.');
             return $new;
         });
