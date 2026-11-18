@@ -363,6 +363,15 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'get_AuthAssuranceStatus' => 
+  array (
+    'method' => 'GET',
+    'path' => '/auth/assurance',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
   'get_AuthMe' => 
   array (
     'method' => 'GET',
@@ -1593,6 +1602,15 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'post_AuthAssuranceConfirm' => 
+  array (
+    'method' => 'POST',
+    'path' => '/auth/assurance/confirm',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
   'post_AuthLogin' => 
   array (
     'method' => 'POST',
@@ -1916,6 +1934,15 @@ final class Operations {
     array (
     ),
     'bodyRequired' => true,
+  ),
+  'post_IdentityStepUpStart' => 
+  array (
+    'method' => 'POST',
+    'path' => '/identity/step-up/start',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
   ),
   'post_IdentityUnlink' => 
   array (

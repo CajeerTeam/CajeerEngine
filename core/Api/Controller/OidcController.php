@@ -52,8 +52,8 @@ final readonly class OidcController
         if (!is_string($code) || !is_string($state) || !is_string($browser)) return $response;
         try {
             $session = $this->login->finish($code, $state, $browser, $request);
-            $response = new RedirectResponse(($session['linked'] ?? false) === true ? '/admin/#/identity' : '/admin/', 303);
-            if (($session['linked'] ?? false) !== true) {
+            $response = new RedirectResponse((($session['linked'] ?? false) === true || ($session['step_up'] ?? false) === true) ? '/admin/#/identity' : '/admin/', 303);
+            if (($session['linked'] ?? false) !== true && ($session['step_up'] ?? false) !== true) {
                 $response->headers->setCookie(Cookie::create('ce_session', $session['access_token'], new \DateTimeImmutable((string)$session['expires_at']), '/api/v1', null, true, true, false, Cookie::SAMESITE_STRICT));
             }
             $response->headers->clearCookie('ce_oidc_tx', '/auth/oidc', null, true, true, Cookie::SAMESITE_LAX);
@@ -108,6 +108,21 @@ final readonly class OidcController
         $response->headers->set('Cache-Control','no-store');
         $response->headers->set('Referrer-Policy','no-referrer');
         return $response;
+    }
+
+    /** Never accepts bearer credentials; cookie + CSRF are enforced by auth middleware. */
+    public function stepUpStart(Request $request): JsonResponse
+    {
+        $identity = $this->currentUser($request);
+        if ($identity === null || $this->login === null || !$request->isSecure()) {
+            return $this->linkError('step_up_unavailable', 'Требуется HTTPS и действующая OIDC-сессия.', 403);
+        }
+        try {
+            $tx = $this->login->beginStepUp((string)$identity['user_id'], (string)$identity['token_id']);
+            $response = new JsonResponse(['data'=>['authorization_url'=>$tx['url']]], 200, ['Cache-Control'=>'no-store']);
+            $response->headers->setCookie(Cookie::create('ce_oidc_tx', $tx['browser'], new \DateTimeImmutable('+5 minutes'), '/auth/oidc', null, true, true, false, Cookie::SAMESITE_LAX));
+            return $response;
+        } catch (\Throwable) { return $this->linkError('step_up_unavailable', 'Повторная авторизация SkiF4er ID недоступна.', 409); }
     }
 
     public function account(Request $request): JsonResponse

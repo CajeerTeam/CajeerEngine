@@ -37,7 +37,7 @@ export const useAdminApi = () => {
     const payload = await response.json().catch(() => null) as T & ApiErrorPayload | null
 
     if (!response.ok) {
-      const message = payload?.error?.message || `Ошибка API: HTTP ${response.status}`
+      const message = (payload?.error?.code === 'step_up_required' ? 'Требуется повторное подтверждение: откройте Identity → Подтверждение критических операций. ' : '') + (payload?.error?.message || `Ошибка API: HTTP ${response.status}`)
       throw new AdminApiError(message, response.status, payload)
     }
 

@@ -91,6 +91,7 @@ use CajeerEngine\Runtime\RuntimeEvent;
 use CajeerEngine\Runtime\RuntimeLogger;
 use CajeerEngine\Runtime\ServiceContainer;
 use CajeerEngine\Security\AuthService;
+use CajeerEngine\Security\AuthenticationAssurance;
 use CajeerEngine\Security\PasswordHasher;
 use CajeerEngine\Security\RateLimiter;
 use CajeerEngine\Security\TwoFactorTotp;
@@ -133,7 +134,7 @@ final class Application
             new ErrorHandlerMiddleware($config, $logger),
             new RateLimitMiddleware($config, $container->get(RateLimiter::class)),
             new JsonBodyMiddleware(),
-            new AuthenticationMiddleware($config, $authService, $router),
+            new AuthenticationMiddleware($config, $authService, $router, $container->get(AuthenticationAssurance::class)),
             new \CajeerEngine\Http\Middleware\ApiContractMiddleware(new \CajeerEngine\Api\ApiContract($rootPath)),
         ];
         $pipeline = new MiddlewarePipeline($middleware);
@@ -165,7 +166,7 @@ final class Application
         $response->headers->set('traceparent',$trace->header());
         $response->headers->set('X-Runtime-Ms',(string)round($duration*1000));
         $this->container->get(RuntimeLogger::class)->info('HTTP request handled',$trace->fields()+['request_id'=>(string)$request->attributes->get('request_id',''),'method'=>$request->getMethod(),'route'=>$route,'status'=>$response->getStatusCode(),'duration_ms'=>round($duration*1000,3)]);
-        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.5.4'));
+        $response->headers->set('X-CajeerEngine-Version', $this->config->string('app.version', '1.5.6'));
         $response->headers->set('X-CajeerEngine-Database', $this->config->string('database.default', 'pgsql'));
         $this->events->dispatch(new RuntimeEvent('kernel.request_handled', [
             'request_id' => (string) $request->attributes->get('request_id', ''),
@@ -224,6 +225,10 @@ final class Application
         $container->set(PasswordHasher::class, fn (ServiceContainer $c): PasswordHasher => new PasswordHasher($c->get(ConfigRepository::class)));
         $container->set(TwoFactorTotp::class, fn (): TwoFactorTotp => new TwoFactorTotp());
         $container->set(RateLimiter::class, fn (): RateLimiter => new RateLimiter($rootPath));
+        $container->set(AuthenticationAssurance::class, fn (ServiceContainer $c) => new AuthenticationAssurance(
+            $c->get(DatabaseManager::class), $c->get(UserRepository::class), $c->get(PasswordHasher::class),
+            $c->get(TwoFactorTotp::class), $c->get(AuditLogRepository::class)
+        ));
         // Dedicated OAuth resource-server configuration. Defaults off; invalid settings fail closed.
         $container->set(OidcApiAuthenticator::class, function (ServiceContainer $c): ?OidcApiAuthenticator {
             if (!filter_var(getenv('SKIF4ER_ID_API_ENABLED') ?: 'false', FILTER_VALIDATE_BOOLEAN)) return null;
@@ -359,7 +364,7 @@ final class Application
             $c->get(DatabaseManager::class),
             $rootPath,
         ));
-        $container->set('controller.auth', fn (ServiceContainer $c): AuthController => new AuthController($c->get(AuthService::class)));
+        $container->set('controller.auth', fn (ServiceContainer $c): AuthController => new AuthController($c->get(AuthService::class), $c->get(AuthenticationAssurance::class)));
         $container->set('controller.oidc', function (ServiceContainer $c): OidcController {
             $cfg = $c->get(ConfigRepository::class);
             $enabled = filter_var(getenv('SKIF4ER_ID_ENABLED') ?: 'false', FILTER_VALIDATE_BOOLEAN);
@@ -378,7 +383,8 @@ final class Application
                     $client, new OidcStore($c->get(DatabaseManager::class), $vault), $c->get(AuthService::class),
                     $c->get(UserRepository::class), $c->get(RoleRepository::class), $c->get(PasswordHasher::class),
                     $c->get(AuditLogRepository::class), filter_var(getenv('SKIF4ER_ID_AUTO_PROVISION') ?: 'false', FILTER_VALIDATE_BOOLEAN),
-                    $c->get(\CajeerEngine\Database\Repository\UserSessionRepository::class)
+                    $c->get(\CajeerEngine\Database\Repository\UserSessionRepository::class),
+                    $c->get(AuthenticationAssurance::class)
                 ), $c->get(AuthService::class));
             } catch (\Throwable) {
                 $c->get(RuntimeLogger::class)->warning('Identity OIDC disabled', ['code'=>'oidc_configuration_invalid']);

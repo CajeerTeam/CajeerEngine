@@ -27,7 +27,7 @@ final class OidcClient
     public function issuer(): string { return self::ISSUER; }
 
     /** @return array{url:string,state:string,nonce:string,verifier:string} */
-    public function begin(): array
+    public function begin(bool $stepUp = false): array
     {
         $state = self::base64Url(random_bytes(32));
         $nonce = self::base64Url(random_bytes(32));
@@ -37,6 +37,7 @@ final class OidcClient
             'response_type'=>'code', 'client_id'=>$this->clientId, 'redirect_uri'=>$this->callbackUrl,
             'scope'=>'openid profile email', 'state'=>$state, 'nonce'=>$nonce,
             'code_challenge'=>$challenge, 'code_challenge_method'=>'S256',
+            ...($stepUp ? ['max_age'=>0, 'prompt'=>'login'] : []),
         ], '', '&', PHP_QUERY_RFC3986);
         return compact('url', 'state', 'nonce', 'verifier');
     }

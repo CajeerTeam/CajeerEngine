@@ -16,14 +16,15 @@ final readonly class OidcStore
     public function __construct(private DatabaseManager $database, private SecretVault $vault) {}
 
     /** @return array{browser:string} */
-    public function save(string $state, string $nonce, string $verifier, ?string $userId = null, ?string $sessionId = null): array
+    public function save(string $state, string $nonce, string $verifier, ?string $userId = null, ?string $sessionId = null, bool $stepUp = false): array
     {
+        if ($stepUp && ($userId === null || $sessionId === null)) throw new \RuntimeException('Step-up requires a bound session.');
         $browser = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
         $hash = hash('sha256', $state);
         $this->database->connection()->prepare('DELETE FROM ce_oidc_transactions WHERE expires_at < :now')->execute(['now'=>time()]);
         $stmt = $this->database->connection()->prepare('INSERT INTO ce_oidc_transactions (state_hash, browser_hash, nonce, verifier_ciphertext, expires_at, purpose, user_id, session_id) VALUES (:state, :browser, :nonce, :verifier, :expiry, :purpose, :user_id, :session_id)');
         $stmt->execute(['state'=>$hash, 'browser'=>hash('sha256', $browser), 'nonce'=>$nonce,
-            'verifier'=>$this->vault->seal('oidc:pkce:'.$hash, $verifier), 'expiry'=>time()+300, 'purpose'=>$userId === null ? 'login' : 'link', 'user_id'=>$userId, 'session_id'=>$sessionId]);
+            'verifier'=>$this->vault->seal('oidc:pkce:'.$hash, $verifier), 'expiry'=>time()+300, 'purpose'=>$stepUp ? 'stepup' : ($userId === null ? 'login' : 'link'), 'user_id'=>$userId, 'session_id'=>$sessionId]);
         return compact('browser');
     }
 

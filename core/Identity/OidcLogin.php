@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CajeerEngine\Identity;
 
 use CajeerEngine\Security\AuthService;
+use CajeerEngine\Security\AuthenticationAssurance;
 use CajeerEngine\Database\Repository\UserRepository;
 use CajeerEngine\Database\Repository\RoleRepository;
 use CajeerEngine\Database\Repository\AuditLogRepository;
@@ -19,6 +20,7 @@ final readonly class OidcLogin
         private OidcClient $client, private OidcStore $store, private AuthService $auth,
         private UserRepository $users, private RoleRepository $roles, private PasswordHasher $passwords,
         private AuditLogRepository $audit, private bool $autoProvision = false, private ?UserSessionRepository $sessions = null,
+        private ?AuthenticationAssurance $assurance = null,
     ) {}
 
     /** @return array{url:string,browser:string} */
@@ -29,12 +31,33 @@ final readonly class OidcLogin
         return ['url'=>$tx['url'], 'browser'=>$cookie['browser']];
     }
 
+    /** An already authenticated browser may request a fresh IdP login + MFA. */
+    public function beginStepUp(string $userId, string $sessionId): array
+    {
+        if ($this->assurance === null || $this->sessions === null) throw new \RuntimeException('Step-up unavailable.');
+        $session = $this->sessions->find($sessionId);
+        if ($session === null || $session['user_id'] !== $userId || $session['revoked_at'] !== null || $session['provider'] !== 'skif4er') {
+            throw new \RuntimeException('Current OIDC session required.');
+        }
+        $tx = $this->client->begin(true);
+        $cookie = $this->store->save($tx['state'], $tx['nonce'], $tx['verifier'], $userId, $sessionId, true);
+        return ['url'=>$tx['url'], 'browser'=>$cookie['browser']];
+    }
+
     /** @return array<string,mixed> */
     public function finish(string $code, string $state, string $browser, Request $request): array
     {
         $tx = $this->store->consume($state, $browser);
         $claims = $this->client->finish($code, $tx['verifier'], $tx['nonce']);
         $issuer = $this->client->issuer();
+        if ($tx['purpose'] === 'stepup') {
+            if ($this->assurance === null || $tx['user_id'] === null || $tx['session_id'] === null
+                || $this->store->linkedUser($issuer, (string)$claims['sub']) !== $tx['user_id']) {
+                throw new \RuntimeException('Step-up identity mismatch.');
+            }
+            $this->assurance->confirmOidc($tx['session_id'], $tx['user_id'], $claims);
+            return ['step_up'=>true];
+        }
         if ($tx['purpose'] === 'link') {
             if ($tx['user_id'] === null || $tx['session_id'] === null) throw new \RuntimeException('Invalid linking transaction.');
             $this->store->completeLink($issuer, $claims['sub'], $tx['user_id'], $tx['session_id'], $this->users);

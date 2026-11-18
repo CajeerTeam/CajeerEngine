@@ -140,6 +140,17 @@ final readonly class AuthService
         }
         // A token is an upper bound, never a grant beyond current role permissions.
         $scopes = self::intersectScopes(is_array($scopes) ? $scopes : [], $this->users->permissionsForUser((string) $user['id']));
+        // Optional operator-maintained ceiling for OIDC browser sessions. External realm/group
+        // role claims are intentionally NEVER used to grant local CMS permissions.
+        if ($record['name'] === 'admin-session' && $this->sessions !== null
+            && ($this->sessions->find((string)$record['id'])['provider'] ?? null) === 'skif4er') {
+            $ceiling = getenv('SKIF4ER_ID_SESSION_MAX_PERMISSIONS');
+            if (is_string($ceiling) && trim($ceiling) !== '') {
+                $allowed = array_values(array_unique(array_filter(array_map('trim', explode(',', $ceiling)),
+                    static fn (string $permission): bool => preg_match('/^[a-z0-9*_.:-]{1,64}$/D', $permission) === 1)));
+                $scopes = self::intersectScopes($allowed, $scopes);
+            }
+        }
         $this->tokens->touch((string) $record['id']);
         return [
             'token_id' => (string) $record['id'],

@@ -277,6 +277,12 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "get_AuthAssuranceStatus": {
+        "method": "GET",
+        "path": "/auth/assurance",
+        "parameters": [],
+        "bodyRequired": false
+    },
     "get_AuthMe": {
         "method": "GET",
         "path": "/auth/me",
@@ -1209,6 +1215,12 @@ export const operations = {
         "parameters": [],
         "bodyRequired": true
     },
+    "post_AuthAssuranceConfirm": {
+        "method": "POST",
+        "path": "/auth/assurance/confirm",
+        "parameters": [],
+        "bodyRequired": true
+    },
     "post_AuthLogin": {
         "method": "POST",
         "path": "/auth/login",
@@ -1451,6 +1463,12 @@ export const operations = {
         "path": "/identity/link/start",
         "parameters": [],
         "bodyRequired": true
+    },
+    "post_IdentityStepUpStart": {
+        "method": "POST",
+        "path": "/identity/step-up/start",
+        "parameters": [],
+        "bodyRequired": false
     },
     "post_IdentityUnlink": {
         "method": "POST",

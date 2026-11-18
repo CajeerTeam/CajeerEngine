@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.5.5",
+    "version": "1.5.6",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -15863,7 +15863,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Требуется авторизация. Права: *.",
+        "description": "Требуется авторизация. Права: *. Privileged mutation requires recent, CSRF-protected browser session reauthentication; Bearer tokens alone cannot perform it.",
         "requestBody": {
           "required": true,
           "content": {
@@ -16154,7 +16154,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Требуется авторизация. Права: *.",
+        "description": "Требуется авторизация. Права: *. Privileged mutation requires recent, CSRF-protected browser session reauthentication; Bearer tokens alone cannot perform it.",
         "requestBody": {
           "required": false,
           "content": {
@@ -16332,7 +16332,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Требуется авторизация. Права: *.",
+        "description": "Требуется авторизация. Права: *. Privileged mutation requires recent, CSRF-protected browser session reauthentication; Bearer tokens alone cannot perform it.",
         "responses": {
           "200": {
             "description": "OK",
@@ -16593,7 +16593,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Требуется авторизация. Права: *.",
+        "description": "Требуется авторизация. Права: *. Privileged mutation requires recent, CSRF-protected browser session reauthentication; Bearer tokens alone cannot perform it.",
         "requestBody": {
           "required": true,
           "content": {
@@ -16984,7 +16984,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Требуется авторизация. Права: *.",
+        "description": "Требуется авторизация. Права: *. Privileged mutation requires recent, CSRF-protected browser session reauthentication; Bearer tokens alone cannot perform it.",
         "requestBody": {
           "required": false,
           "content": {
@@ -17160,7 +17160,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Требуется авторизация. Права: *.",
+        "description": "Требуется авторизация. Права: *. Privileged mutation requires recent, CSRF-protected browser session reauthentication; Bearer tokens alone cannot perform it.",
         "responses": {
           "200": {
             "description": "OK",
@@ -19396,7 +19396,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Manage or execute a configured integration. Credentials are never returned.",
+        "description": "Manage or execute a configured integration. Credentials are never returned. Privileged mutation requires recent, CSRF-protected browser session reauthentication; Bearer tokens alone cannot perform it.",
         "responses": {
           "401": {
             "description": "Требуется авторизация",
@@ -19615,7 +19615,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Manage or execute a configured integration. Credentials are never returned.",
+        "description": "Manage or execute a configured integration. Credentials are never returned. Privileged mutation requires recent, CSRF-protected browser session reauthentication; Bearer tokens alone cannot perform it.",
         "responses": {
           "401": {
             "description": "Требуется авторизация",
@@ -19817,7 +19817,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Manage or execute a configured integration. Credentials are never returned.",
+        "description": "Manage or execute a configured integration. Credentials are never returned. Privileged mutation requires recent, CSRF-protected browser session reauthentication; Bearer tokens alone cannot perform it.",
         "responses": {
           "401": {
             "description": "Требуется авторизация",
@@ -19989,7 +19989,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Manage or execute a configured integration. Credentials are never returned.",
+        "description": "Manage or execute a configured integration. Credentials are never returned. Privileged mutation requires recent, CSRF-protected browser session reauthentication; Bearer tokens alone cannot perform it.",
         "responses": {
           "401": {
             "description": "Требуется авторизация",
@@ -20186,7 +20186,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Manage or execute a configured integration. Credentials are never returned.",
+        "description": "Manage or execute a configured integration. Credentials are never returned. Privileged mutation requires recent, CSRF-protected browser session reauthentication; Bearer tokens alone cannot perform it.",
         "responses": {
           "401": {
             "description": "Требуется авторизация",
@@ -20378,7 +20378,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Manage or execute a configured integration. Credentials are never returned.",
+        "description": "Manage or execute a configured integration. Credentials are never returned. Privileged mutation requires recent, CSRF-protected browser session reauthentication; Bearer tokens alone cannot perform it.",
         "responses": {
           "401": {
             "description": "Требуется авторизация",
@@ -26827,6 +26827,449 @@
           },
           "409": {
             "description": "Недостаточно прав или CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/assurance": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "get_AuthAssuranceStatus",
+        "summary": "Current browser session reauthentication assurance (no Bearer tokens).",
+        "x-cajeer-route": "api.v1.auth.assurance.status",
+        "x-cajeer-required-scopes": [],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "description": "Current browser session reauthentication assurance (no Bearer tokens).",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "required",
+                        "fresh",
+                        "method",
+                        "expires_at",
+                        "provider"
+                      ],
+                      "properties": {
+                        "required": {
+                          "type": "boolean"
+                        },
+                        "fresh": {
+                          "type": "boolean"
+                        },
+                        "method": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "expires_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "provider": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden/CSRF/reauthentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session or OIDC unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/assurance/confirm": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "post_AuthAssuranceConfirm",
+        "summary": "Verify current local password and live TOTP (when configured), stamp 5-minute browser assurance.",
+        "x-cajeer-route": "api.v1.auth.assurance.confirm",
+        "x-cajeer-required-scopes": [],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "description": "Verify current local password and live TOTP (when configured), stamp 5-minute browser assurance.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "password"
+                ],
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "two_factor_code": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "required",
+                        "fresh",
+                        "method",
+                        "expires_at",
+                        "provider"
+                      ],
+                      "properties": {
+                        "required": {
+                          "type": "boolean"
+                        },
+                        "fresh": {
+                          "type": "boolean"
+                        },
+                        "method": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "expires_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "provider": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden/CSRF/reauthentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session or OIDC unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity/step-up/start": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "operationId": "post_IdentityStepUpStart",
+        "summary": "Start OIDC interactive max_age=0, prompt=login reauthentication for linked current browser session. Signed auth_time and MFA required on callback.",
+        "x-cajeer-route": "api.v1.identity.step_up.start",
+        "x-cajeer-required-scopes": [],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "description": "Start OIDC interactive max_age=0, prompt=login reauthentication for linked current browser session. Signed auth_time and MFA required on callback.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "authorization_url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "authorization_url"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden/CSRF/reauthentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session or OIDC unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
             "content": {
               "application/json": {
                 "schema": {

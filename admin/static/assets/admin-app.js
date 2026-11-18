@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.5.4'
+const ADMIN_VERSION = '1.5.6'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -118,6 +118,26 @@ async function api(path, options = {}) {
       state.route = 'login'
       location.hash = '#/login'
     }
+  }
+  if (response.status === 403 && payload?.error?.code === 'step_up_required' && !options.assuranceRetry) {
+    // Safe flow: perform explicit reauthentication, then retry the same mutation once.
+    const sessions = dataOf(await api('/auth/sessions'), [])
+    const current = Array.isArray(sessions) ? sessions.find(s => s.current) : null
+    if (current?.provider === 'skif4er') {
+      if (confirm('Для критической операции требуется новый вход SkiF4er ID с MFA. Продолжить?')) {
+        const result = dataOf(await api('/identity/step-up/start', {method:'POST',body:'{}'}))
+        const url = new URL(result.authorization_url)
+        if (url.origin !== 'https://id.skif4er.ru' || url.pathname !== '/realms/skif4er/protocol/openid-connect/auth' || url.searchParams.get('max_age') !== '0') throw new Error('Недопустимый адрес повторного входа')
+        window.location.assign(url.toString())
+      }
+      throw new Error('Повторите операцию после прохождения SkiF4er ID MFA.')
+    }
+    const password = prompt('Повторно введите локальный пароль для критической операции')
+    if (!password) throw new Error('Повторное подтверждение отменено.')
+    const twoFactorCode = prompt('Код TOTP (оставьте пустым, если 2FA не включена)')
+    if (twoFactorCode === null) throw new Error('Повторное подтверждение отменено.')
+    await api('/auth/assurance/confirm', {method:'POST',body:JSON.stringify({password,two_factor_code:twoFactorCode}),assuranceRetry:true})
+    return api(path, {...options,assuranceRetry:true})
   }
   if (!response.ok) {
     const message = payload?.error?.message || payload?.message || response.statusText || `HTTP ${response.status}`
@@ -848,7 +868,8 @@ function identityView() {
     ? '<div class="card"><h2>SkiF4er ID</h2><p>Провайдер отключён. Локальный вход продолжает работать.</p></div>'
     : `<div class="card"><h2>SkiF4er ID</h2><p>${data.linked ? 'Внешняя учётная запись привязана.' : 'Внешняя учётная запись не привязана.'}</p>${data.provisioned ? '<p>Аккаунт создан через SkiF4er ID. Для отвязки сначала настройте локальный вход.</p>' : ''}${data.created_at ? `<p class="muted">Дата привязки: ${escapeHtml(data.created_at)}</p>` : ''}<form class="form" data-identity-form><div class="form-row"><label>Текущий пароль CajeerEngine</label><input class="input" name="password" type="password" autocomplete="current-password" required maxlength="1024"></div><div class="form-row"><label>Код 2FA (если включён)</label><input class="input" name="two_factor_code" autocomplete="one-time-code" maxlength="128"></div><div class="toolbar">${data.linked ? `<button class="btn danger" type="submit" ${data.provisioned ? 'disabled' : ''}>Отвязать SkiF4er ID</button>` : '<button class="btn" type="submit">Привязать через SkiF4er ID</button>'}</div></form><p class="muted">Привязка требует локальный пароль и подтверждение SkiF4er ID. Email не используется для объединения аккаунтов.</p></div>`
   const sessionsPanel = `<div class="card"><h2>Активные сессии</h2><p>Отзыв немедленно блокирует доступ на выбранном устройстве. Обычные API-токены не затрагиваются.</p>${state.cache.sessions?.error ? `<p class="notice error">${escapeHtml(state.cache.sessions.error.message)}</p>` : ''}<div style="overflow-x:auto"><table class="table"><thead><tr><th>Устройство</th><th>Источник</th><th>Последняя активность</th><th>Срок действия</th><th></th></tr></thead><tbody>${sessions.map(session => `<tr><td>${escapeHtml(session.device || 'Браузер')} ${session.current ? '<strong>(текущая)</strong>' : ''}<br><span class="muted">${escapeHtml(session.network || '')}</span></td><td>${escapeHtml(session.provider)}</td><td>${escapeHtml(session.last_seen_at)}</td><td>${escapeHtml(session.expires_at || '—')}</td><td><button class="btn secondary" type="button" data-session-revoke="${escapeHtml(session.id)}">Завершить</button></td></tr>`).join('') || '<tr><td colspan="5">Активных сессий нет</td></tr>'}</tbody></table></div><div class="toolbar"><button class="btn secondary" data-session-rotate>Обновить текущую сессию</button><button class="btn secondary" data-session-others>Завершить остальные</button><button class="btn danger" data-session-all>Завершить все</button>${sessions.some(s => s.current && s.provider === "skif4er") ? '<button class="btn secondary" data-session-global>Выйти из SkiF4er ID (SSO)</button>' : ''}</div></div>`
-  return identityPanel + sessionsPanel
+  const assurancePanel = `<div class="card"><h2>Повторное подтверждение критических операций</h2><p>Изменение пользователей, ролей, API-токенов и интеграций требует свежего подтверждения. Для SkiF4er ID необходим MFA.</p><form class="form" data-assurance-form><div class="form-row"><label>Локальный пароль</label><input class="input" type="password" name="password" autocomplete="current-password" maxlength="1024" required></div><div class="form-row"><label>Текущий TOTP (если включён)</label><input class="input" name="two_factor_code" autocomplete="one-time-code" maxlength="128"></div><button class="btn" type="submit">Подтвердить локально</button></form>${sessions.some(s=>s.current&&s.provider==='skif4er') ? '<button class="btn secondary" data-assurance-oidc type="button">Подтвердить через SkiF4er ID + MFA</button>' : ''}<p class="muted">Подтверждение действует до 5 минут и аннулируется при ротации/отзыве сессии.</p></div>`
+  return identityPanel + assurancePanel + sessionsPanel
 }
 function bindSessionActions() {
   const refresh = async () => { await loadSilent('sessions','/auth/sessions'); render() }
@@ -886,6 +907,17 @@ function bindSessionActions() {
 }
 function bindIdentity() {
   bindSessionActions()
+  document.querySelector('[data-assurance-form]')?.addEventListener('submit', async e => {
+    e.preventDefault(); const form=e.currentTarget;const data=new FormData(form)
+    try { const result=dataOf(await api('/auth/assurance/confirm',{method:'POST',body:JSON.stringify({password:String(data.get('password')||''),two_factor_code:String(data.get('two_factor_code')||'')})}));form.reset();setNotice('ok','Повторная авторизация подтверждена до '+(result.expires_at||'истечения срока')) }
+    catch (error) {setNotice('error',error.message)}
+  })
+  document.querySelector('[data-assurance-oidc]')?.addEventListener('click',async () => {
+    try { const result=dataOf(await api('/identity/step-up/start',{method:'POST',body:'{}'}));const url=new URL(result.authorization_url)
+      if(url.origin!=='https://id.skif4er.ru'||url.pathname!=='/realms/skif4er/protocol/openid-connect/auth'||url.searchParams.get('max_age')!=='0')throw new Error('Недопустимый адрес авторизации')
+      window.location.assign(url.toString())
+    } catch(error) {setNotice('error',error.message)}
+  })
   const form = document.querySelector('[data-identity-form]')
   if (!form) return
   form.addEventListener('submit', async e => {

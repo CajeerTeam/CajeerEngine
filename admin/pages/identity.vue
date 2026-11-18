@@ -5,6 +5,26 @@ const password = ref('')
 const twoFactorCode = ref('')
 const error = ref('')
 const busy = ref(false)
+const assurancePassword = ref('')
+const assuranceTotp = ref('')
+const assuranceMessage = ref('')
+const confirmAssurance = async () => {
+  assuranceMessage.value = ''
+  try {
+    const r = await api.request<{data:{expires_at:string}}>('/auth/assurance/confirm',{method:'POST',body:JSON.stringify({password:assurancePassword.value,two_factor_code:assuranceTotp.value})})
+    assurancePassword.value='';assuranceTotp.value=''
+    assuranceMessage.value='Подтверждено до '+r.data.expires_at
+  } catch(e) {assuranceMessage.value=e instanceof Error?e.message:'Ошибка подтверждения'}
+}
+const oidcAssurance = async () => {
+  assuranceMessage.value = ''
+  try {
+    const r=await api.request<{data:{authorization_url:string}}>('/identity/step-up/start',{method:'POST',body:'{}'})
+    const u=new URL(r.data.authorization_url)
+    if(u.origin!=='https://id.skif4er.ru'||u.pathname!=='/realms/skif4er/protocol/openid-connect/auth'||u.searchParams.get('max_age')!=='0')throw new Error('Недопустимый адрес повторного входа')
+    window.location.assign(u.toString())
+  } catch(e) {assuranceMessage.value=e instanceof Error?e.message:'Ошибка OIDC'}
+}
 type Session = {id:string;provider:string;device:string;network:string;current:boolean;created_at:string;last_seen_at:string;expires_at:string|null}
 const sessions = ref<Session[]>([])
 const sessionError = ref('')
@@ -85,6 +105,17 @@ const submit = async () => {
     </template>
     <p v-else-if="status">SkiF4er ID отключён.</p>
     <p v-else>Загрузка…</p>
+    <section class="ce-panel">
+      <h2>Подтверждение критических операций</h2>
+      <p>Подтверждение привязано к текущей сессии и действует не более пяти минут.</p>
+      <p v-if="assuranceMessage">{{ assuranceMessage }}</p>
+      <form class="ce-form" @submit.prevent="confirmAssurance">
+        <AdminFormRow><template #label>Локальный пароль</template><input v-model="assurancePassword" type="password" autocomplete="current-password" required /></AdminFormRow>
+        <AdminFormRow><template #label>Код TOTP при включённой 2FA</template><input v-model="assuranceTotp" autocomplete="one-time-code" /></AdminFormRow>
+        <button type="submit">Подтвердить локально</button>
+      </form>
+      <button v-if="sessions.some(s=>s.current && s.provider==='skif4er')" type="button" @click="oidcAssurance">Подтвердить через SkiF4er ID + MFA</button>
+    </section>
     <section class="ce-panel">
       <h2>Активные сессии</h2>
       <p>Завершение сессии блокирует доступ на указанном устройстве. API-токены сохраняются.</p>
