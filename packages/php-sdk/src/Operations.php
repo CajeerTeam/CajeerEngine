@@ -444,6 +444,201 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'api_v1_knowledge_categories' => 
+  array (
+    'method' => 'GET',
+    'path' => '/knowledge/categories',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_knowledge_categories_create' => 
+  array (
+    'method' => 'POST',
+    'path' => '/knowledge/categories',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_knowledge_categories_delete' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/knowledge/categories/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_knowledge_categories_update' => 
+  array (
+    'method' => 'PUT',
+    'path' => '/knowledge/categories/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_knowledge_documents' => 
+  array (
+    'method' => 'GET',
+    'path' => '/knowledge/documents',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'limit',
+        'in' => 'query',
+        'required' => false,
+      ),
+      1 => 
+      array (
+        'name' => 'offset',
+        'in' => 'query',
+        'required' => false,
+      ),
+      2 => 
+      array (
+        'name' => 'category_id',
+        'in' => 'query',
+        'required' => false,
+      ),
+      3 => 
+      array (
+        'name' => 'q',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_knowledge_documents_create' => 
+  array (
+    'method' => 'POST',
+    'path' => '/knowledge/documents',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_knowledge_documents_delete' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/knowledge/documents/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_knowledge_documents_show' => 
+  array (
+    'method' => 'GET',
+    'path' => '/knowledge/documents/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_knowledge_documents_update' => 
+  array (
+    'method' => 'PUT',
+    'path' => '/knowledge/documents/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_knowledge_import' => 
+  array (
+    'method' => 'POST',
+    'path' => '/knowledge/import',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_knowledge_reindex' => 
+  array (
+    'method' => 'POST',
+    'path' => '/knowledge/reindex',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_knowledge_search' => 
+  array (
+    'method' => 'GET',
+    'path' => '/knowledge/search',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'q',
+        'in' => 'query',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'visibility',
+        'in' => 'query',
+        'required' => false,
+      ),
+      2 => 
+      array (
+        'name' => 'locale',
+        'in' => 'query',
+        'required' => false,
+      ),
+      3 => 
+      array (
+        'name' => 'limit',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_knowledge_sync' => 
+  array (
+    'method' => 'POST',
+    'path' => '/knowledge/sync-cms',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
   'delete_AnalyticsEventJournal' => 
   array (
     'method' => 'DELETE',

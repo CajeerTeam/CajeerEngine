@@ -339,6 +339,156 @@ export const operations = {
         ],
         "bodyRequired": false
     },
+    "api_v1_knowledge_categories": {
+        "method": "GET",
+        "path": "/knowledge/categories",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "api_v1_knowledge_categories_create": {
+        "method": "POST",
+        "path": "/knowledge/categories",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_knowledge_categories_delete": {
+        "method": "DELETE",
+        "path": "/knowledge/categories/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_knowledge_categories_update": {
+        "method": "PUT",
+        "path": "/knowledge/categories/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_knowledge_documents": {
+        "method": "GET",
+        "path": "/knowledge/documents",
+        "parameters": [
+            {
+                "name": "limit",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "offset",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "category_id",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "q",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_knowledge_documents_create": {
+        "method": "POST",
+        "path": "/knowledge/documents",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_knowledge_documents_delete": {
+        "method": "DELETE",
+        "path": "/knowledge/documents/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_knowledge_documents_show": {
+        "method": "GET",
+        "path": "/knowledge/documents/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_knowledge_documents_update": {
+        "method": "PUT",
+        "path": "/knowledge/documents/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_knowledge_import": {
+        "method": "POST",
+        "path": "/knowledge/import",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_knowledge_reindex": {
+        "method": "POST",
+        "path": "/knowledge/reindex",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_knowledge_search": {
+        "method": "GET",
+        "path": "/knowledge/search",
+        "parameters": [
+            {
+                "name": "q",
+                "in": "query",
+                "required": true
+            },
+            {
+                "name": "visibility",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "locale",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "limit",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_knowledge_sync": {
+        "method": "POST",
+        "path": "/knowledge/sync-cms",
+        "parameters": [],
+        "bodyRequired": true
+    },
     "delete_AnalyticsEventJournal": {
         "method": "DELETE",
         "path": "/tracking/events/journal",

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.6 — AI Knowledge Base
+
+- Admin knowledge categories and documents with publication state, locale, internal/public visibility, optimistic revisions, audit and CSRF/RBAC.
+- Independent SQL chunk and Unicode inverted-term index; atomic update, delete, full rebuild and bounded ranked search (not exposed to public CMS search).
+- TXT, Markdown and searchable PDF import, plus published CMS content synchronization with stale-source checks.
+- Nuxt and production static SPA knowledge management, search and document import; OpenAPI/SDK and production regression tests.
+- No OpenAI calls or automatic publication. PHP PDO migrations required for 0034.
+
 ## 1.6.5 — AI CMS Diagnostics
 
 - Read-only operational analysis of database, queue, scheduler, storage, cache, search, backups, workers and recent sanitized runtime event counts.

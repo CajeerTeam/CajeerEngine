@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.6.5",
+  "version": "1.6.6",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.6.5-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.6.5-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.6.6-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.6.6-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.6.5-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.6.6-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -39,7 +39,8 @@
     "Identity SkiF4er ID GA 1.6.0: atomic SSO unlink and session revocation, callback registry validation, serializable subject-mapping login, bounded signed token assertions, resilient real admin session UX and integration acceptance.",
     "AI Assistant ChatGPT 1.6.1: encrypted OpenAI configuration, live Responses API SSE streaming, durable per-user conversations, monthly budget reservation and recovery, Nuxt and static SPA UI.",
     "AI Content Editor 1.6.2: live generation and rewriting of title/text/richtext/block fields, durable per-user proposals, token budget reservations, revision CAS acceptance, and both admin interfaces.",
-    "AI CMS Diagnostics 1.6.5: real OperationsMonitor/SecurityHardener probes, redacted runtime event aggregation, actionable read-only rules, optional budgeted OpenAI explanation, Nuxt and production static SPA."
+    "AI CMS Diagnostics 1.6.5: real OperationsMonitor/SecurityHardener probes, redacted runtime event aggregation, actionable read-only rules, optional budgeted OpenAI explanation, Nuxt and production static SPA.",
+    "AI Knowledge Base 1.6.6: authenticated category/document workflows, TXT/Markdown/PDF import, published CMS entry sync, separate private full-text inverted index, optimistic revisions and dual admin interfaces."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -93,7 +94,8 @@
     "1.5.8": "Security & Resilience Hardening: vault key rotation, encrypted data rewrap, integration circuit breaker and fail-closed OIDC transport.",
     "1.6.0": "Identity SkiF4er ID GA: production SSO, protected account linking/unlinking and revocable browser sessions.",
     "1.6.2": "AI Content Editor: editor-controlled OpenAI content generation, rewrite, targeted selection, manual approval, safely versioned CMS updates.",
-    "1.6.5": "AI CMS Diagnostics — live read-only health probes, security flags, sanitized OpenAI explanations and acceptance checks"
+    "1.6.5": "AI CMS Diagnostics — live read-only health probes, security flags, sanitized OpenAI explanations and acceptance checks",
+    "1.6.6": "AI Knowledge Base: categorized content, document import, private retrieval index, CMS sync and editor acceptance."
   },
   "stability": "stable"
 }

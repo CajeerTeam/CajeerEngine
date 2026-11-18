@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.6.5'
+const ADMIN_VERSION = '1.6.6'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -17,6 +17,7 @@ const nav = [
   ['seo', '🔎', 'AI SEO Assistant', 'Аудит страниц и SEO-оптимизация'],
   ['translations', '🌐', 'AI Translation Studio', 'Переводы и локализации'],
   ['diagnostics', '⚙️', 'AI CMS Diagnostics', 'Проверка состояния CMS и объяснение проблем'],
+  ['knowledge', '📚', 'AI Knowledge Base', 'Документы, категории, импорт, поиск'],
   ['tracking', '📈', 'Счётчики', 'Яндекс Метрика, GA4, GTM, Matomo и Plausible'],
   ['analytics-hub', '📊', 'Analytics Hub', 'Отчёты трафика и поисковой статистики'],
   ['analytics-events', '📊', 'События', 'Правила, цели и диагностика аналитики'],
@@ -51,6 +52,7 @@ const state = {
     identitySearch: '', identityLinked: 'all', identityOffset: 0, identitySelected: '',
     seo: {type:'',entry:'',field:'seo_title',instructions:'',audit:null,batch:null,proposal:null,busy:false},
     diagnostics: {window:60,focus:'',explanation:null,usage:null,busy:false},
+    knowledge: {selected:null, category:'', query:'', offset:0, search:'', visibility:'all', results:[], busy:false, kind:'', entry:''},
     translation: {type:'',entry:'',locale:'en',instructions:'',updateExisting:false,overview:null,glossary:[],proposal:null,busy:false,batch:null,batchSelection:[],batchUpdateExisting:false},
     aiSelected: null, aiMessages: [], aiBusy: false, aiEditor: {field:'title',mode:'generate',instructions:'',selection:'',busy:false,proposal:null},
     role: { handle: '', name: '', permissions: 'content:read,content:write' },
@@ -206,6 +208,7 @@ async function routeLoad(route) {
     if (route === 'identity') await Promise.allSettled([loadSilent('identity', '/identity/account'), loadSilent('sessions', '/auth/sessions'), ...(integrationScope('users:read') ? [loadIdentityUsers()] : [])])
     if (route === 'ai') await Promise.allSettled([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations')])
     if (route === 'diagnostics') await loadSilent('aiDiagnostics','/ai/diagnostics?window_minutes='+state.forms.diagnostics.window)
+    if (route === 'knowledge') await Promise.allSettled([loadSilent('kbCategories','/knowledge/categories'),loadSilent('kbDocuments','/knowledge/documents?limit=30&offset='+state.forms.knowledge.offset),loadSilent('kbTypes','/content-types')])
     if (route === 'seo') {
       await loadSilent('seoTypes','/content-types')
       const available=asArray(state.cache.seoTypes)
@@ -293,6 +296,7 @@ function render() {
   else if (state.route === 'seo') body = seoView()
   else if (state.route === 'translations') body = translationsView()
   else if (state.route === 'diagnostics') body = diagnosticsView()
+  else if (state.route === 'knowledge') body = knowledgeView()
   else if (state.route === 'tracking') body = trackingView()
   else if (state.route === 'analytics-hub') body = analyticsHubView()
   else if (state.route === 'analytics-events') body = analyticsEventsView()
@@ -309,6 +313,7 @@ function render() {
   bindCommon()
   bindForms()
   bindAi()
+  bindKnowledge()
 }
 
 function renderLogin() {
@@ -1408,4 +1413,80 @@ function bindTranslations() {
       await overview();setNotice('ok',result.created?'Черновик локализации создан.':'Перевод обновлён новой ревизией.');
     }catch(err){setNotice('error',err.message,err.payload)}finally{f.busy=false;render()}
   });
+}
+
+function knowledgeView() {
+  const k = state.forms.knowledge, categories = asArray(state.cache.kbCategories), documents = dataOf(state.cache.kbDocuments,{}), items = asArray(documents.items), selected = k.selected
+  const e = escapeHtml
+  const options = (values, current) => values.map(([value,label])=>`<option value="${e(value)}" ${String(value)===String(current)?'selected':''}>${e(label)}</option>`).join('')
+  const categoryOptions = [['','Без категории'], ...categories.map(c=>[c.id,c.name])]
+  const typeOptions = asArray(state.cache.kbTypes).map(t=>[t.handle,t.name||t.handle])
+  const docRows = items.map(d=>`<tr><td><button class="btn small secondary" data-kb-open="${e(d.id)}">${e(d.title)}</button></td><td>${e(d.locale)}</td><td>${e(d.visibility)}</td><td>${e(d.status)}</td><td>${Number(d.revision)}</td></tr>`)
+  const editor = selected || {title:'',slug:'',body:'',locale:'ru',visibility:'internal',status:'draft',category_id:'',revision:0}
+  return `<section class="card"><h2>AI Knowledge Base · Управляемая база знаний</h2><p>Индекс хранится отдельно от публичного поиска CMS. Внутренние документы доступны только в административном интерфейсе. OpenAI не получает документы автоматически.</p></section>
+  <div class="two-col"><section class="card"><h2>Категории</h2>${categories.map(c=>`<div class="toolbar"><strong>${e(c.name)}</strong><span class="muted">${e(c.slug)}</span><button class="btn small secondary" data-kb-edit-cat="${e(c.id)}">Править</button><button class="btn small danger" data-kb-del-cat="${e(c.id)}">Удалить</button></div>`).join('')||'<p>Категорий нет.</p>'}
+   <form class="form" data-kb-category><input type="hidden" name="id"><label>Название<input class="input" name="name" maxlength="160" required></label><label>Slug (латиница)<input class="input" name="slug" maxlength="80" required></label><label>Описание<textarea class="input" name="description" maxlength="1500"></textarea></label><button class="btn" type="submit">Сохранить категорию</button><button type="reset" class="btn secondary">Очистить</button></form></section>
+  <section class="card"><h2>Документы · ${Number(documents.total||0)}</h2><form class="toolbar" data-kb-filter><input class="input" name="query" maxlength="120" placeholder="Название" value="${e(k.query)}"><button class="btn">Найти</button><button type="button" class="btn secondary" data-kb-new>Новый документ</button></form>
+   ${table(['Документ','Язык','Доступ','Состояние','Ревизия'],docRows)}<div class="toolbar"><button class="btn small secondary" data-kb-prev ${k.offset===0?'disabled':''}>Назад</button><span>${k.offset+1}–${Math.min(Number(documents.total||0),k.offset+30)}</span><button class="btn small secondary" data-kb-next ${k.offset+30>=Number(documents.total||0)?'disabled':''}>Далее</button></div></section></div>
+  <section class="card"><h2>${selected?'Редактировать':'Создать'} документ</h2>${selected?`<p>Источник: ${e(selected.source_kind)} · Ревизия: ${Number(selected.revision)} · Индекс: ${Number(selected.indexed_revision)}</p>`:''}
+  <form class="form" data-kb-document><div class="two-col"><label>Название<input name="title" class="input" maxlength="240" value="${e(editor.title)}" required></label><label>Slug<input name="slug" class="input" maxlength="80" value="${e(editor.slug)}" required></label></div><div class="two-col"><label>Язык<input name="locale" class="input" maxlength="5" value="${e(editor.locale)}" required></label><label>Категория<select class="input" name="category_id">${options(categoryOptions,editor.category_id||'')}</select></label><label>Доступ<select class="input" name="visibility">${options([['internal','Внутренняя'],['public','Публичная']],editor.visibility)}</select></label><label>Состояние<select name="status" class="input">${options([['draft','Черновик'],['published','Опубликован'],['archived','Архив']],editor.status)}</select></label></div><label>Содержимое<textarea name="body" class="input" rows="11" maxlength="131072" required>${e(editor.body)}</textarea></label><div class="toolbar"><button class="btn" type="submit" ${k.busy?'disabled':''}>Сохранить и индексировать</button><button class="btn secondary" type="button" data-kb-new>Новый</button>${selected?`<button type="button" class="btn danger" data-kb-delete>Удалить документ</button>`:''}</div></form>${selected?.source_kind==='cms'?'<p class="muted">Синхронизированный текст нельзя изменить вручную. Категорию, статус и видимость можно изменить после проверки.</p>':''}</section>
+  <div class="two-col"><section class="card"><h2>Импорт документов</h2><p>TXT / Markdown / поисковый PDF до 2 МиБ. Не сохраняет исходные бинарные файлы. Импорт создаёт черновик.</p><form data-kb-import class="form"><input class="input" type="file" name="file" accept=".txt,.md,.markdown,.pdf" required><button type="submit" class="btn" ${k.busy?'disabled':''}>Импортировать</button></form></section>
+  <section class="card"><h2>Опубликованная CMS-страница</h2><p>Повторная синхронизация обновляет индекс того же документа.</p><form data-kb-cms class="form"><label>Тип контента<select class="input" name="type">${options(typeOptions,k.kind||typeOptions[0]?.[0]||'')}</select></label><label>UUID опубликованной записи<input class="input" name="entry_id" value="${e(k.entry)}" required></label><button type="submit" class="btn" ${k.busy?'disabled':''}>Синхронизировать</button></form></section></div>
+  <section class="card"><h2>Поиск по индексу</h2><form data-kb-search class="toolbar"><input class="input" name="q" maxlength="200" placeholder="Поиск по содержимому" value="${e(k.search)}" required><select class="input" name="visibility">${options([['all','Все'],['public','Публичные'],['internal','Внутренние']],k.visibility)}</select><button class="btn" type="submit">Искать</button><button class="btn secondary" type="button" data-kb-reindex>Перестроить индекс (20 документов)</button></form>${k.results.map(r=>`<article class="card"><button class="btn small secondary" data-kb-open="${e(r.id)}">${e(r.title)}</button><small> · ${e(r.locale)} · ${e(r.visibility)} · ${Number(r.score)}</small><p style="white-space:pre-wrap">${e(r.excerpt)}</p></article>`).join('')}</section>`
+}
+
+function bindKnowledge() {
+  if (state.route !== 'knowledge') return
+  const k=state.forms.knowledge
+  const refresh=async()=>{
+    await Promise.all([loadSilent('kbCategories','/knowledge/categories'),loadSilent('kbDocuments','/knowledge/documents?'+new URLSearchParams({limit:'30',offset:String(k.offset),q:k.query}))]);render()
+  }
+  const run=async fn=>{
+    if(k.busy)return;k.busy=true
+    try{await fn()}catch(err){setNotice('error',err.message,err.payload)}finally{k.busy=false;render()}
+  }
+  document.querySelectorAll('[data-kb-new]').forEach(b=>b.addEventListener('click',()=>{k.selected=null;render()}))
+  document.querySelectorAll('[data-kb-open]').forEach(b=>b.addEventListener('click',()=>run(async()=>{
+    k.selected=dataOf(await api('/knowledge/documents/'+encodeURIComponent(b.dataset.kbOpen)));render()
+  })))
+  document.querySelector('[data-kb-filter]')?.addEventListener('submit',event=>{event.preventDefault();k.query=String(new FormData(event.currentTarget).get('query')||'');k.offset=0;run(refresh)})
+  for(const [key,delta] of [['prev',-30],['next',30]]) document.querySelector('[data-kb-'+key+']')?.addEventListener('click',()=>{k.offset=Math.max(0,k.offset+delta);run(refresh)})
+  document.querySelector('[data-kb-category]')?.addEventListener('submit',event=>{event.preventDefault();const f=new FormData(event.currentTarget);run(async()=>{
+    const id=String(f.get('id')||''),data={name:f.get('name'),slug:f.get('slug'),description:f.get('description')}
+    await api('/knowledge/categories'+(id?'/'+encodeURIComponent(id):''),{method:id?'PUT':'POST',body:JSON.stringify(data)})
+    setNotice('ok','Категория сохранена.');await refresh()
+  })})
+  document.querySelectorAll('[data-kb-edit-cat]').forEach(b=>b.addEventListener('click',()=>{
+    const cat=asArray(state.cache.kbCategories).find(x=>x.id===b.dataset.kbEditCat)
+    if(!cat)return
+    const form=document.querySelector('[data-kb-category]');for(const field of ['id','name','slug','description'])form.elements.namedItem(field).value=cat[field]||''
+  }))
+  document.querySelectorAll('[data-kb-del-cat]').forEach(b=>b.addEventListener('click',()=>{if(!confirm('Удалить пустую категорию?'))return;run(async()=>{await api('/knowledge/categories/'+encodeURIComponent(b.dataset.kbDelCat),{method:'DELETE'});await refresh()})}))
+  document.querySelector('[data-kb-document]')?.addEventListener('submit',event=>{event.preventDefault();const f=new FormData(event.currentTarget);run(async()=>{
+    const selected=k.selected,body={title:f.get('title'),slug:f.get('slug'),body:f.get('body'),locale:f.get('locale'),visibility:f.get('visibility'),status:f.get('status'),category_id:f.get('category_id')||null}
+    if(selected)body.expected_revision=Number(selected.revision)
+    k.selected=dataOf(await api('/knowledge/documents'+(selected?'/'+encodeURIComponent(selected.id):''),{method:selected?'PUT':'POST',body:JSON.stringify(body)}))
+    setNotice('ok','Документ сохранён и индекс обновлён.');await refresh()
+  })})
+  document.querySelector('[data-kb-delete]')?.addEventListener('click',()=>{if(!k.selected||!confirm('Удалить документ и индекс?'))return;run(async()=>{
+    await api('/knowledge/documents/'+encodeURIComponent(k.selected.id),{method:'DELETE',body:JSON.stringify({expected_revision:Number(k.selected.revision)})})
+    k.selected=null;await refresh();setNotice('ok','Документ удалён.')
+  })})
+  document.querySelector('[data-kb-import]')?.addEventListener('submit',event=>{event.preventDefault();const file=event.currentTarget.querySelector('input[type=file]').files?.[0];if(!file)return;run(async()=>{
+    if(file.size>2097152||!(/\.(txt|md|markdown|pdf)$/i.test(file.name)))throw new Error('Допустимы TXT, Markdown и PDF до 2 МиБ.')
+    const bytes=new Uint8Array(await file.arrayBuffer());let raw='';for(let i=0;i<bytes.length;i+=16384)raw+=String.fromCharCode(...bytes.subarray(i,i+16384))
+    k.selected=dataOf(await api('/knowledge/import',{method:'POST',body:JSON.stringify({filename:file.name,base64:btoa(raw),locale:'ru',visibility:'internal',status:'draft'})}));
+    await refresh();setNotice('ok','Импортирован черновик.')
+  })})
+  document.querySelector('[data-kb-cms]')?.addEventListener('submit',event=>{event.preventDefault();const f=new FormData(event.currentTarget);k.kind=String(f.get('type'));k.entry=String(f.get('entry_id'));run(async()=>{
+    k.selected=dataOf(await api('/knowledge/sync-cms',{method:'POST',body:JSON.stringify({type:k.kind,entry_id:k.entry})}));await refresh();setNotice('ok','CMS-содержимое синхронизировано. Новые страницы по умолчанию внутренние; проверьте перед публикацией.')
+  })})
+  document.querySelector('[data-kb-search]')?.addEventListener('submit',event=>{event.preventDefault();const f=new FormData(event.currentTarget);k.search=String(f.get('q'));k.visibility=String(f.get('visibility'));run(async()=>{
+    k.results=asArray(await api('/knowledge/search?'+new URLSearchParams({q:k.search,visibility:k.visibility})));render()
+  })})
+  document.querySelector('[data-kb-reindex]')?.addEventListener('click',()=>run(async()=>{
+    const next=prompt('С какого смещения перестроить индекс? (0 — первая партия)', '0');if(next===null)return;const offset=Number(next);if(!Number.isInteger(offset)||offset<0||offset>100000)throw new Error('Некорректное смещение.')
+    const result=dataOf(await api('/knowledge/reindex',{method:'POST',body:JSON.stringify({limit:20,offset})}))
+    setNotice('ok','Переиндексировано: '+Number(result.processed)+'. Следующее смещение: '+(result.next_offset??'завершено'));await refresh()
+  }))
 }
