@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "1.4.8",
+    "version": "1.4.9",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -28803,7 +28803,10 @@
               },
               "users": {
                 "type": "array",
-                "items": {"type": "object", "additionalProperties": true}
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               },
               "warnings": {
                 "type": "array",
@@ -28886,8 +28889,17 @@
             "additionalProperties": true
           },
           "user_roles": {
-            "type": ["object", "array"],
-            "additionalProperties": {"type": "string", "enum": ["viewer", "editor"]}
+            "type": [
+              "object",
+              "array"
+            ],
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "viewer",
+                "editor"
+              ]
+            }
           },
           "locale": {
             "type": "string"

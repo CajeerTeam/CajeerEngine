@@ -10,7 +10,7 @@ use CajeerEngine\Update\OperationLock;
 /** Small, durable discovery projects. Network I/O is outside the registry lock; CAS prevents stale reports. */
 final readonly class MigrationCenter
 {
-    public function __construct(private string $root,private SecretVault $vault,private SourceDiscovery $discovery=new SourceDiscovery(),private WxrDiscovery $wxr=new WxrDiscovery(),private ?MigrationPlanner $planner=null,private ?DleImporter $dle=null,private ?MediaMigration $media=null,private ?SeoMigration $seo=null,private ?MigrationExecution $execution=null) {}
+    public function __construct(private string $root,private SecretVault $vault,private SourceDiscovery $discovery=new SourceDiscovery(),private WxrDiscovery $wxr=new WxrDiscovery(),private ?MigrationPlanner $planner=null,private ?DleImporter $dle=null,private ?MediaMigration $media=null,private ?SeoMigration $seo=null,private ?MigrationExecution $execution=null,private ?MigrationCutover $cutover=null) {}
     private function path(string $id):string {if(!preg_match('/^[a-f0-9]{32}$/D',$id))throw new \InvalidArgumentException('Invalid migration project ID.');return F::path($this->root,'storage/app/migration/'.$id.'.json');}
     private function locked(callable $fn,bool $exclusive=false):mixed {
         if($exclusive&&!OperationLock::exclusiveHeld($this->root))throw new \LogicException('Exclusive migration lease required.');
@@ -21,7 +21,7 @@ final readonly class MigrationCenter
         }finally{OperationLock::release($lease);}
     }
     private function get(string $id):array {$p=$this->path($id);if(!is_file($p))throw new \RuntimeException('Проект миграции не найден.');return F::read($p);}
-    private function public(array $p):array {if(($e=$this->executionStatus($p['id']))!==null)$p['batch_execution']=$e;unset($p['credential'],$p['wxr_ref']);if($p['status']==='approved'&&($receipt=$this->dle?->receipt($p['id'],$p['source']))!==null){$p['execution']=$receipt;$p['status']='completed';if($this->media!==null)$p['media_migration']=$this->media->report($p['id']);if($this->seo!==null)$p['seo_migration']=$this->seo->report($p['id']);}return $p;}
+    private function public(array $p):array {if(($e=$this->executionStatus($p['id']))!==null)$p['batch_execution']=$e;if($this->cutover!==null){try{$p['validation']=$this->cutover->summary($p['id']);}catch(\CajeerEngine\Database\DatabaseUnavailable|\PDOException){$p['validation']=null;}}unset($p['credential'],$p['wxr_ref']);if($p['status']==='approved'&&($receipt=$this->dle?->receipt($p['id'],$p['source']))!==null){$p['execution']=$receipt;$p['status']='completed';if($this->media!==null)$p['media_migration']=$this->media->report($p['id']);if($this->seo!==null)$p['seo_migration']=$this->seo->report($p['id']);}return $p;}
     private function executionStatus(string $id):?array
     {
         if($this->execution===null)return null;

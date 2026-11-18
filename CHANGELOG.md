@@ -1,3 +1,10 @@
+## 1.4.9 — Migration Validation & Cutover
+
+- CLI source/target validation with real content, route, sitemap, SEO and SHA-256 media checks.
+- Reviewed incremental synchronization with batch checkpoint, pre-sync verified backup and full restore.
+- Operator-verified local site activation and cutover receipt; DNS remains infrastructure-managed.
+- See `docs/migration-validation-cutover.md`.
+
 ## 1.4.8 — Migration Execution & Recovery
 
 - Real operator-only batch importer for approved DLE/WordPress plans, with SQL checkpoints, idempotent resumes and complete receipts.
