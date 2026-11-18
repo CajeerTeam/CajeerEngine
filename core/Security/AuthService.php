@@ -59,6 +59,26 @@ final readonly class AuthService
         ];
     }
 
+    /** Create a normal local session only for an already-linked and active OIDC identity. */
+    public function loginExternal(string $userId, array $verifiedClaims, Request $request): array
+    {
+        $user = $this->users->findById($userId);
+        if ($user === null || ($user['status'] ?? '') !== 'active') throw new \RuntimeException('Account disabled or unavailable.');
+        if (($user['two_factor_enabled'] ?? false)) {
+            $amr = $verifiedClaims['amr'] ?? [];
+            if (!is_array($amr) || !array_intersect(['mfa', 'otp', 'hwk', 'swk'], $amr)) {
+                throw new \RuntimeException('External multi-factor authentication evidence required.');
+            }
+        }
+        $scopes = $this->users->permissionsForUser($userId);
+        $ttlDays = max(1, $this->config->int('security.sessions.ttl_days', 14));
+        $token = $this->tokens->create($userId, 'admin-session', $scopes, new \DateTimeImmutable('+' . $ttlDays . ' days'));
+        $this->users->markLogin($userId);
+        $this->audit->record('auth.oidc_login_success', $userId, ['provider'=>'skif4er', 'token_id'=>$token['id']], $request->getClientIp(), $request->headers->get('User-Agent'));
+        $public = $this->users->findById($userId) ?? $user;
+        return ['access_token'=>$token['plain_token'], 'token_type'=>'Bearer', 'expires_at'=>$token['expires_at'], 'user'=>$this->publicUser($public), 'scopes'=>$scopes];
+    }
+
     /** @return array<string, mixed>|null */
     public function authenticateRequest(Request $request): ?array
     {

@@ -36,7 +36,7 @@ final readonly class SecurityHeadersMiddleware implements MiddlewareInterface
             $response->headers->set('Content-Security-Policy', "default-src 'self'; script-src $scripts; connect-src $connect; frame-src $frames; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'");
         }
         if ($request->isSecure()) { $response->headers->set('Strict-Transport-Security', 'max-age=31536000'); }
-        if (str_starts_with(rawurldecode($request->getPathInfo()), '/api/') || str_starts_with($request->getPathInfo(), '/preview/')) {
+        if (str_starts_with(rawurldecode($request->getPathInfo()), '/api/') || str_starts_with($request->getPathInfo(), '/preview/') || str_starts_with($request->getPathInfo(), '/auth/oidc/')) {
             $response->headers->set('Cache-Control', 'private, no-store');
             $response->headers->set('Referrer-Policy', 'no-referrer');
         }

@@ -7,19 +7,16 @@ export const useAdminAuth = () => {
   const error = useState<string | null>('ce-admin-auth-error', () => null)
 
   const load = async () => {
-    if (!api.token.value) {
-      identity.value = null
-      return null
-    }
     loading.value = true
     error.value = null
     try {
       const response = await api.request<{ data: AdminIdentity }>('/auth/me')
       identity.value = response.data
+      api.setCsrf((response.data as AdminIdentity & { csrf_token?: string }).csrf_token || null)
       return identity.value
     } catch (e) {
       identity.value = null
-      api.setToken(null)
+      api.setCsrf(null)
       error.value = e instanceof Error ? e.message : 'Не удалось загрузить профиль.'
       return null
     } finally {
@@ -35,11 +32,7 @@ export const useAdminAuth = () => {
         method: 'POST',
         body: JSON.stringify({ email, password, two_factor_code: twoFactorCode || undefined }),
       })
-      const token = response.data.token || response.data.plain_token || response.data.access_token
-      if (!token) {
-        throw new Error('API не вернул token для Admin UI.')
-      }
-      api.setToken(token)
+      api.setCsrf((response.data as { csrf_token?: string }).csrf_token || null)
       await load()
       return true
     } catch (e) {
@@ -51,10 +44,8 @@ export const useAdminAuth = () => {
   }
 
   const logout = async () => {
-    if (api.token.value) {
-      await api.request('/auth/logout', { method: 'POST' }).catch(() => null)
-    }
-    api.setToken(null)
+    await api.request('/auth/logout', { method: 'POST' }).catch(() => null)
+    api.setCsrf(null)
     identity.value = null
   }
 

@@ -1,4 +1,5 @@
-const ADMIN_VERSION = '1.5.0'
+const ADMIN_VERSION = '1.5.1'
+let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
 localStorage.removeItem(TOKEN_KEY) // remove legacy bearer credentials
@@ -145,6 +146,7 @@ async function load(name, path, options = {}) {
 }
 
 async function bootstrap() {
+  try { const result = await api('/auth/oidc/status'); oidcEnabled = result?.data?.enabled === true } catch { oidcEnabled = false }
   try {
     const payload = await api('/auth/me')
     state.identity = dataOf(payload)
@@ -239,7 +241,7 @@ function render() {
 }
 
 function renderLogin() {
-  app.innerHTML = `<div class="login-shell"><form class="login-card" data-form="login"><div class="brand" style="color:var(--text)"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine Admin</div><div class="brand-sub" style="color:var(--muted)">Production static SPA ${ADMIN_VERSION}</div></div></div>${noticeHtml()}<div class="form"><div class="form-row"><label>Email</label><input class="input" name="email" type="email" autocomplete="username" required></div><div class="form-row"><label>Пароль</label><input class="input" name="password" type="password" autocomplete="current-password" required></div><div class="form-row"><label>2FA код, если включён</label><input class="input" name="two_factor_code" inputmode="numeric"></div><button class="btn" type="submit">Войти</button><p class="muted">Вход использует защищённую HttpOnly-сессию.</p></div></form></div>`
+  app.innerHTML = `<div class="login-shell"><form class="login-card" data-form="login"><div class="brand" style="color:var(--text)"><div class="brand-mark">CE</div><div><div class="brand-title">CajeerEngine Admin</div><div class="brand-sub" style="color:var(--muted)">Production static SPA ${ADMIN_VERSION}</div></div></div>${noticeHtml()}<div class="form"><div class="form-row"><label>Email</label><input class="input" name="email" type="email" autocomplete="username" required></div><div class="form-row"><label>Пароль</label><input class="input" name="password" type="password" autocomplete="current-password" required></div><div class="form-row"><label>2FA код, если включён</label><input class="input" name="two_factor_code" inputmode="numeric"></div><button class="btn" type="submit">Войти</button>${oidcEnabled ? '<a class="btn secondary" style="display:block;text-align:center" href="/auth/oidc/start">Войти через SkiF4er ID</a>' : ''}<p class="muted">Вход использует защищённую HttpOnly-сессию.</p></div></form></div>`
   document.querySelector('[data-form="login"]').addEventListener('submit', async (event) => {
     event.preventDefault()
     const form = new FormData(event.currentTarget)

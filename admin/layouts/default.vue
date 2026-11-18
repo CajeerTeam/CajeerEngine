@@ -7,7 +7,7 @@ onMounted(() => auth.load())
   <main class="ce-admin-shell">
     <aside class="ce-admin-sidebar">
       <strong>CajeerEngine</strong>
-      <small>Admin UI 1.1.4</small>
+      <small>Admin UI 1.5.1</small>
       <nav>
         <NuxtLink to="/">Обзор</NuxtLink>
         <NuxtLink to="/content-types">Типы контента</NuxtLink>
@@ -22,7 +22,7 @@ onMounted(() => auth.load())
         <NuxtLink to="/stable">Stable</NuxtLink>
       </nav>
       <footer>
-        <NuxtLink v-if="!auth.token.value" class="ce-login-link" to="/login">Войти</NuxtLink>
+        <NuxtLink v-if="!auth.identity.value" class="ce-login-link" to="/login">Войти</NuxtLink>
         <button v-else class="ce-logout" @click="auth.logout()">Выйти</button>
       </footer>
     </aside>

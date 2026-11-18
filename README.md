@@ -16,6 +16,10 @@ php bin/cajeer admin:assets --check
 php bin/cajeer doctor
 ```
 
+## Production Stable 1.5.1 — SkiF4er ID Authentication Core
+
+Optional confidential OIDC login with Authorization Code + PKCE, exact SkiF4er ID issuer, JWKS/RS256 validation, encrypted one-time browser transactions, operator-linked accounts and existing local RBAC sessions. Off by default; current local login remains available. See [deployment guide](docs/skif4er-id-authentication.md).
+
 ## Production Stable 1.5.0
 
 ### Migration Center GA (1.5.0)

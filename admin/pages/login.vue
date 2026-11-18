@@ -4,6 +4,8 @@ const router = useRouter()
 const email = ref('')
 const password = ref('')
 const twoFactorCode = ref('')
+const oidcEnabled = ref(false)
+onMounted(async () => { try { const r = await fetch('/api/v1/auth/oidc/status'); oidcEnabled.value = (await r.json()).data?.enabled === true } catch {} })
 
 const submit = async () => {
   const ok = await auth.login(email.value, password.value, twoFactorCode.value)
@@ -14,7 +16,7 @@ const submit = async () => {
 <template>
   <section class="ce-panel ce-login">
     <h1>Вход в CajeerEngine</h1>
-    <p class="ce-muted">Используется реальный endpoint <code>POST /api/v1/auth/login</code>. Token сохраняется в localStorage Admin UI.</p>
+    <p class="ce-muted">Используется реальный endpoint <code>POST /api/v1/auth/login</code>. Используется HttpOnly cookie-сессия; OAuth-токены не передаются браузеру.</p>
     <form class="ce-form" @submit.prevent="submit">
       <AdminFormRow><template #label>Email</template><input v-model="email" type="email" autocomplete="username" required /></AdminFormRow>
       <AdminFormRow><template #label>Пароль</template><input v-model="password" type="password" autocomplete="current-password" required /></AdminFormRow>
@@ -22,6 +24,7 @@ const submit = async () => {
       <p v-if="auth.error.value" class="ce-error">{{ auth.error.value }}</p>
       <button class="ce-button" type="submit" :disabled="auth.loading.value">Войти</button>
     </form>
+    <a v-if="oidcEnabled" class="ce-button" href="/auth/oidc/start" style="display:block;text-align:center;margin-top:12px">Войти через SkiF4er ID</a>
   </section>
 </template>
 

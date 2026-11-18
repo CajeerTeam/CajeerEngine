@@ -348,6 +348,15 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'get_AuthOidcStatus' => 
+  array (
+    'method' => 'GET',
+    'path' => '/auth/oidc/status',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
   'get_CmsNavigation' => 
   array (
     'method' => 'GET',

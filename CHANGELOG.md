@@ -1,3 +1,13 @@
+# Changelog
+
+## 1.5.1 — SkiF4er ID Authentication Core
+
+- Working confidential-client OIDC Authorization Code + PKCE S256 against the SkiF4er ID issuer, with HTTPS pinned discovery, token exchange, JWKS and RS256 claim validation.
+- SQL one-time browser-bound authorization transactions, authenticated encryption of PKCE verifier, explicit operator-only `(issuer, sub)` linking, local RBAC session creation.
+- Login button in production static Admin SPA and Nuxt source. Feature off by default; local login remains available. No email-based implicit account linking.
+- Migration `0026_skif4er_oidc.sql` across SQLite, PostgreSQL and MySQL. OpenAPI/SDK sync; signed JWT regression and SQLite schema regression in release CI.
+- Self-service linking, provisioning, unified sessions and global logout are **not** implemented in 1.5.1.
+
 ## 1.5.0 — Migration Center DLE + WordPress GA
 
 - Validate every source-to-target content receipt against the approved plan, rejecting missing/duplicate/altered receipts.
@@ -22,7 +32,6 @@
 - Raised bounded source inventories to 5,000 content items / users and 64 MiB. WXR up to 32 MiB.
 - Added operator CLI commands, progress in Migration Center, SQL migrations and regressions.
 
-# Changelog
 
 ## 1.4.7 — SEO & URL Migration
 

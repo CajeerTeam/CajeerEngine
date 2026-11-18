@@ -19,23 +19,10 @@ export const useAdminApi = () => {
   const config = useRuntimeConfig()
   const baseUrl = String(config.public.apiBase || '/api/v1').replace(/\/$/, '')
 
-  const token = useState<string | null>('ce-admin-token', () => {
-    if (import.meta.client) {
-      return window.localStorage.getItem('ce_admin_token')
-    }
-    return null
-  })
-
-  const setToken = (value: string | null) => {
-    token.value = value
-    if (import.meta.client) {
-      if (value) {
-        window.localStorage.setItem('ce_admin_token', value)
-      } else {
-        window.localStorage.removeItem('ce_admin_token')
-      }
-    }
-  }
+  const token = useState<string | null>('ce-admin-token', () => null)
+  const csrf = useState<string | null>('ce-admin-csrf', () => null)
+  const setToken = (_value: string | null) => { token.value = null }
+  const setCsrf = (value: string | null) => { csrf.value = value }
 
   const request = async <T = unknown>(path: string, options: AdminRequestOptions = {}): Promise<T> => {
     const headers = new Headers(options.headers)
@@ -43,11 +30,10 @@ export const useAdminApi = () => {
     if (options.body && !headers.has('Content-Type')) {
       headers.set('Content-Type', 'application/json')
     }
-    if (token.value) {
-      headers.set('Authorization', `Bearer ${token.value}`)
-    }
+    if (csrf.value) headers.set('X-CSRF-Token', csrf.value)
+    if (path === '/auth/login') headers.set('X-Cajeer-Browser', '1')
 
-    const response = await fetch(`${baseUrl}${path}`, { ...options, headers })
+    const response = await fetch(`${baseUrl}${path}`, { ...options, headers, credentials: 'same-origin', cache: 'no-store' })
     const payload = await response.json().catch(() => null) as T & ApiErrorPayload | null
 
     if (!response.ok) {
@@ -58,5 +44,5 @@ export const useAdminApi = () => {
     return payload as T
   }
 
-  return { baseUrl, token, setToken, request }
+  return { baseUrl, token, setToken, csrf, setCsrf, request }
 }

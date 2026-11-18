@@ -14,6 +14,10 @@ use CajeerEngine\Installer\InstallerService;
 use CajeerEngine\Api\Controller\AdminController;
 use CajeerEngine\Api\Controller\ApiTokenController;
 use CajeerEngine\Api\Controller\AuthController;
+use CajeerEngine\Api\Controller\OidcController;
+use CajeerEngine\Identity\OidcClient;
+use CajeerEngine\Identity\OidcStore;
+use CajeerEngine\Identity\OidcLogin;
 use CajeerEngine\Api\Controller\ContentEntryController;
 use CajeerEngine\Api\Controller\DatabaseController;
 use CajeerEngine\Api\Controller\ContentTypeController;
@@ -328,6 +332,27 @@ final class Application
             $rootPath,
         ));
         $container->set('controller.auth', fn (ServiceContainer $c): AuthController => new AuthController($c->get(AuthService::class)));
+        $container->set('controller.oidc', function (ServiceContainer $c): OidcController {
+            $cfg = $c->get(ConfigRepository::class);
+            $enabled = filter_var(getenv('SKIF4ER_ID_ENABLED') ?: 'false', FILTER_VALIDATE_BOOLEAN);
+            $clientId = trim((string)(getenv('SKIF4ER_ID_CLIENT_ID') ?: ''));
+            $secret = (string)(getenv('SKIF4ER_ID_CLIENT_SECRET') ?: '');
+            if (!$enabled) return new OidcController($cfg, null);
+            $base = rtrim($cfg->string('app.url'), '/');
+            try {
+                if (!extension_loaded('curl') || !extension_loaded('openssl') || !extension_loaded('sodium')) {
+                    throw new \RuntimeException('OIDC runtime extensions unavailable.');
+                }
+                $client = new OidcClient($clientId, $secret, $base . '/auth/oidc/callback');
+                $vault = new SecretVault((string)(getenv('SKIF4ER_ID_TRANSACTION_KEY') ?: getenv('INTEGRATIONS_KEY') ?: getenv('APP_KEY') ?: ''));
+                $vault->seal('oidc:startup-check', 'ok'); // Fail closed on missing/invalid protected key.
+                return new OidcController($cfg, new OidcLogin($client, new OidcStore($c->get(DatabaseManager::class), $vault), $c->get(AuthService::class)));
+            } catch (\Throwable) {
+                $c->get(RuntimeLogger::class)->warning('Identity OIDC disabled', ['code'=>'oidc_configuration_invalid']);
+                // A misconfigured optional identity provider must never disable local login.
+                return new OidcController($cfg, null);
+            }
+        });
         $container->set('controller.users', fn (ServiceContainer $c): UserController => new UserController($c->get(UserRepository::class), $c->get(PasswordHasher::class)));
         $container->set('controller.roles', fn (ServiceContainer $c): RoleController => new RoleController($c->get(RoleRepository::class)));
         $container->set('controller.api_tokens', fn (ServiceContainer $c): ApiTokenController => new ApiTokenController($c->get(ApiTokenRepository::class)));
@@ -443,6 +468,7 @@ final class Application
 
         /** @var AuthController $auth */
         $auth = $container->get('controller.auth');
+        $oidc = $container->get('controller.oidc');
 
         /** @var UserController $users */
         $users = $container->get('controller.users');
@@ -465,7 +491,7 @@ final class Application
         $analyticsHub = $container->get('controller.analyticsHub');
         $analyticsEvents = $container->get('controller.analyticsEvents');
         $migration = $container->get('controller.migration');
-        $controllers = compact('migration', 'analyticsHub', 'tracking', 'analyticsEvents', 'consent', 'integrations', 'health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
+        $controllers = compact('oidc', 'migration', 'analyticsHub', 'tracking', 'analyticsEvents', 'consent', 'integrations', 'health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
         foreach (\CajeerEngine\Http\RouteRegistry::all() as [$method, $path, $name, $controller, $action, $scopes]) {
             $router->add([$method], $path, $name, [$controllers[$controller], $action], $scopes);
         }

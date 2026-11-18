@@ -265,6 +265,12 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "get_AuthOidcStatus": {
+        "method": "GET",
+        "path": "/auth/oidc/status",
+        "parameters": [],
+        "bodyRequired": false
+    },
     "get_CmsNavigation": {
         "method": "GET",
         "path": "/cms/navigation",
