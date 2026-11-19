@@ -1,3 +1,13 @@
+# 1.8.0 — AI Automation GA
+
+- Reject forged queue deliveries before they reach the billable OpenAI path; verify job identity and one-attempt policy.
+- Fix deterministic IDs and `_max_attempts=1` in the standalone RabbitMQ driver (still deliberately disabled by `QueueFactory`; supported GA transports remain file/Redis/PostgreSQL).
+- Add `AI_AUTOMATION_ENABLED` emergency stop for new and pending AI executions.
+- Erase schedule and execution prompt copies immediately upon soft deletion; recheck account and deletion state before provider calls.
+- Continue DB scheduling when the queue failed-job listing is unavailable; report transport degradation separately.
+- Use bounded retention sweeps (250 rows per pass), backlogged-run counters and dedicated SQL indexes.
+- Add regression tests and release CI gates; GA documentation clarifies at-most-once vs guaranteed execution.
+
 # 1.7.9 — AI Automation Security & Acceptance
 
 - Serialize automation count and 24-hour execution quotas per owner across concurrent hosts using row-level database locks.

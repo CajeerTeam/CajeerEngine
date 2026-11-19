@@ -189,6 +189,10 @@ Manage privacy policy at `/admin/#/privacy`. Public pages display a consent bann
 
 Owner-scoped scheduled and manual OpenAI prompts run on the existing Scheduler and QueueWorker, with saved conversations, pause/resume, history and AI budget enforcement. [Configuration and operations](docs/ai-background-automation-1.7.8.md).
 
+### AI Automation GA (1.8.0)
+
+Production runtime hardening for background OpenAI jobs: validated one-shot job admission for supported file/Redis/PostgreSQL queues, a global emergency stop (`AI_AUTOMATION_ENABLED=false`), verified 24-hour worker deadline, immediate erasure of soft-deleted schedule prompts, bounded 30-day snapshot cleanup and durable backlog health counters. Apply migration `0043_ai_automation_ga.sql` and follow the [GA deployment and acceptance guide](docs/ai-automation-ga-1.8.0.md).
+
 ### AI Automation Security & Acceptance (1.7.9)
 
 The background automation delivery loop now serializes per-owner quotas, reconciles dead-letter jobs without repeating a provider call, fairly re-offers queued work, rejects inactive owners and retains only 30 days of completed prompt snapshots. Apply migration `0042_ai_automation_delivery_acceptance.sql` and review [security and recovery procedures](docs/ai-automation-security-acceptance-1.7.9.md).

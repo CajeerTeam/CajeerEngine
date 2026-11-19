@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute 1.7.8->1.7.9 SQL migrations and lifecycle CAS acceptance on SQLite."""
+"""Execute AI Automation 1.8.0 SQL migrations and lifecycle acceptance on SQLite."""
 from __future__ import annotations
 import pathlib
 import sqlite3
@@ -10,7 +10,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 MIGRATIONS = [
     '0001_initial_schema', '0031_ai_chat', '0037_ai_tools',
     '0040_ai_cost_control', '0041_ai_background_automation',
-    '0042_ai_automation_delivery_acceptance',
+    '0042_ai_automation_delivery_acceptance', '0043_ai_automation_ga',
 ]
 
 
@@ -24,6 +24,8 @@ def check() -> None:
             con.executescript((ROOT / 'migrations' / 'sqlite' / (name + '.sql')).read_text())
         cols = {x['name'] for x in con.execute('PRAGMA table_info(ce_ai_automation_runs)')}
         assert 'last_offer_at' in cols
+        indexes={row['name'] for row in con.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='ce_ai_automation_runs'")}
+        assert {'idx_ai_automation_runs_retention','idx_ai_automation_runs_pending_owner'} <= indexes
         owner, foreign, role = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
         for ident in (owner, foreign):
             con.execute('INSERT INTO ce_users (id,email,name,password_hash) VALUES (?,?,?,?)', (ident, ident+'@test.local', 'Test', 'hash'))
@@ -72,8 +74,17 @@ def check() -> None:
         cur=con.execute("UPDATE ce_ai_automation_runs SET prompt_snapshot='[expired]' WHERE status IN ('succeeded','failed','canceled') AND finished_at < ? AND prompt_snapshot <> '[expired]'", (3000000,))
         assert cur.rowcount>=2
         assert con.execute('SELECT prompt_snapshot FROM ce_ai_automation_runs WHERE id=?',(runs[0],)).fetchone()[0]=='[expired]'
+        # The live soft-delete transaction irreversibly clears schedule and run copies.
+        con.execute('BEGIN IMMEDIATE')
+        con.execute("UPDATE ce_ai_automations SET deleted_at=?, enabled=0, prompt='[deleted]' WHERE id=?",(3000001,automation))
+        con.execute("UPDATE ce_ai_automation_runs SET status='canceled',finished_at=? WHERE automation_id=? AND status='queued'",(3000001,automation))
+        con.execute("UPDATE ce_ai_automation_runs SET prompt_snapshot='[deleted]' WHERE automation_id=?",(automation,))
+        con.execute('COMMIT')
+        assert con.execute('SELECT prompt FROM ce_ai_automations WHERE id=?',(automation,)).fetchone()[0]=='[deleted]'
+        assert con.execute("SELECT COUNT(*) FROM ce_ai_automation_runs WHERE prompt_snapshot!='[deleted]'").fetchone()[0]==0
+        assert con.execute("UPDATE ce_ai_automation_runs SET status='running' WHERE id=? AND status='queued'",(runs[2],)).rowcount==0
         con.close()
-    print('OK: AI Automation 1.7.9 SQLite schema, CAS, fairness, terminal-state safety, snapshot retention')
+    print('OK: AI Automation GA SQLite migrations, CAS, fairness, deadline, redaction and soft-delete privacy')
 
 
 if __name__ == '__main__':

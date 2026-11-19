@@ -68,7 +68,7 @@ final class AiBackgroundAutomationTest extends TestCase
         $config=new ConfigRepository(dirname(__DIR__,2));
         $db=new DatabaseManager($config);
         $pdo=$db->connection();
-        foreach (['0001_initial_schema','0031_ai_chat','0037_ai_tools','0040_ai_cost_control','0041_ai_background_automation','0042_ai_automation_delivery_acceptance'] as $name) {
+        foreach (['0001_initial_schema','0031_ai_chat','0037_ai_tools','0040_ai_cost_control','0041_ai_background_automation','0042_ai_automation_delivery_acceptance','0043_ai_automation_ga'] as $name) {
             $pdo->exec((string)file_get_contents(dirname(__DIR__,2).'/migrations/sqlite/'.$name.'.sql'));
         }
         $user=Uuid::v4(); $other=Uuid::v4(); $role=Uuid::v4();
@@ -290,6 +290,113 @@ final class AiBackgroundAutomationTest extends TestCase
         try { $automation->runNow($owner,$task['id']); self::fail('Owner exceeded 100/day cap'); }
         catch (\DomainException $e) { self::assertStringContainsString('Daily',$e->getMessage()); }
         self::assertSame(0,$provider->calls);
+    }
+
+    public function testDeletionErasesSoftDeletedPromptAndQueuedRunCopies(): void
+    {
+        [$automation,$queue,$pdo,$provider,$owner]=$this->setupEngine();
+        $task=$automation->create($owner,['title'=>'Private schedule','prompt'=>'Private onboarding credentials','interval_minutes'=>60]);
+        $run=$automation->runNow($owner,$task['id']);
+        $automation->delete($owner,$task['id']);
+        $row=$pdo->query('SELECT prompt, deleted_at FROM ce_ai_automations WHERE id = '.$pdo->quote($task['id']))->fetch(PDO::FETCH_ASSOC);
+        self::assertSame('[deleted]',$row['prompt']);
+        self::assertNotNull($row['deleted_at']);
+        self::assertSame('[deleted]',$pdo->query('SELECT prompt_snapshot FROM ce_ai_automation_runs WHERE id = '.$pdo->quote($run['id']))->fetchColumn());
+        $job=$queue->pop(); self::assertNotNull($job);
+        $automation->execute($run['id'],new JobContext($job,$queue));
+        $queue->complete($job);
+        self::assertSame(0,$provider->calls);
+        self::assertSame('canceled',$pdo->query('SELECT status FROM ce_ai_automation_runs WHERE id = '.$pdo->quote($run['id']))->fetchColumn());
+        $automation->dispatch();
+        self::assertSame('[deleted]',$pdo->query('SELECT prompt_snapshot FROM ce_ai_automation_runs WHERE id = '.$pdo->quote($run['id']))->fetchColumn());
+    }
+
+    public function testEmergencySwitchStopsNewAndPendingGenerations(): void
+    {
+        [$automation,$queue,$pdo,$provider,$owner]=$this->setupEngine();
+        $task=$automation->create($owner,['title'=>'Emergency','prompt'=>'Not billable when disabled','interval_minutes'=>60]);
+        $run=$automation->runNow($owner,$task['id']);
+        $before=getenv('AI_AUTOMATION_ENABLED');
+        try {
+            putenv('AI_AUTOMATION_ENABLED=0');
+            $result=$automation->dispatch();
+            self::assertFalse($result['enabled']);
+            self::assertSame(0,$result['offered']);
+            try { $automation->runNow($owner,$task['id']); self::fail('Kill switch was ignored'); }
+            catch (\DomainException $e) { self::assertStringContainsString('disabled',$e->getMessage()); }
+            $job=$queue->pop(); self::assertNotNull($job);
+            $automation->execute($run['id'],new JobContext($job,$queue));
+            $queue->complete($job);
+            self::assertSame('canceled',$automation->runs($owner,$task['id'])[0]['status']);
+            self::assertSame(0,$provider->calls);
+        } finally {
+            $before===false ? putenv('AI_AUTOMATION_ENABLED') : putenv('AI_AUTOMATION_ENABLED='.$before);
+        }
+    }
+
+    public function testRestoredWorkerRejectsExpiredDeliveryWithoutScheduler(): void
+    {
+        [$automation,$queue,$pdo,$provider,$owner]=$this->setupEngine();
+        $task=$automation->create($owner,['title'=>'Late','prompt'=>'Not after the deadline','interval_minutes'=>60]);
+        $run=$automation->runNow($owner,$task['id']);
+        $pdo->prepare('UPDATE ce_ai_automation_runs SET queued_at=? WHERE id=?')->execute([time()-86401,$run['id']]);
+        $job=$queue->pop(); self::assertNotNull($job);
+        $automation->execute($run['id'],new JobContext($job,$queue));
+        self::assertSame('failed',$automation->runs($owner,$task['id'])[0]['status']);
+        self::assertSame(0,$provider->calls);
+    }
+
+    public function testForgedJobCannotClaimQueuedRun(): void
+    {
+        [$automation,$queue,$pdo,$provider,$owner]=$this->setupEngine();
+        $task=$automation->create($owner,['title'=>'Validate','prompt'=>'Trusted only','interval_minutes'=>60]);
+        $run=$automation->runNow($owner,$task['id']);
+        $malicious=new QueuedJob(Uuid::v4(),'ai.automation.execute',['run_id'=>$run['id']],'default',1,1);
+        try { $automation->execute($run['id'],new JobContext($malicious,$queue)); self::fail('Invalid job was accepted'); }
+        catch (\DomainException $e) { self::assertStringContainsString('Invalid AI automation',$e->getMessage()); }
+        self::assertSame('queued',$automation->runs($owner,$task['id'])[0]['status']);
+        self::assertSame(0,$provider->calls);
+    }
+
+    public function testBrokenDeadLetterScanDoesNotBlockDurableScheduledRuns(): void
+    {
+        [$automation,$queue,$pdo,$provider,$owner,$other,$db,$chat]=$this->setupEngine();
+        $failing=new class($queue) implements ManagedQueueDriverInterface {
+            public function __construct(private FileQueueDriver $driver) {}
+            public function push(string $job, array $payload=[], ?string $queue=null): string { return $this->driver->push($job,$payload,$queue); }
+            public function pop(?string $queue=null): ?QueuedJob { return $this->driver->pop($queue); }
+            public function complete(QueuedJob $job): void { $this->driver->complete($job); }
+            public function fail(QueuedJob $job, string $error, int $backoffSeconds=60): void { $this->driver->fail($job,$error,$backoffSeconds); }
+            public function retry(string $id, ?string $queue=null): bool { return $this->driver->retry($id,$queue); }
+            public function failed(?string $queue=null): array { throw new \RuntimeException('Unavailable broker scan'); }
+            public function diagnostics(): array { return $this->driver->diagnostics(); }
+            public function cleanupProcessed(int $olderThanSeconds=604800): int { return $this->driver->cleanupProcessed($olderThanSeconds); }
+        };
+        $service=new AiBackgroundAutomation($db,$failing,$chat);
+        $task=$service->create($owner,['title'=>'Recovery','prompt'=>'Background work','interval_minutes'=>60]);
+        $pdo->prepare('UPDATE ce_ai_automations SET next_run_at=? WHERE id=?')->execute([time()-1,$task['id']]);
+        $result=$service->dispatch();
+        self::assertFalse($result['ok']);
+        self::assertSame(1,$result['dead_queue_scan_errors']);
+        self::assertSame(1,$result['created']);
+        self::assertSame(1,$result['offered']);
+        self::assertSame(1,$result['backlog']['queued']);
+        $job=$queue->pop(); self::assertNotNull($job);
+        $service->execute($job->payload['run_id'],new JobContext($job,$queue));
+        $queue->complete($job);
+        self::assertSame(1,$provider->calls);
+    }
+
+    public function testRetentionIsBoundedAndEventuallyClearsAllOldSnapshots(): void
+    {
+        [$automation,$queue,$pdo,$provider,$owner]=$this->setupEngine();
+        $task=$automation->create($owner,['title'=>'Retention','prompt'=>'Sensitive data','interval_minutes'=>60]);
+        $insert=$pdo->prepare("INSERT INTO ce_ai_automation_runs(id,automation_id,user_id,prompt_snapshot,scheduled_for,status,queued_at,finished_at) VALUES (?,?,?,?,NULL,'succeeded',?,?)");
+        for ($i=0;$i<270;$i++) $insert->execute([Uuid::v4(),$task['id'],$owner,'Sensitive data',time()-32*86400,time()-31*86400]);
+        self::assertSame(250,$automation->dispatch()['redacted']);
+        self::assertSame(20,$automation->dispatch()['redacted']);
+        self::assertSame(0,$automation->dispatch()['redacted']);
+        self::assertSame(0,(int)$pdo->query("SELECT COUNT(*) FROM ce_ai_automation_runs WHERE prompt_snapshot='Sensitive data'")->fetchColumn());
     }
 
 }

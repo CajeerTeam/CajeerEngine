@@ -21,6 +21,13 @@ final readonly class AiBackgroundAutomation
         private AiChat $chat,
     ) {}
 
+    /** Operator kill switch: disable new and not-yet-started AI calls without disabling the CMS. */
+    private static function enabledGlobally(): bool
+    {
+        $flag=getenv('AI_AUTOMATION_ENABLED');
+        return $flag===false || !in_array(strtolower(trim($flag)), ['0', 'false', 'off', 'no'], true);
+    }
+
     public function list(string $userId): array
     {
         $stmt = $this->db->connection()->prepare('SELECT id, title, prompt, interval_minutes, enabled, revision, next_run_at, created_at, updated_at FROM ce_ai_automations WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 25');
@@ -39,6 +46,7 @@ final readonly class AiBackgroundAutomation
 
     public function create(string $userId, array $body): array
     {
+        if (!self::enabledGlobally()) throw new \DomainException('AI automation is disabled by the operator.');
         self::allowed($body, ['title', 'prompt', 'interval_minutes', 'enabled']);
         [$title, $prompt, $minutes, $enabled] = self::validate($body);
         $id = Uuid::v4(); $now = time();
@@ -82,8 +90,11 @@ final readonly class AiBackgroundAutomation
         $this->db->transaction(function (PDO $pdo) use ($userId,$id): void {
             $this->lockOwned($pdo, $userId, $id);
             $now=time();
-            $pdo->prepare('UPDATE ce_ai_automations SET deleted_at = ?, enabled = 0, updated_at = ?, revision = revision + 1 WHERE id = ? AND user_id = ?')->execute([$now,$now,$id,$userId]);
+            $pdo->prepare("UPDATE ce_ai_automations SET deleted_at = ?, enabled = 0, prompt = '[deleted]', updated_at = ?, revision = revision + 1 WHERE id = ? AND user_id = ?")->execute([$now,$now,$id,$userId]);
             $pdo->prepare("UPDATE ce_ai_automation_runs SET status = 'canceled', finished_at = ? WHERE automation_id = ? AND status = 'queued'")->execute([$now,$id]);
+            // Deleting a schedule must not leave live prompt copies in soft-deleted rows.
+            // Running jobs already hold their own in-memory snapshot and cannot be recalled.
+            $pdo->prepare("UPDATE ce_ai_automation_runs SET prompt_snapshot = '[deleted]' WHERE automation_id = ?")->execute([$id]);
         });
     }
 
@@ -98,6 +109,7 @@ final readonly class AiBackgroundAutomation
     /** Queue a one-off execution even if recurring scheduling is paused. */
     public function runNow(string $userId, string $automationId): array
     {
+        if (!self::enabledGlobally()) throw new \DomainException('AI automation is disabled by the operator.');
         $id=Uuid::v4();
         $this->db->transaction(function (PDO $pdo) use ($userId,$automationId,$id): void {
             if (!$this->lockActiveOwner($pdo, $userId)) throw new \DomainException('Account is no longer active.');
@@ -136,12 +148,14 @@ final readonly class AiBackgroundAutomation
         $interrupted->execute([$now,$now-1800]);
         $expired=$this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET status = 'failed', finished_at = ?, error = 'Queue delivery deadline exceeded; no automatic replay' WHERE status = 'queued' AND queued_at < ?");
         $expired->execute([$now,$now-86400]);
-        $failedJobs=$this->reconcileFailedJobs();
+        $deadScanError = 0; $failedJobs = 0;
+        try { $failedJobs = $this->reconcileFailedJobs(); }
+        catch (\Throwable) { $deadScanError = 1; /* DB-backed runs still proceed; monitor degraded transport. */ }
         // Do not filter inactive users before loading the row: deactivated owners
         // must have recurring schedules disabled instead of silently accumulating slots.
         $stmt=$this->db->connection()->prepare('SELECT id, user_id FROM ce_ai_automations WHERE enabled = 1 AND deleted_at IS NULL AND next_run_at <= ? ORDER BY next_run_at ASC LIMIT '.max(1,min(100,$batch)));
         $stmt->execute([$now]);
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $candidate) {
+        foreach (self::enabledGlobally() ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [] as $candidate) {
             $id=(string)$candidate['id']; $owner=(string)$candidate['user_id'];
             $created = $this->db->transaction(function (PDO $pdo) use ($id,$owner,$now): bool {
                 // All manual and scheduled capacity decisions serialize on the owner
@@ -176,17 +190,32 @@ final readonly class AiBackgroundAutomation
         // last_offer_at is updated on success AND failure, so later jobs get a turn.
         $pending=$this->db->connection()->query("SELECT id FROM ce_ai_automation_runs WHERE status = 'queued' ORDER BY COALESCE(last_offer_at,0) ASC, queued_at ASC, id ASC LIMIT 100")->fetchAll(PDO::FETCH_COLUMN);
         $enqueued=0; $errors=0;
-        foreach ($pending as $runId) {
+        foreach (self::enabledGlobally() ? $pending : [] as $runId) {
             try { $this->enqueue((string)$runId); ++$enqueued; }
             catch (\Throwable) { ++$errors; }
             finally { $this->markOffered((string)$runId); }
         }
         // Past completed prompts are no longer needed: retain run metadata without
         // leaving a long-lived copy of sensitive user content in execution history.
-        $prune=$this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET prompt_snapshot = '[expired]' WHERE status IN ('succeeded','failed','canceled') AND finished_at < ? AND prompt_snapshot <> '[expired]'");
-        $prune->execute([$now-30*86400]);
-        return ['ok'=>$errors===0,'created'=>$claimed,'offered'=>$enqueued,'enqueue_errors'=>$errors,
-            'dead_queue_jobs'=>$failedJobs,'interrupted'=>$interrupted->rowCount(),'expired_queued'=>$expired->rowCount(),'redacted'=>$prune->rowCount()];
+        // Retention work is bounded so a long-lived installation never locks all
+        // historical rows in one scheduler tick. Keep this portable across all DBs.
+        $select=$this->db->connection()->prepare("SELECT id FROM ce_ai_automation_runs WHERE status IN ('succeeded','failed','canceled') AND finished_at < ? AND prompt_snapshot NOT IN ('[expired]','[deleted]') ORDER BY finished_at, id LIMIT 250");
+        $select->execute([$now-30*86400]);
+        $ids=$select->fetchAll(PDO::FETCH_COLUMN);
+        $redacted=0;
+        if ($ids !== []) {
+            $placeholders=implode(',', array_fill(0,count($ids),'?'));
+            $prune=$this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET prompt_snapshot = '[expired]' WHERE id IN ($placeholders) AND status IN ('succeeded','failed','canceled') AND prompt_snapshot NOT IN ('[expired]','[deleted]')");
+            $prune->execute($ids); $redacted=$prune->rowCount();
+        }
+        $counts=$this->db->connection()->query("SELECT status, COUNT(*) AS total, MIN(queued_at) AS oldest FROM ce_ai_automation_runs WHERE status IN ('queued','running') GROUP BY status")->fetchAll(PDO::FETCH_ASSOC);
+        $backlog=['queued'=>0,'running'=>0,'oldest_queued_age_seconds'=>0];
+        foreach ($counts as $row) {
+            $status=(string)$row['status']; $backlog[$status]=(int)$row['total'];
+            if ($status==='queued') $backlog['oldest_queued_age_seconds']=max(0,$now-(int)$row['oldest']);
+        }
+        return ['ok'=>$errors===0 && $deadScanError===0,'enabled'=>self::enabledGlobally(),'created'=>$claimed,'offered'=>$enqueued,'enqueue_errors'=>$errors,
+            'dead_queue_jobs'=>$failedJobs,'dead_queue_scan_errors'=>$deadScanError,'interrupted'=>$interrupted->rowCount(),'expired_queued'=>$expired->rowCount(),'redacted'=>$redacted,'backlog'=>$backlog];
     }
 
     /** Reconcile a queue item that has exhausted its sole permitted delivery. */
@@ -218,12 +247,28 @@ final readonly class AiBackgroundAutomation
 
     public function execute(string $runId, JobContext $context): void
     {
+        // A forged/reused transport message must never start a billable operation.
+        $expected = QueueOptions::id('default','ai.automation.execute',[
+            'run_id'=>$runId,'_idempotency_key'=>'ai.automation.'.$runId,'_max_attempts'=>1,
+        ]);
+        if ($context->job->id !== $expected || $context->job->queue !== 'default'
+            || $context->job->name !== 'ai.automation.execute'
+            || ($context->job->payload['run_id'] ?? null) !== $runId
+            || $context->job->maxAttempts !== 1) {
+            throw new \DomainException('Invalid AI automation queue delivery.');
+        }
         $item=$this->db->transaction(function(PDO $pdo)use($runId): ?array {
-            $stmt=$pdo->prepare('SELECT r.id, r.automation_id, r.user_id, r.prompt_snapshot, r.status, r.scheduled_for, a.user_id AS automation_owner, a.enabled, a.deleted_at, u.status AS user_status FROM ce_ai_automation_runs r JOIN ce_ai_automations a ON a.id = r.automation_id JOIN ce_users u ON u.id = r.user_id WHERE r.id = ?');
+            $stmt=$pdo->prepare('SELECT r.id, r.automation_id, r.user_id, r.prompt_snapshot, r.status, r.scheduled_for, r.queued_at, a.user_id AS automation_owner, a.enabled, a.deleted_at, u.status AS user_status FROM ce_ai_automation_runs r JOIN ce_ai_automations a ON a.id = r.automation_id JOIN ce_users u ON u.id = r.user_id WHERE r.id = ?');
             $stmt->execute([$runId]); $row=$stmt->fetch(PDO::FETCH_ASSOC);
             if (!is_array($row) || $row['status']!=='queued') return null;
+            // A worker may come back before the scheduler after a multi-day outage.
+            // Enforce the delivery deadline here too, before any provider call.
+            if ((int)$row['queued_at'] < time()-86400) {
+                $pdo->prepare("UPDATE ce_ai_automation_runs SET status = 'failed', finished_at = ?, error = 'Queue delivery deadline exceeded; no automatic replay' WHERE id = ? AND status = 'queued'")->execute([time(),$runId]);
+                return null;
+            }
             // Queued executions are canceled when owner is deactivated or automation deleted.
-            if ($row['deleted_at']!==null || $row['automation_owner']!==$row['user_id'] || $row['user_status']!=='active' || ($row['scheduled_for']!==null && !(int)$row['enabled']) || !$this->canRun((string)$row['user_id'])) {
+            if (!self::enabledGlobally() || $row['deleted_at']!==null || $row['automation_owner']!==$row['user_id'] || $row['user_status']!=='active' || ($row['scheduled_for']!==null && !(int)$row['enabled']) || !$this->canRun((string)$row['user_id'])) {
                 $pdo->prepare("UPDATE ce_ai_automation_runs SET status = 'canceled', finished_at = ? WHERE id = ? AND status = 'queued'")->execute([time(),$runId]);
                 return null;
             }
@@ -236,7 +281,8 @@ final readonly class AiBackgroundAutomation
             $context->heartbeat();
             // Permissions may have been revoked since the atomic queue claim. Check
             // once more immediately before entering the billable AI transaction.
-            if (!$this->canRun((string)$item['user_id'])) {
+            if (!self::enabledGlobally() || !$this->canRun((string)$item['user_id'])
+                || !$this->stillAllowed((string)$item['automation_id'], (string)$item['user_id'])) {
                 $this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET status='canceled', finished_at=? WHERE id=? AND status='running'")
                     ->execute([time(),$runId]);
                 return;
@@ -258,6 +304,14 @@ final readonly class AiBackgroundAutomation
             // into queue failed-job storage or worker API responses.
             throw new \RuntimeException('AI automation execution failed; see protected run status.');
         }
+    }
+
+    /** Recheck deletion/account state immediately before beginning the paid request. */
+    private function stillAllowed(string $automationId, string $userId): bool
+    {
+        $stmt=$this->db->connection()->prepare('SELECT a.deleted_at, a.user_id, u.status FROM ce_ai_automations a JOIN ce_users u ON u.id = a.user_id WHERE a.id = ?');
+        $stmt->execute([$automationId]); $row=$stmt->fetch(PDO::FETCH_ASSOC);
+        return is_array($row) && $row['deleted_at']===null && $row['user_id']===$userId && $row['status']==='active';
     }
 
     private function canRun(string $userId): bool

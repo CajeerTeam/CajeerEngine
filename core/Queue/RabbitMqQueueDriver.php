@@ -61,8 +61,9 @@ final class RabbitMqQueueDriver implements ManagedQueueDriverInterface
 
     public function push(string $job, array $payload = [], ?string $queue = null): string
     {
-        $id = Uuid::v4();
-        $queue = $this->queueName($queue);
+        $logicalQueue = QueueOptions::queue($queue);
+        $id = QueueOptions::id($logicalQueue, $job, $payload);
+        $queue = $this->queueName($logicalQueue);
         $this->queue($queue);
         $message = json_encode([
             'id' => $id,
@@ -70,16 +71,17 @@ final class RabbitMqQueueDriver implements ManagedQueueDriverInterface
             'payload' => $payload,
             'queue' => $queue,
             'attempts' => 0,
-            'max_attempts' => $this->maxAttempts,
+            // Required for non-replayable paid AI jobs (exactly one broker attempt).
+            'max_attempts' => QueueOptions::maxAttempts($payload + ['_max_attempts'=>$this->maxAttempts]),
             'available_at' => gmdate(DATE_ATOM),
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        $this->exchange->publish($message, $queue, AMQP_NOPARAM, [
+        if (!$this->exchange->publish($message, $queue, AMQP_NOPARAM, [
             'content_type' => 'application/json',
             'delivery_mode' => 2,
             'message_id' => $id,
             'timestamp' => time(),
-        ]);
+        ])) throw new \RuntimeException('RabbitMQ enqueue failed; durable run remains in database for recovery.');
 
         return $id;
     }
@@ -103,7 +105,7 @@ final class RabbitMqQueueDriver implements ManagedQueueDriverInterface
             (string) ($payload['id'] ?? Uuid::v4()),
             (string) ($payload['name'] ?? 'unknown'),
             is_array($payload['payload'] ?? null) ? $payload['payload'] : [],
-            $queueName,
+            QueueOptions::queue(substr($queueName, strlen($this->queuePrefix) + 1)),
             (int) ($payload['attempts'] ?? 0) + 1,
             (int) ($payload['max_attempts'] ?? $this->maxAttempts),
             (string) ($payload['available_at'] ?? gmdate(DATE_ATOM)),

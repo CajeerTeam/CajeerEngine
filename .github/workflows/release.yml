@@ -86,10 +86,16 @@ jobs:
         run: php tools/identity-session-acceptance-integration.php --require-db
       - name: Identity 1.6.0 GA production SSO, self-link, transaction rollback, revocation (real PDO)
         run: php tools/identity-ga-integration.php --require-db
-      - name: AI Automation 1.7.9 real PHP owner/queue/provider acceptance
+      - name: AI Automation 1.8.0 GA PHP owner/queue/provider acceptance
         run: vendor/bin/phpunit --filter AiBackgroundAutomationTest --no-coverage
-      - name: AI Automation 1.7.9 migration and SQL reliability acceptance
+      - name: AI Automation 1.8.0 GA cross-version migration and SQL privacy acceptance
         run: python3 tools/ai-automation-security-sqlite-regression.py
+      - name: AI Automation 1.8.0 RabbitMQ deterministic one-shot delivery acceptance
+        run: php tools/ai-automation-rabbitmq-regression.php
+      - name: AI Automation 1.8.0 GA real PostgreSQL and MariaDB schema acceptance
+        env:
+          AI_AUTOMATION_GA_FIXTURE: "1"
+        run: php tools/ai-automation-db-ga.php
       - name: AI cost price, limits and reconciliation regression
         run: php tools/ai-cost-regression.php
       - name: AI budget real PDO acceptance
@@ -98,7 +104,7 @@ jobs:
         run: python3 tools/ai-cost-sqlite-regression.py
       - name: AI Migration Copilot evidence, RBAC and safe prioritization
         run: php tools/ai-migration-copilot-regression.php
-      - name: AI Migration Remediation real PDO: approved redirects, index rebuild, rollback, CSRF and ownership
+      - name: "AI Migration Remediation real PDO: approved redirects, index rebuild, rollback, CSRF and ownership"
         run: php tools/ai-migration-remediation-integration.php --require-db
       - name: AI Migration Remediation SQLite CAS and migration integrity
         run: python3 tools/ai-migration-remediation-sqlite-regression.py
