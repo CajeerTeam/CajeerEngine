@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.7.5'
+const ADMIN_VERSION = '1.7.6'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -44,7 +44,7 @@ const state = {
   cache: {},
   forms: {
     contentType: defaultContentType(),
-    migrationCopilot: {report:null,explanation:'',usage:null,busy:false},
+    migrationCopilot: {report:null,explanation:'',usage:null,busy:false,remediation:null,remediationOffset:0},
     entryType: 'pages',
     entryStatus: 'all',
     entrySearch: '',
@@ -558,7 +558,7 @@ function migrationCopilotView(project) {
   const problems=report?.findings||[]
   const warnings=report?.warnings||[]
   return `<section class="card" style="margin-top:18px"><h2>AI Migration Copilot · после миграции</h2>
-    <p class="muted">Чтение отчётов и ограниченная проверка текущих медиа, редиректов и маршрутов. Исходный сайт не запрашивается, команды не выполняются.</p>
+    <p class="muted">Ограниченная проверка текущих медиа, редиректов и маршрутов; отдельные исправления требуют явного подтверждения оператора.</p>
     <div class="row-actions"><button class="btn" data-migration-copilot-check ${cache.busy?'disabled':''}>Проверить проект</button>
     ${report?.import_complete?`<button class="btn secondary" data-migration-copilot-explain ${cache.busy?'disabled':''}>Объяснить через OpenAI</button>`:''}
     ${report?'<button class="btn secondary" data-migration-copilot-export>Экспорт JSON</button>':''}</div>
@@ -569,6 +569,16 @@ function migrationCopilotView(project) {
       <h3>Отклонения (${Number(report.finding_total)||0})</h3>
       ${table(['Приоритет','Код','Источник','Действие'],problems.map(p=>`<tr><td>${escapeHtml(p.severity)}</td><td>${escapeHtml(p.code)}</td><td>${escapeHtml(p.source)}</td><td>${escapeHtml(p.action)}</td></tr>`))}
       <p>Повторная операторская проверка:</p><pre>${escapeHtml(report.next_step)}</pre>`:''}
+    ${report?.import_complete&&integrationScope('migration:write')?`<h3>Migration Remediation · после миграции</h3>
+      <p class="muted">Разрешено только восстановление отсутствующих 301-редиректов из сохранённой карты и пересборка индекса маршрутов. Медиафайлы и редакторские изменения исправляются вручную.</p>
+      <button class="btn secondary" data-migration-remediation-refresh>Обновить варианты исправлений</button>
+      ${(cache.remediation?.options?.warnings||[]).map(w=>`<div class="notice">${escapeHtml(w)}</div>`).join('')}
+      ${table(['Действие','Старый путь','Назначение',''],(cache.remediation?.options?.candidates||[]).map((item,i)=>`<tr><td>${escapeHtml(item.description)}</td><td>${escapeHtml(item.source_path)}</td><td>${escapeHtml(item.target_path)}</td><td><button class="btn secondary" data-migration-remediation-prepare="${i}">Подготовить</button></td></tr>`))}
+      <div class="row-actions"><button class="btn secondary" data-migration-remediation-prev ${cache.remediationOffset>0?'':'disabled'}>Предыдущая партия</button><button class="btn secondary" data-migration-remediation-next ${cache.remediation?.options?.next_offset===null||cache.remediation?.options?.next_offset===undefined?'disabled':''}>Следующая партия</button></div>
+      <h3>История исправлений</h3>
+      ${table(['Операция','Статус',''],(cache.remediation?.history||[]).map(item=>`<tr><td>${escapeHtml(item.preview?.description)}: ${escapeHtml(item.preview?.source_path)}</td><td>${escapeHtml(item.state)}</td><td>${item.kind==='restore_redirect'&&item.state==='applied'&&integrationScope('migration:run')?`<button class="btn secondary" data-migration-remediation-rollback="${escapeHtml(item.id)}">Откатить 301</button>`:''}</td></tr>`))}
+      <h3>Ожидают подтверждения</h3>
+      ${table(['Предложение','Срок',''],(cache.remediation?.pending||[]).map(item=>`<tr><td>${escapeHtml(item.preview?.description)}: ${escapeHtml(item.preview?.source_path)} → ${escapeHtml(item.preview?.target_path)}</td><td>${escapeHtml(new Date(item.expires_at*1000).toLocaleString())}</td><td><button class="btn" data-migration-remediation-apply="${escapeHtml(item.id)}" ${integrationScope('migration:run')?'':'disabled'}>Применить</button> <button class="btn secondary" data-migration-remediation-reject="${escapeHtml(item.id)}">Отклонить</button></td></tr>`))}`:''}
     ${report&&cache.explanation?`<h3>AI-объяснение</h3><p style="white-space:pre-wrap">${escapeHtml(cache.explanation)}</p><p class="muted">${cache.usage?'Токены: '+Number(cache.usage.input_tokens)+' / '+Number(cache.usage.output_tokens):''}</p>`:''}</section>`
 }
 
@@ -617,7 +627,7 @@ function bindMigration(){
   const projects=dataOf(state.cache.migrationProjects,{projects:[]}).projects||[], selected=projects.find(p=>p.id===state.cache.migrationSelected)
   const execute=async(el,fn)=>{if(el.dataset.busy)return;el.dataset.busy='1';el.disabled=true;try{await fn();if(state.route==='migration')render()}catch(e){setNotice('error',e.message)}finally{delete el.dataset.busy;el.disabled=false}}
   const refresh=()=>loadSilent('migrationProjects','/migration/projects')
-  document.querySelectorAll('[data-migration-open]').forEach(b=>b.addEventListener('click',()=>{state.cache.migrationSelected=b.dataset.migrationOpen;state.cache.migrationEditing=false;state.forms.migrationCopilot={report:null,explanation:'',usage:null,busy:false};render()}))
+  document.querySelectorAll('[data-migration-open]').forEach(b=>b.addEventListener('click',()=>{state.cache.migrationSelected=b.dataset.migrationOpen;state.cache.migrationEditing=false;state.forms.migrationCopilot={report:null,explanation:'',usage:null,busy:false,remediation:null,remediationOffset:0};render()}))
   document.querySelector('[data-migration-new]')?.addEventListener('click',()=>{state.cache.migrationSelected=null;state.cache.migrationEditing=false;render()})
   document.querySelector('[data-migration-edit]')?.addEventListener('click',()=>{state.cache.migrationEditing=true;render()})
   const f=document.querySelector('[data-migration-form]')
@@ -628,7 +638,7 @@ function bindMigration(){
   document.querySelector('[data-migration-copilot-check]')?.addEventListener('click',e=>execute(e.currentTarget,async()=>{
     const cop=state.forms.migrationCopilot
     cop.report=null;cop.explanation='';cop.usage=null;cop.busy=true
-    try{cop.report=dataOf(await api('/ai/migration/projects/'+encodeURIComponent(selected.id)+'/report'))}
+    try{cop.report=dataOf(await api('/ai/migration/projects/'+encodeURIComponent(selected.id)+'/report'));if(cop.report.import_complete&&integrationScope('migration:write')){cop.remediationOffset=0;cop.remediation=dataOf(await api('/ai/migration/projects/'+encodeURIComponent(selected.id)+'/remediation?offset=0'))}}
     finally{cop.busy=false}
   }))
   document.querySelector('[data-migration-copilot-explain]')?.addEventListener('click',e=>execute(e.currentTarget,async()=>{
@@ -637,6 +647,35 @@ function bindMigration(){
       const result=dataOf(await api('/ai/migration/projects/'+encodeURIComponent(selected.id)+'/explain',{method:'POST',body:'{}'}))
       cop.report=result.report;cop.explanation=result.explanation;cop.usage=result.usage
     }finally{cop.busy=false}
+  }))
+  const remediationPath='/ai/migration/projects/'+encodeURIComponent(selected.id)+'/remediation'
+  const refreshRemediation=async()=>{const cop=state.forms.migrationCopilot;cop.remediation=dataOf(await api(remediationPath+'?offset='+(cop.remediationOffset||0)))}
+  document.querySelector('[data-migration-remediation-refresh]')?.addEventListener('click',e=>execute(e.currentTarget,refreshRemediation))
+  document.querySelector('[data-migration-remediation-prev]')?.addEventListener('click',e=>execute(e.currentTarget,async()=>{state.forms.migrationCopilot.remediationOffset=Math.max(0,(state.forms.migrationCopilot.remediationOffset||0)-100);await refreshRemediation()}))
+  document.querySelector('[data-migration-remediation-next]')?.addEventListener('click',e=>execute(e.currentTarget,async()=>{const next=state.forms.migrationCopilot.remediation?.options?.next_offset;if(next===null||next===undefined)return;state.forms.migrationCopilot.remediationOffset=next;await refreshRemediation()}))
+  document.querySelectorAll('[data-migration-remediation-prepare]').forEach(b=>b.addEventListener('click',()=>{
+    const item=state.forms.migrationCopilot.remediation?.options?.candidates[Number(b.dataset.migrationRemediationPrepare)]
+    if(!item||!confirm('Подготовить исправление?\n'+item.description+'\n'+item.source_path+' → '+item.target_path))return
+    execute(b,async()=>{await api(remediationPath,{method:'POST',body:JSON.stringify({kind:item.kind,source_path:item.source_path})});await refreshRemediation()})
+  }))
+  for(const decision of ['apply','reject'])document.querySelectorAll('[data-migration-remediation-'+decision+']').forEach(b=>b.addEventListener('click',()=>{
+    const id=b.dataset[decision==='apply'?'migrationRemediationApply':'migrationRemediationReject']
+    const item=state.forms.migrationCopilot.remediation?.pending?.find(p=>p.id===id)
+    if(!item||!confirm((decision==='apply'?'Выполнить':'Отклонить')+' подтверждённое действие?\n'+item.preview?.description+'\n'+item.preview?.source_path+' → '+item.preview?.target_path))return
+    execute(b,async()=>{
+      await api(remediationPath+'/'+encodeURIComponent(id)+'/'+decision,{method:'POST',body:'{}'})
+      await refreshRemediation()
+      state.forms.migrationCopilot.report=dataOf(await api('/ai/migration/projects/'+encodeURIComponent(selected.id)+'/report'))
+    })
+  }))
+  document.querySelectorAll('[data-migration-remediation-rollback]').forEach(b=>b.addEventListener('click',()=>{
+    const id=b.dataset.migrationRemediationRollback
+    if(!confirm('Откатить подтверждённый 301-редирект? Откат недоступен, если правило уже использовалось или было изменено.'))return
+    execute(b,async()=>{
+      await api(remediationPath+'/'+encodeURIComponent(id)+'/rollback',{method:'POST',body:'{}'})
+      await refreshRemediation()
+      state.forms.migrationCopilot.report=dataOf(await api('/ai/migration/projects/'+encodeURIComponent(selected.id)+'/report'))
+    })
   }))
   document.querySelector('[data-migration-copilot-export]')?.addEventListener('click',()=>{
     const report=state.forms.migrationCopilot.report

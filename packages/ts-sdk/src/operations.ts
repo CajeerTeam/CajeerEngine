@@ -172,6 +172,86 @@ export const operations = {
         ],
         "bodyRequired": true
     },
+    "api_v1_ai_migration_remediation_apply": {
+        "method": "POST",
+        "path": "/ai/migration/projects/{id}/remediation/{proposal}/apply",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "proposal",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_ai_migration_remediation_options": {
+        "method": "GET",
+        "path": "/ai/migration/projects/{id}/remediation",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "offset",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_migration_remediation_prepare": {
+        "method": "POST",
+        "path": "/ai/migration/projects/{id}/remediation",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_ai_migration_remediation_reject": {
+        "method": "POST",
+        "path": "/ai/migration/projects/{id}/remediation/{proposal}/reject",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "proposal",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_ai_migration_remediation_rollback": {
+        "method": "POST",
+        "path": "/ai/migration/projects/{id}/remediation/{proposal}/rollback",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            },
+            {
+                "name": "proposal",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
     "api_v1_ai_migration_report": {
         "method": "GET",
         "path": "/ai/migration/projects/{id}/report",

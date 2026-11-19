@@ -455,8 +455,13 @@ final class Application
             $rootPath, \CajeerEngine\Migration\MigrationFactory::create($rootPath,$c->get(DatabaseManager::class),$c->get(ContentTypeRepository::class),$c->get(ContentEntryRepository::class),$c->get(UserRepository::class)),
             $c->get(DatabaseManager::class),$c->get(AiSettings::class),$c->get(OpenAiClient::class)
         ));
+        $container->set(\CajeerEngine\AI\AiMigrationRemediation::class, fn (ServiceContainer $c): \CajeerEngine\AI\AiMigrationRemediation => new \CajeerEngine\AI\AiMigrationRemediation(
+            $rootPath,$c->get(DatabaseManager::class),
+            \CajeerEngine\Migration\MigrationFactory::create($rootPath,$c->get(DatabaseManager::class),$c->get(ContentTypeRepository::class),$c->get(ContentEntryRepository::class),$c->get(UserRepository::class)),
+            $c->get(AuditLogger::class)
+        ));
         $container->set('controller.aiMigration', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\AiMigrationController => new \CajeerEngine\Api\Controller\AiMigrationController(
-            $c->get(\CajeerEngine\AI\AiMigrationCopilot::class),$c->get(RateLimiter::class),$c->get(AuditLogger::class)
+            $c->get(\CajeerEngine\AI\AiMigrationCopilot::class),$c->get(\CajeerEngine\AI\AiMigrationRemediation::class),$c->get(RateLimiter::class),$c->get(AuditLogger::class)
         ));
         $container->set('controller.analyticsHub', fn (ServiceContainer $c) => new \CajeerEngine\Api\Controller\AnalyticsHubController($c->get(\CajeerEngine\Analytics\Reporting\AnalyticsHub::class),$c->get(AuditLogger::class)));
         $container->set('controller.analyticsEvents', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\AnalyticsEventController => new \CajeerEngine\Api\Controller\AnalyticsEventController(new \CajeerEngine\Analytics\EventConfig($rootPath), new \CajeerEngine\Analytics\EventJournal($rootPath), $c->get(AuditLogger::class), new \CajeerEngine\Analytics\ServerEvents($rootPath,$c->get(IntegrationCenter::class),$c->get(ManagedQueueDriverInterface::class))));

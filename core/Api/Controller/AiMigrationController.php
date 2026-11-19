@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace CajeerEngine\Api\Controller;
 
-use CajeerEngine\AI\{AiMigrationCopilot,AiProviderException};
+use CajeerEngine\AI\{AiMigrationCopilot,AiMigrationRemediation,AiProviderException};
 use CajeerEngine\Audit\AuditLogger;
 use CajeerEngine\Security\RateLimiter;
 use Symfony\Component\HttpFoundation\{JsonResponse,Request};
@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\{JsonResponse,Request};
 /** Migration RBAC is enforced by RouteRegistry; OpenAI access additionally requires a browser session. */
 final readonly class AiMigrationController
 {
-    public function __construct(private AiMigrationCopilot $copilot,private RateLimiter $limiter,private AuditLogger $audit){}
+    public function __construct(private AiMigrationCopilot $copilot,private AiMigrationRemediation $remediation,private RateLimiter $limiter,private AuditLogger $audit){}
 
     private function user(Request $request):string
     {
@@ -45,4 +45,64 @@ final readonly class AiMigrationController
             return new JsonResponse(['data'=>$result],200,['Cache-Control'=>'no-store']);
         }catch(AiProviderException $e){return new JsonResponse(['error'=>['code'=>'ai_provider_unavailable','message'=>$e->getMessage()]],$e->httpStatus,['Cache-Control'=>'no-store']);}
     }
+    private function limit(string $uid, string $operation, int $rate = 10): ?JsonResponse
+    {
+        $limit=$this->limiter->hit('ai-migration-'.$operation, $uid, $rate, 60);
+        return $limit['allowed'] ? null : new JsonResponse(['error'=>['code'=>'rate_limited','message'=>'Превышен лимит операций миграции.']],429,
+            ['Cache-Control'=>'no-store','Retry-After'=>(string)$limit['retry_after']]);
+    }
+
+    private function json(Request $request, array $keys): array
+    {
+        $body=$request->attributes->get('json', []);
+        if (!is_array($body) || array_diff(array_keys($body), $keys)) throw new \InvalidArgumentException('Invalid remediation request.');
+        return $body;
+    }
+
+    public function remediationOptions(Request $request,array $params): JsonResponse
+    {
+        $uid=$this->user($request);
+        if($denied=$this->limit($uid,'options'))return $denied;
+        $raw=$request->query->get('offset','0');
+        if(!is_string($raw) || !preg_match('/^(0|[1-9][0-9]{0,6})$/D',$raw) || (int)$raw>1000000)throw new \InvalidArgumentException('Invalid remediation offset.');
+        return new JsonResponse(['data'=>['options'=>$this->remediation->candidates((string)$params['id'],(int)$raw),
+            'pending'=>$this->remediation->pending((string)$params['id'],$uid),
+            'history'=>$this->remediation->history((string)$params['id'],$uid)]],200,['Cache-Control'=>'no-store']);
+    }
+
+    public function remediationPrepare(Request $request,array $params): JsonResponse
+    {
+        $uid=$this->user($request);
+        if($denied=$this->limit($uid,'prepare',5))return $denied;
+        $body=$this->json($request,['kind','source_path']);
+        if (!is_string($body['kind']??null) || !is_string($body['source_path']??'')) throw new \InvalidArgumentException('Invalid remediation kind or path.');
+        $proposal=$this->remediation->prepare((string)$params['id'],$uid,$body['kind'],$body['source_path']??'');
+        return new JsonResponse(['data'=>$proposal],201,['Cache-Control'=>'no-store']);
+    }
+
+    public function remediationApply(Request $request,array $params): JsonResponse
+    {
+        $uid=$this->user($request);
+        if($denied=$this->limit($uid,'apply',5))return $denied;
+        if($this->json($request,[])!==[])throw new \InvalidArgumentException('Request must be empty.');
+        $result=$this->remediation->approve((string)$params['id'],$uid,(string)$params['proposal']);
+        return new JsonResponse(['data'=>$result],200,['Cache-Control'=>'no-store']);
+    }
+
+    public function remediationReject(Request $request,array $params): JsonResponse
+    {
+        $uid=$this->user($request);
+        if($denied=$this->limit($uid,'reject',5))return $denied;
+        if($this->json($request,[])!==[])throw new \InvalidArgumentException('Request must be empty.');
+        return new JsonResponse(['data'=>$this->remediation->reject((string)$params['id'],$uid,(string)$params['proposal'])],200,['Cache-Control'=>'no-store']);
+    }
+
+    public function remediationRollback(Request $request,array $params): JsonResponse
+    {
+        $uid=$this->user($request);
+        if($denied=$this->limit($uid,'rollback',5))return $denied;
+        if($this->json($request,[])!==[])throw new \InvalidArgumentException('Request must be empty.');
+        return new JsonResponse(['data'=>$this->remediation->rollback((string)$params['id'],$uid,(string)$params['proposal'])],200,['Cache-Control'=>'no-store']);
+    }
+
 }

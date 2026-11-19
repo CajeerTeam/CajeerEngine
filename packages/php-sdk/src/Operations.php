@@ -231,6 +231,105 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'api_v1_ai_migration_remediation_apply' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/migration/projects/{id}/remediation/{proposal}/apply',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'proposal',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_migration_remediation_options' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/migration/projects/{id}/remediation',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'offset',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_migration_remediation_prepare' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/migration/projects/{id}/remediation',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_migration_remediation_reject' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/migration/projects/{id}/remediation/{proposal}/reject',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'proposal',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_migration_remediation_rollback' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/migration/projects/{id}/remediation/{proposal}/rollback',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+      1 => 
+      array (
+        'name' => 'proposal',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
   'api_v1_ai_migration_report' => 
   array (
     'method' => 'GET',

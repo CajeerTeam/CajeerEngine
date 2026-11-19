@@ -88,6 +88,12 @@ jobs:
         run: php tools/identity-ga-integration.php --require-db
       - name: AI Migration Copilot evidence, RBAC and safe prioritization
         run: php tools/ai-migration-copilot-regression.php
+      - name: AI Migration Remediation real PDO: approved redirects, index rebuild, rollback, CSRF and ownership
+        run: php tools/ai-migration-remediation-integration.php --require-db
+      - name: AI Migration Remediation SQLite CAS and migration integrity
+        run: python3 tools/ai-migration-remediation-sqlite-regression.py
+      - name: AI Migration Remediation route and assurance regression
+        run: php tools/ai-migration-remediation-regression.php
       - name: AI Migration Copilot production admin browser acceptance
         run: python3 tools/ai-migration-copilot-browser.py
       - name: AI External Analytics deterministic comparison and safe evidence
@@ -227,6 +233,7 @@ jobs:
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/migration-browser-regression.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/migration-planning-browser-regression.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/migration-validation-browser-regression.py
+          CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/ai-migration-remediation-browser.py
       - run: php tools/generate-api-sdk.php --check
       - run: php bin/cajeer api:lint --strict --json
       - run: php tools/github-release-regression.php
