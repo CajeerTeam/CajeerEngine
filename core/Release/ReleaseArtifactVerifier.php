@@ -100,7 +100,7 @@ final class ReleaseArtifactVerifier
         $expectedChannel = str_contains($version, '-rc') ? 'rc'
             : (str_contains($version, '-beta') ? 'beta'
             : (str_contains($version, '-') ? 'dev' : 'stable'));
-        if (($release['version'] ?? null) !== $version || ($release['channel'] ?? null) !== $expectedChannel) {
+        if (($release['version'] ?? null) !== $version || ($release['channel'] ?? null) !== $expectedChannel || ($release['stability'] ?? null) !== $expectedChannel) {
             throw new \RuntimeException('Embedded release metadata/version/channel mismatch');
         }
         if (!in_array('api/openapi.yaml', $files, true)) throw new \RuntimeException('Missing API contract in release');

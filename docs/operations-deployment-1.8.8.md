@@ -1,4 +1,4 @@
-# CajeerEngine 1.9.0-rc.1 — Installation, Upgrade & Rollback Runbook
+# CajeerEngine 1.9.1 — Installation, Upgrade & Rollback Runbook
 
 ## 1. Требования до начала работ
 

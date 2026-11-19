@@ -13,6 +13,8 @@ $root = dirname(__DIR__);
 require $root . '/core/Database/MigrationSqlExecutor.php';
 require $root . '/core/Database/MigrationLock.php';
 require $root . '/core/Database/MigrationRunner.php';
+require $root . '/core/Analytics/Reporting/ReportProvider.php';
+require $root . '/core/Analytics/Reporting/SearchReports.php';
 
 use CajeerEngine\Database\MigrationRunner;
 
@@ -36,6 +38,17 @@ function exercise(PDO $pdo, string $driver, string $root, string $label): void
     foreach (['ce_users', 'ce_api_tokens', 'ce_jobs', 'ce_ai_automations', 'ce_ai_automation_runs'] as $table) {
         $pdo->query('SELECT COUNT(*) FROM ' . $table)->fetchColumn();
     }
+    // Search Console URL properties and Cloudflare IDs must survive on real server DBs,
+    // not only SQLite (whose VARCHAR length is not enforced).
+    $property = 'https://example.org/' . str_repeat('a', 280) . '/';
+    dbCheck(\CajeerEngine\Analytics\Reporting\SearchReports::validResource('search_console', $property), 'Invalid acceptance property');
+    $connectionId = bin2hex(random_bytes(16));
+    $insert = $pdo->prepare('INSERT INTO analytics_connections (id, provider, name, resource_id, enabled, revision, credential, lease_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $insert->execute([$connectionId, 'search_console', 'compatibility', $property, 1, 1, 'sealed-fixture', 0]);
+    $select = $pdo->prepare('SELECT resource_id FROM analytics_connections WHERE id=?');
+    $select->execute([$connectionId]);
+    dbCheck($select->fetchColumn() === $property, "$driver: long analytics property was truncated");
+    $pdo->prepare('DELETE FROM analytics_connections WHERE id=?')->execute([$connectionId]);
     $originalCount = (int) $pdo->query('SELECT COUNT(*) FROM ce_migrations')->fetchColumn();
     $pdo->beginTransaction();
     try {

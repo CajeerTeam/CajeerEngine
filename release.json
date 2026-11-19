@@ -1,7 +1,7 @@
 {
   "name": "cajeerengine",
-  "version": "1.9.0-rc.1",
-  "channel": "rc",
+  "version": "1.9.1",
+  "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
   "db": {
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.9.0-rc.1-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.9.0-rc.1-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.9.1-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.9.1-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.9.0-rc.1-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.9.1-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,6 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
+    "1.9.1 RC Acceptance Closure & External Analytics Production: repaired stable operational acceptance version gate, blocked inconsistent release channel/stability metadata, fixed Google Search Console PUT sitemap submission, invalidated report snapshots on any credential rotation, and added live-schema/transport and recovery regressions. External provider staging verification and signed dist acceptance are required before GA certification.",
     "Release Candidate 1.9.0-rc.1: isolate candidate updates from the stable channel, verify exact application payload parity across source and dist, bind certification evidence to real payload metadata and enforce candidate publication semantics. Production acceptance requires passing every required CI and staging deployment gate on the same release bytes.",
     "Release Candidate Qualification 1.8.9: enforce payload-accurate release certification including ZIP inventory and sidecar checks, fail closed on tampered archives, validate reproducibility and prerelease SemVer, and run qualification regressions in CI.",
     "Documentation & Operational Readiness 1.8.8: comprehensive deployment, operations, security, incident and recovery runbooks with an executable documentation contract verifier in CI; corrected runtime environment examples and release versions.",
@@ -125,5 +126,8 @@
     "1.8.6": "End-to-End Regression: real cross-module acceptance, atomic file-backed preview-token storage, mandatory SQLite, HTTP auth and queue/AI test gates.",
     "1.9.0-rc.1": "Release candidate for staging/production acceptance; not GA, not LTS; immutable candidate source/dist certification is required before public prerelease publication."
   },
-  "stability": "stable"
+  "stability": "stable",
+  "roadmap": {
+    "1.9.1": "RC acceptance closure and external analytics production hardening; requires official CI and staging certification of exact dist artifact."
+  }
 }

@@ -46,6 +46,16 @@ check(!isset($r['sections']['pages']),'historical Yandex URL monitoring unavaila
 $recent=gmdate('Y-m-d',time()-86400);$r=$y->report($yr,$c,$recent,$recent,null);check($r['sections']['pages']['rows'][0]['values']===[2.0,10.0,0.2,4.0],'Yandex recent URL monitoring');
 check($g->action($gr,$c,'inspect','https://example.com/page')['verdict']==='PASS','Google URL inspection');
 check($g->action($gr,$c,'submit_sitemap','https://example.com/sitemap.xml')['accepted']===true&&end($t->calls)['method']==='PUT','Google sitemap submission handles 204');
+// The real transport must admit PUT before its SSRF/DNS checks; mocking the provider alone is insufficient.
+$client = new CajeerEngine\Security\PublicHttpClient();
+try {
+ $client->requestWithHeaders('https://127.0.0.1/','PUT',[], '', 1024);
+ throw new RuntimeException('Private IP was permitted');
+} catch (InvalidArgumentException|RuntimeException $e) {
+ check(in_array($e->getMessage(), ['Non-public destination denied','Secure outbound HTTP requires ext-curl'], true), 'real transport admits PUT but rejects private IP');
+}
+rejects(fn()=>$client->requestWithHeaders('https://127.0.0.1/','PATCH',[], '', 1024),InvalidArgumentException::class,'unsupported mutation method rejected');
+rejects(fn()=>$client->requestWithHeaders('https://127.0.0.1/','GET',[],'payload',1024),InvalidArgumentException::class,'GET with body rejected');
 check($y->action($yr,$c,'submit_sitemap','https://example.com/sitemap.xml')['accepted']===true&&json_decode(end($t->calls)['body'],true)['url']==='https://example.com/sitemap.xml','Yandex sitemap submission');
 $n=count($t->calls);rejects(fn()=>$g->action('sc-domain:example.com',$c,'inspect','https://example.com.evil.org/page'),InvalidArgumentException::class,'reject out-of-property URL');check(count($t->calls)===$n,'invalid URL no network');
 rejects(fn()=>$y->action($yr,$c,'inspect','https://example.com/'),InvalidArgumentException::class,'unsupported Yandex inspection rejected');

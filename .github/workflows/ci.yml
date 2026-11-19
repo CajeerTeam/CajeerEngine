@@ -46,6 +46,10 @@ jobs:
           python3 tools/certification-regression.py
           python3 tools/github-publish-regression.py
           php tools/release-regression.php
+      - name: External analytics production regression (Search Console sitemap and credential privacy)
+        run: |
+          php tools/search-webmaster-regression.php --require-db
+          php tools/analytics-hub-regression.php --require-db
       - name: Deployment and disaster recovery acceptance (actual SQLite)
         run: |
           php tools/deployment-recovery-acceptance.php

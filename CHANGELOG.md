@@ -1,3 +1,12 @@
+# 1.9.1 — RC Acceptance Closure & External Analytics Production
+
+- Исправлена проверка версии в живом `StableReleaseService`; локальная диагностика больше не требует историческую 1.5.0.
+- Политика SemVer дополнена проверкой `stability`, исключающей противоречивые release-метаданные.
+- Secure outbound HTTP поддерживает `PUT` для отправки Google Search Console sitemap без редиректов, нестандартных портов и приватных IP.
+- Ротация credentials любых аналитических провайдеров атомарно отзывает устаревшие отчёты и задания прежней ревизии.
+- Добавлены исполняемые регрессии для реальных маршрутов Search Console и долговечных SQLite-отчётов, плюс проверка миграций в сервисных СУБД CI.
+- До production-допуска требуются полный CI, staging со внешними провайдерами и сертификация точных байтов подписанного dist.
+
 # 1.9.0-rc.1 — Release Candidate (1.9.0)
 
 - Candidate for production acceptance, **not** a certified stable 1.9.0 release. Candidate updates use the `rc` channel; stable installations do not receive them automatically.

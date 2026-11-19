@@ -33,6 +33,9 @@ final readonly class VersionVerifier
         $checks[] = $channel === $expectedChannel
             ? CheckResult::pass('version', 'release.channel', 'Release channel matches SemVer prerelease status.')
             : CheckResult::fail('version', 'release.channel', 'Prerelease channel/version mismatch.', ['expected' => $expectedChannel, 'actual' => $channel]);
+        $checks[] = ($release['stability'] ?? null) === $expectedChannel
+            ? CheckResult::pass('version', 'release.stability', 'Release stability matches SemVer and channel.')
+            : CheckResult::fail('version', 'release.stability', 'Release stability contradicts SemVer/channel.', ['expected' => $expectedChannel, 'actual' => $release['stability'] ?? null]);
 
         $expected = [
             'release.json' => $release['version'] ?? null,

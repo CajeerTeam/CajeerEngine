@@ -85,6 +85,18 @@ try {
     $archive->addFromString('cajeerengine/release-manifest.json', json_encode($badManifest, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
     unset($archive);
     rejects(fn () => (new ReleaseArtifactVerifier())->verify($wrongChannel, 'source', $one['version']), 'channel spoofing fails despite matching payload checksums');
+    $wrongStability = $workspace . '/wrong-stability.zip';
+    copy($one['target'], $wrongStability);
+    $archive = new PharData($wrongStability);
+    $badRelease = json_decode($archive['cajeerengine/release.json']->getContent(), true, 512, JSON_THROW_ON_ERROR);
+    $badRelease['stability'] = ($badRelease['stability'] ?? '') === 'stable' ? 'rc' : 'stable';
+    $badBody = json_encode($badRelease, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+    $badManifest = json_decode($archive['cajeerengine/release-manifest.json']->getContent(), true, 512, JSON_THROW_ON_ERROR);
+    $badManifest['checksums']['release.json'] = hash('sha256', $badBody);
+    $archive->addFromString('cajeerengine/release.json', $badBody);
+    $archive->addFromString('cajeerengine/release-manifest.json', json_encode($badManifest, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    unset($archive);
+    rejects(fn () => (new ReleaseArtifactVerifier())->verify($wrongStability, 'source', $one['version']), 'stability spoofing fails despite matching payload checksums');
     $wrongSidecar = $one['target'] . '.sha256';
     file_put_contents($wrongSidecar, str_repeat('0', 64));
     ensure(!$builder->verifyRelease('source', false, $one['target'])['ok'], 'incorrect external SHA256 fails verification');

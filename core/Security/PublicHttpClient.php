@@ -50,7 +50,7 @@ final class PublicHttpClient implements OutboundHttpTransport
     /** Same pinned transport, with final response headers for pagination metadata. */
     public function requestWithHeaders(string $url,string $method,#[\SensitiveParameter] array $headers=[],#[\SensitiveParameter] string $body='',int $maxBytes=1048576):array
     {
-        if (!in_array($method, ['GET', 'POST'], true) || ($method === 'GET' && $body !== '') || $maxBytes < 1 || $maxBytes > 8388608) {
+        if (!in_array($method, ['GET', 'POST', 'PUT'], true) || ($method === 'GET' && $body !== '') || $maxBytes < 1 || $maxBytes > 8388608) {
             throw new \InvalidArgumentException('Unsafe outbound HTTP method or response limit');
         }
         if (!function_exists('curl_init')) { throw new \RuntimeException('Secure outbound HTTP requires ext-curl'); }
@@ -76,7 +76,7 @@ final class PublicHttpClient implements OutboundHttpTransport
                 $response .= $chunk; return strlen($chunk);
             }];
         if (!filter_var($host, FILTER_VALIDATE_IP)) { $options[CURLOPT_RESOLVE] = [$host . ':' . $port . ':' . (str_contains($ip, ':') ? '[' . $ip . ']' : $ip)]; }
-        if ($method === 'POST') { $options[CURLOPT_POSTFIELDS] = $body; }
+        if ($method === 'POST' || $method === 'PUT') { $options[CURLOPT_POSTFIELDS] = $body; }
         try {
             curl_setopt_array($ch, $options);
             if (curl_exec($ch) === false) { throw new \RuntimeException('Outbound request failed or response exceeds limit'); }
