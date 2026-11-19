@@ -71,7 +71,8 @@ def verify_zip(directory, version, mode):
               and set(checksums) == set(files), f'{name}: bad inventory')
         check(set(names) == {'cajeerengine/release-manifest.json'} | {'cajeerengine/'+f for f in files},
               f'{name}: extra or missing members')
-        check('VERSION' in files and 'public/admin/assets/admin-manifest.json' in files,
+        check({'VERSION', 'release.json', 'api/openapi.yaml',
+               'public/admin/assets/admin-manifest.json'} <= set(files),
               f'{name}: identity files are missing')
         for file in files:
             expected = checksums[file]
@@ -84,6 +85,14 @@ def verify_zip(directory, version, mode):
             check(h.hexdigest() == expected, f'{name}: content mismatch for {file}')
         check(archive.read('cajeerengine/VERSION').decode().strip() == version,
               f'{name}: embedded VERSION mismatch')
+        release = json.loads(archive.read('cajeerengine/release.json'))
+        expected_channel = ('rc' if '-rc' in version else 'beta' if '-beta' in version
+                            else 'dev' if '-' in version else 'stable')
+        check(release.get('version') == version and release.get('channel') == expected_channel,
+              f'{name}: embedded channel/version mismatch')
+        api = json.loads(archive.read('cajeerengine/api/openapi.yaml'))
+        check(api.get('info', {}).get('version') == version,
+              f'{name}: embedded API version mismatch')
         admin = json.loads(archive.read('cajeerengine/public/admin/assets/admin-manifest.json'))
         check(admin.get('version') == version and admin.get('ready') is True,
               f'{name}: stale published admin')
@@ -91,11 +100,21 @@ def verify_zip(directory, version, mode):
     check(checksum == f'{digest}  {name}\n', f'{name}: checksum sidecar mismatch')
     sidecar = read(directory/(name.removesuffix('.zip')+'.manifest.json'))
     check(sidecar == {**manifest, 'artifact_sha256':digest}, f'{name}: manifest sidecar mismatch')
-    return digest
+    return digest, checksums
 
 
 def verify_artifacts(directory, version):
-    hashes = {mode: verify_zip(directory, version, mode) for mode in ('source', 'dist')}
+    verified = {mode: verify_zip(directory, version, mode) for mode in ('source', 'dist')}
+    hashes = {mode: result[0] for mode, result in verified.items()}
+    source_files, dist_files = verified['source'][1], verified['dist'][1]
+    # Dist may add locked vendor packages and omit development files. All shared
+    # application payloads must be byte-for-byte identical to the qualified source.
+    shared = source_files.keys() & dist_files.keys()
+    check({'VERSION', 'release.json', 'api/openapi.yaml'} <= shared,
+          'Source and dist have no common release identity')
+    for file in sorted(shared):
+        check(source_files[file] == dist_files[file],
+              f'Source/dist application payload mismatch: {file}')
     index = read(directory/f'cajeerengine-{version}-artifacts.json')
     check(index.get('format') == 'cajeerengine.release-artifacts.v1' and index.get('version') == version,
           'Invalid artifact index')

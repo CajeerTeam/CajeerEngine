@@ -23,7 +23,10 @@ def fixture(directory, version, commit):
     index={'format':'cajeerengine.release-artifacts.v1','version':version,'artifacts':[]}
     for mode in ('source','dist'):
         name=f'cajeerengine-{version}-{mode}.zip'
+        channel = 'rc' if '-rc' in version else 'beta' if '-beta' in version else 'dev' if '-' in version else 'stable'
         files={'VERSION':(version+'\n').encode(),
+               'release.json':json.dumps({'version':version,'channel':channel}).encode(),
+               'api/openapi.yaml':json.dumps({'info':{'version':version}}).encode(),
                'public/admin/assets/admin-manifest.json':json.dumps({'version':version,'ready':True}).encode()}
         manifest={'format':'cajeerengine.release-manifest.v5','project':'cajeerengine',
                   'version':version,'mode':mode,'artifact':name,'files':sorted(files),
@@ -92,6 +95,46 @@ class EvidenceTests(unittest.TestCase):
                 d=Path(tmp);v='1.8.9';fixture(d,v,'a'*40);change(d,v)
                 with self.assertRaises((ValueError,zipfile.BadZipFile,KeyError)):
                     e.verify(d,v,'a'*40)
+
+    def test_reject_individually_valid_but_inconsistent_source_dist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp); v = '1.9.0-rc.1'; fixture(d, v, 'a'*40)
+            name = f'cajeerengine-{v}-dist.zip'
+            path = d/name
+            with zipfile.ZipFile(path) as z:
+                contents = {n:z.read(n) for n in z.namelist()}
+            changed = 'cajeerengine/api/openapi.yaml'
+            contents[changed] = (json.dumps({'info':{'version':v}, 'x-modified':True})).encode()
+            manifest_name = 'cajeerengine/release-manifest.json'
+            manifest = json.loads(contents[manifest_name])
+            manifest['checksums']['api/openapi.yaml'] = hashlib.sha256(contents[changed]).hexdigest()
+            contents[manifest_name] = json.dumps(manifest).encode()
+            with zipfile.ZipFile(path, 'w', compression=zipfile.ZIP_DEFLATED) as z:
+                for key, body in contents.items(): z.writestr(key, body)
+            digest = a.sha(path)
+            (d/(name+'.sha256')).write_text(f'{digest}  {name}\n')
+            (d/(name.removesuffix('.zip')+'.manifest.json')).write_text(json.dumps({**manifest,'artifact_sha256':digest}))
+            index_path=d/f'cajeerengine-{v}-artifacts.json'
+            index=json.loads(index_path.read_text())
+            index['artifacts'][1]['sha256']=digest
+            index['artifacts'][1]['size']=path.stat().st_size
+            index_path.write_text(json.dumps(index))
+            with self.assertRaisesRegex(ValueError, 'Source/dist application payload mismatch'):
+                e.verify_artifacts(d,v)
+
+    def test_reject_rc_with_stable_channel(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d=Path(tmp);v='1.9.0-rc.1';fixture(d,v,'a'*40)
+            name=f'cajeerengine-{v}-source.zip';path=d/name
+            with zipfile.ZipFile(path) as z: items={n:z.read(n) for n in z.namelist()}
+            items['cajeerengine/release.json']=json.dumps({'version':v,'channel':'stable'}).encode()
+            manifest=json.loads(items['cajeerengine/release-manifest.json'])
+            manifest['checksums']['release.json']=hashlib.sha256(items['cajeerengine/release.json']).hexdigest()
+            items['cajeerengine/release-manifest.json']=json.dumps(manifest).encode()
+            with zipfile.ZipFile(path,'w') as z:
+                for n,body in items.items(): z.writestr(n,body)
+            with self.assertRaisesRegex(ValueError,'channel/version mismatch'):
+                e.verify_zip(d,v,'source')
 
     def test_reject_extra_zip_entry_and_stale_payload(self):
         for name,extra in [('extra','cajeerengine/.env'),('duplicate','cajeerengine/VERSION')]:

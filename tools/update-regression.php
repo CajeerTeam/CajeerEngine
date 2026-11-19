@@ -68,9 +68,14 @@ CODE;
     check($b->restore($backup['id'])['ok'],'standalone restore completes');check(sql($db,'SELECT value FROM example',true)==='before'&&sql($db,"SELECT count(*) FROM sqlite_master WHERE name='extra'",true)==='0','database contents and schema restored');check(file_get_contents($old.'/storage/app/content/test.json')===$original&&!is_file($old.'/public/uploads/new.txt')&&is_file($old.'/storage/queue/job.json'),'files restored, new files removed, queue restored');check((fileperms($old.'/.env')&0777)===0640,'environment permissions restored');
     check($manager->maintenanceState()['enabled'],'standalone restore leaves maintenance enabled');$manager->disableMaintenance();
     // Synthetic dist only for testing transactional mechanics without requiring Composer packages in this environment.
-    $oldVersion=trim(file_get_contents($old.'/VERSION'));$versionParts=explode('.',$oldVersion);$nextVersion=$versionParts[0].'.'.$versionParts[1].'.'.((int)$versionParts[2]+1);
+    $oldVersion=trim(file_get_contents($old.'/VERSION'));
+    // Preserve SemVer prerelease status in upgrade fixtures; RC -> RC is not a GA promotion.
+    $nextVersion = preg_match('/^(\d+\.\d+\.\d+)-rc\.(\d+)$/D', $oldVersion, $parts)
+        ? $parts[1] . '-rc.' . ((int)$parts[2] + 1)
+        : preg_replace_callback('/^(\d+\.\d+\.)(\d+)$/D', static fn ($m) => $m[1] . ((int)$m[2] + 1), $oldVersion);
+    if (!is_string($nextVersion) || $nextVersion === '') throw new RuntimeException('Unsupported update fixture version');
     $target=$work.'/target';(new PharData($source['target']))->extractTo($target);$target.='/cajeerengine';
-    F::write($target.'/VERSION',$nextVersion."\n",0644);$release=F::read($target.'/release.json');$release['version']=$nextVersion;F::json($target.'/release.json',$release,0644);
+    F::write($target.'/VERSION',$nextVersion."\n",0644);$release=F::read($target.'/release.json');$release['version']=$nextVersion;$release['channel']=str_contains($nextVersion,'-rc')?'rc':'stable';F::json($target.'/release.json',$release,0644);$api=F::read($target.'/api/openapi.yaml');$api['info']['version']=$nextVersion;F::json($target.'/api/openapi.yaml',$api,0644);
     $admin=F::read($target.'/public/admin/assets/admin-manifest.json');$admin['version']=$nextVersion;F::json($target.'/public/admin/assets/admin-manifest.json',$admin,0644);
     // Real inventory verification is exercised; these are intentionally test-only stub package files.
     $pkg=['name'=>'fixture/only','version'=>'1.0.0','type'=>'library','dist'=>['reference'=>'test']];

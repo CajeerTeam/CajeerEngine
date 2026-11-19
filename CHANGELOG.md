@@ -1,3 +1,10 @@
+# 1.9.0-rc.1 — Release Candidate (1.9.0)
+
+- Candidate for production acceptance, **not** a certified stable 1.9.0 release. Candidate updates use the `rc` channel; stable installations do not receive them automatically.
+- The release gate verifies that source and dist carry identical application payloads for all shared files, with matching API version, release metadata, published admin UI and checksum inventories.
+- A GitHub release is published as a prerelease only after successful CI, real Nginx/TLS/PHP-FPM/PostgreSQL acceptance, dependency audit, certification of exact ZIP bytes and signature checks.
+- No new database migrations; retain the existing migration baseline. Certification and production rollout must use real results from the target environment.
+
 # 1.8.9 — Release Candidate Qualification
 
 - Strengthened real release certification: inspect ZIP members, manifest/checksums, published admin identity, artifact sidecars and artifact index **before** issuing or accepting a certification.

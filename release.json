@@ -1,7 +1,7 @@
 {
   "name": "cajeerengine",
-  "version": "1.8.9",
-  "channel": "stable",
+  "version": "1.9.0-rc.1",
+  "channel": "rc",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
   "db": {
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.8.9-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.8.9-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.9.0-rc.1-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.9.0-rc.1-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.8.9-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.9.0-rc.1-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -30,12 +30,13 @@
   },
   "release_policy": {
     "semver": true,
-    "lts_ready": true,
+    "lts_ready": false,
     "security_releases": true,
     "api_v1_stable": true,
     "engine_api_version": "1.1"
   },
   "product_changes": [
+    "Release Candidate 1.9.0-rc.1: isolate candidate updates from the stable channel, verify exact application payload parity across source and dist, bind certification evidence to real payload metadata and enforce candidate publication semantics. Production acceptance requires passing every required CI and staging deployment gate on the same release bytes.",
     "Release Candidate Qualification 1.8.9: enforce payload-accurate release certification including ZIP inventory and sidecar checks, fail closed on tampered archives, validate reproducibility and prerelease SemVer, and run qualification regressions in CI.",
     "Documentation & Operational Readiness 1.8.8: comprehensive deployment, operations, security, incident and recovery runbooks with an executable documentation contract verifier in CI; corrected runtime environment examples and release versions.",
     "Deployment & Recovery Acceptance 1.8.7: durable one-time operator requests (running/completed/failed) to prevent replay after abrupt failure; offline local signed-package planning; bounded database/validator subprocesses with original error context preserved; verified database and encrypted-environment restoration before a restore journal is cleared; real SQLite encrypted backup and recovery acceptance added to PR/release CI.",
@@ -121,7 +122,8 @@
     "1.7.9": "AI Automation Security & Acceptance — hardened delivery, concurrency, privacy and regression verification",
     "1.8.0": "AI Automation GA — hardened queue admission, RabbitMQ once-only delivery, privacy erasure, operator kill switch and bounded retention",
     "1.8.1": "Release Baseline & CI Stabilization — synchronized product versions, production API/SDK matching and comprehensive release gates",
-    "1.8.6": "End-to-End Regression: real cross-module acceptance, atomic file-backed preview-token storage, mandatory SQLite, HTTP auth and queue/AI test gates."
+    "1.8.6": "End-to-End Regression: real cross-module acceptance, atomic file-backed preview-token storage, mandatory SQLite, HTTP auth and queue/AI test gates.",
+    "1.9.0-rc.1": "Release candidate for staging/production acceptance; not GA, not LTS; immutable candidate source/dist certification is required before public prerelease publication."
   },
   "stability": "stable"
 }

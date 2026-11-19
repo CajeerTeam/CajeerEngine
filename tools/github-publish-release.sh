@@ -38,9 +38,13 @@ gh release create "$tag" --repo "$repo" --verify-tag --draft --title "CajeerEngi
 python3 - "$repo" "$tag" "${files[@]}" <<'PY'
 import hashlib, json, pathlib, subprocess, sys
 repo, tag, *files = sys.argv[1:]
-release = json.loads(subprocess.check_output(['gh','release','view',tag,'--repo',repo,'--json','isDraft,databaseId']))
+release = json.loads(subprocess.check_output(['gh','release','view',tag,'--repo',repo,'--json','isDraft,isPrerelease,databaseId']))
 if not release['isDraft']:
     raise SystemExit('Expected draft release')
+# A release candidate must never be exposed as a stable GitHub release.
+expected_prerelease = '-' in tag.removeprefix('v')
+if release.get('isPrerelease') is not expected_prerelease:
+    raise SystemExit('GitHub prerelease status does not match SemVer tag')
 raw = json.loads(subprocess.check_output(['gh','api',f"repos/{repo}/releases/{release['databaseId']}"]))
 assets = {a['name']: a for a in raw['assets']}
 for file in files:
@@ -48,10 +52,10 @@ for file in files:
     a = assets.get(p.name)
     if not a or a['size'] != p.stat().st_size or a.get('state') != 'uploaded':
         raise SystemExit('Missing/incomplete asset: ' + p.name)
-    if a.get('digest'):
-        with p.open('rb') as stream:
-            expected = 'sha256:' + hashlib.file_digest(stream, 'sha256').hexdigest()
-        if a['digest'] != expected:
-            raise SystemExit('Remote digest mismatch: ' + p.name)
+    # GitHub must confirm the actual bytes. Size alone is not a strong checksum.
+    with p.open('rb') as stream:
+        expected = 'sha256:' + hashlib.file_digest(stream, 'sha256').hexdigest()
+    if a.get('digest') != expected:
+        raise SystemExit('Missing or incorrect remote digest: ' + p.name)
 PY
 gh release edit "$tag" --repo "$repo" --draft=false

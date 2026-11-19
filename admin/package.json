@@ -19,7 +19,7 @@
   "devDependencies": {
     "typescript": "5.9.3"
   },
-  "version": "1.8.9",
+  "version": "1.9.0-rc.1",
   "engines": {
     "node": ">=20.19.0"
   }

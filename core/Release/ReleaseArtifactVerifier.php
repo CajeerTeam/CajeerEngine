@@ -96,6 +96,16 @@ final class ReleaseArtifactVerifier
             foreach ($packages as $package) if (!isset($checksums['vendor/' . $package . '/composer.json'])) throw new \RuntimeException('Missing locked package: ' . $package);
         }
         if (trim($zip[$prefix . 'VERSION']->getContent()) !== $version) throw new \RuntimeException('Archive VERSION mismatch');
+        $release = json_decode($zip[$prefix . 'release.json']->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $expectedChannel = str_contains($version, '-rc') ? 'rc'
+            : (str_contains($version, '-beta') ? 'beta'
+            : (str_contains($version, '-') ? 'dev' : 'stable'));
+        if (($release['version'] ?? null) !== $version || ($release['channel'] ?? null) !== $expectedChannel) {
+            throw new \RuntimeException('Embedded release metadata/version/channel mismatch');
+        }
+        if (!in_array('api/openapi.yaml', $files, true)) throw new \RuntimeException('Missing API contract in release');
+        $openApi = json_decode($zip[$prefix . 'api/openapi.yaml']->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        if (($openApi['info']['version'] ?? null) !== $version) throw new \RuntimeException('Embedded OpenAPI version mismatch');
         $admin = json_decode($zip[$prefix . 'public/admin/assets/admin-manifest.json']->getContent(), true, 512, JSON_THROW_ON_ERROR);
         if (($admin['ready'] ?? false) !== true || ($admin['version'] ?? '') !== $version) throw new \RuntimeException('Invalid admin manifest');
         foreach (['index.html', 'assets/admin-app.js', 'assets/admin-app.css', 'assets/admin-preview.js', 'assets/admin-preview.css'] as $asset) {

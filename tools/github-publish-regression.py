@@ -21,14 +21,16 @@ mode = os.environ['MOCK_MODE']
 if args[:2] == ['release','view']:
     if '--json' not in args:
         sys.exit(0 if mode == 'existing' else 1)
-    print(json.dumps({'isDraft': True, 'databaseId': 123}))
+    print(json.dumps({'isDraft': True, 'isPrerelease': ('-rc' in os.environ.get('CE_TEST_VERSION','')) and mode != 'wrong-prerelease', 'databaseId': 123}))
 elif args[:2] == ['release','create']:
     assert '--draft' in args and '--verify-tag' in args
+    assert ('--prerelease' in args) == ('-rc' in os.environ.get('CE_TEST_VERSION',''))
     if mode == 'upload-failed': sys.exit(1)
     files = [pathlib.Path(a) for a in args if a.startswith('/')]
     assets = [{'name':p.name, 'size':p.stat().st_size, 'state':'uploaded', 'digest':'sha256:'+hashlib.sha256(p.read_bytes()).hexdigest()} for p in files]
     if mode == 'incomplete': assets.pop()
     if mode == 'bad-digest': assets[0]['digest'] = 'sha256:'+'0'*64
+    if mode == 'missing-digest': assets[0].pop('digest',None)
     state.write_text(json.dumps({'assets':assets}))
 elif args[:1] == ['api']:
     print(state.read_text())
@@ -54,7 +56,7 @@ with tempfile.TemporaryDirectory(prefix='ce-gh-publish-') as temp:
         (release / (name + '.sig')).write_text('fixture signature')
     def run(mode, tag='v'+VERSION, repo='cajeerteam/CajeerEngine', success=False):
         state = base / (mode+'.json')
-        env = dict(os.environ, PATH=f'{base}:{os.environ["PATH"]}', MOCK_MODE=mode, MOCK_STATE=str(state))
+        env = dict(os.environ, PATH=f'{base}:{os.environ["PATH"]}', MOCK_MODE=mode, MOCK_STATE=str(state), CE_TEST_VERSION=VERSION)
         result = subprocess.run(['bash',str(SCRIPT),str(release),tag,repo],env=env,capture_output=True,text=True)
         assert (result.returncode == 0) == success, (mode,result.stdout,result.stderr)
         assert state.with_suffix('.published').exists() == success, mode
@@ -64,6 +66,8 @@ with tempfile.TemporaryDirectory(prefix='ce-gh-publish-') as temp:
     run('upload-failed')
     run('incomplete')
     run('bad-digest')
+    run('missing-digest')
+    run('wrong-prerelease')
     run('wrong-tag',tag='v0.0.0')
     run('wrong-repo',repo='other/repository')
     evidence=release/'certification.json'; original=evidence.read_bytes(); evidence.unlink()

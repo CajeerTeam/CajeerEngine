@@ -25,6 +25,15 @@ final readonly class VersionVerifier
             ? CheckResult::pass('version', 'VERSION', 'VERSION содержит корректный номер релиза.')
             : CheckResult::fail('version', 'VERSION', 'VERSION должен содержать SemVer MAJOR.MINOR.PATCH с допустимым prerelease-суффиксом.', ['actual' => $version]);
 
+        // Prereleases are never stable, even when the download artifact is versioned correctly.
+        $channel = $release['channel'] ?? null;
+        $expectedChannel = str_contains($version, '-rc') ? 'rc'
+            : (str_contains($version, '-beta') ? 'beta'
+            : (str_contains($version, '-') ? 'dev' : 'stable'));
+        $checks[] = $channel === $expectedChannel
+            ? CheckResult::pass('version', 'release.channel', 'Release channel matches SemVer prerelease status.')
+            : CheckResult::fail('version', 'release.channel', 'Prerelease channel/version mismatch.', ['expected' => $expectedChannel, 'actual' => $channel]);
+
         $expected = [
             'release.json' => $release['version'] ?? null,
             'packages/php-sdk/composer.json' => $phpSdk['version'] ?? null,
