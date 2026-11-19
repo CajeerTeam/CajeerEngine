@@ -32,6 +32,8 @@ final readonly class DatabaseController
                     'applied_count' => count($status['applied']),
                     'pending_count' => count($status['pending']),
                     'failed_count' => count($status['failed']),
+                    'integrity_error_count' => count($status['integrity_errors']),
+                    'integrity_errors' => $status['integrity_errors'],
                     'applied' => $status['applied'],
                     'pending' => $status['pending'],
                     'failed' => $status['failed'],

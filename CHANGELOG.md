@@ -1,3 +1,11 @@
+# 1.8.4 — Database & Compatibility
+
+- Apply the **unchanged published migration SQL** on MySQL 8.4 and MariaDB 10.11: the migration executor resolves legacy `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` using `information_schema`, skips existing columns and executes individual statements without enabling PDO multi-statements. Previously applied migration checksums remain valid.
+- Refuse migration runs if the requested SQL dialect does not match the actual PDO driver. Read each migration once, using identical bytes for execution and SHA-256 ledger checks.
+- Report altered or missing already-applied migration files in `migrate:status` and database migrations API; CLI exits nonzero on integrity failures.
+- Validate database connection charset and PostgreSQL TLS mode. Add regression/fault tests and full isolated-schema migrations on PostgreSQL, MariaDB and SQLite in release CI.
+- No new migrations or deliberate breaking changes to the existing API/SDK. See [Database compatibility operations](docs/database-compatibility-1.8.4.md).
+
 # 1.8.3 — Runtime & Queue Resilience
 
 - Isolate scheduler task execution and state inspection: a failed queue cleanup or corrupt task ledger cannot prevent other due tasks from running.

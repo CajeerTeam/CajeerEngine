@@ -208,3 +208,7 @@ Review the [security deployment and acceptance notes](docs/security-hardening-1.
 ### Runtime & Queue Resilience (1.8.3)
 
 Worker batches now report queue transport outages and uncertain acknowledgements without requeueing an already executed handler. Scheduler tasks are fault-isolated and failures propagate as nonzero CLI exits and HTTP 503 for affected operations. See [runtime and queue recovery guide](docs/runtime-queue-resilience-1.8.3.md).
+
+### Database & Compatibility (1.8.4)
+
+MySQL 8.4 and MariaDB 10.11 now apply the original versioned SQL migrations through a dialect-compatible executor (the historic migration files and their SHA-256 checksums remain unchanged). Migration integrity is verified by `php bin/cajeer migrate:status`, and isolated full-database checks are available in release CI. See [database compatibility and upgrade instructions](docs/database-compatibility-1.8.4.md).

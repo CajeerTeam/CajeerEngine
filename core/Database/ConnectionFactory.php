@@ -37,6 +37,13 @@ final readonly class ConnectionFactory
             throw new \RuntimeException('DB connection не настроен: ' . $driver);
         }
 
+        $charset = null;
+        if ($driver === 'mysql') {
+            $charset = (string) ($connection['charset'] ?? 'utf8mb4');
+            if (!preg_match('/^[a-zA-Z0-9_]{1,40}$/D', $charset)) {
+                throw new \InvalidArgumentException('Invalid MySQL charset');
+            }
+        }
         $dsn = (string) ($connection['dsn'] ?? '');
         if ($dsn === '') {
             $dsn = $this->dsn($driver, $connection);
@@ -49,9 +56,12 @@ final readonly class ConnectionFactory
         ];
         if ($driver === 'mysql') {
             $options[PDO::ATTR_EMULATE_PREPARES] = false;
+            if (defined('PDO::MYSQL_ATTR_MULTI_STATEMENTS')) {
+                $options[PDO::MYSQL_ATTR_MULTI_STATEMENTS] = false;
+            }
             $options[PDO::ATTR_TIMEOUT] = self::bounded($connection,'connect_timeout',5,1,60);
             if (defined('PDO::MYSQL_ATTR_INIT_COMMAND')) {
-                $options[PDO::MYSQL_ATTR_INIT_COMMAND] = "SET NAMES " . (string) ($connection['charset'] ?? 'utf8mb4');
+                $options[PDO::MYSQL_ATTR_INIT_COMMAND] = "SET NAMES " . $charset;
             }
         }
 
@@ -129,6 +139,9 @@ final readonly class ConnectionFactory
         $dsn .= ';connect_timeout='.self::bounded($connection,'connect_timeout',5,1,60);
         $sslmode = (string) ($connection['sslmode'] ?? '');
         if ($sslmode !== '') {
+            if (!in_array($sslmode, ['disable', 'allow', 'prefer', 'require', 'verify-ca', 'verify-full'], true)) {
+                throw new \InvalidArgumentException('Invalid PostgreSQL sslmode');
+            }
             $dsn .= ';sslmode=' . $sslmode;
         }
         return $dsn;

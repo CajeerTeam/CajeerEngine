@@ -19,6 +19,25 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U cajeer -d cajeer_smoke"
           --health-interval 5s --health-timeout 5s --health-retries 10
+      postgres18:
+        image: postgres:18
+        env:
+          POSTGRES_USER: cajeer
+          POSTGRES_PASSWORD: release-smoke
+          POSTGRES_DB: cajeer_smoke
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U cajeer -d cajeer_smoke"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      mysql84:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: migration-fixture
+          MYSQL_ROOT_HOST: '%'
+        ports: ['3307:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pmigration-fixture"
+          --health-interval 5s --health-timeout 5s --health-retries 20
       mariadb:
         image: mariadb:10.11
         env:
@@ -58,6 +77,13 @@ jobs:
           php tools/generate-api-sdk.php --check
           php tools/ci-check.php --strict
           php bin/cajeer api:lint --strict --json
+      - name: Database compatibility and full migration acceptance
+        env:
+          DB_COMPAT_FIXTURE: "1"
+        run: |
+          php tools/database-compatibility-regression.php
+          python3 tools/database-compatibility-sqlite-regression.py
+          php tools/database-compatibility-integration.php
       - name: Full PHPUnit suite (all platform modules)
         run: vendor/bin/phpunit --no-coverage
       - name: PHPStan core static analysis

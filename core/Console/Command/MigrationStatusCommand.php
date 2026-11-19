@@ -37,6 +37,9 @@ final class MigrationStatusCommand extends BaseCommand
             $output->writeln('  [FAILED] ' . $migration['migration'] . ' ' . ($migration['error'] ?? ''));
         }
 
-        return count($status['failed']) > 0 ? self::FAILURE : self::SUCCESS;
+        foreach ($status['integrity_errors'] as $problem) {
+            $output->writeln(sprintf('  [INTEGRITY] %s: %s', $problem['migration'], $problem['reason']));
+        }
+        return count($status['failed']) > 0 || count($status['integrity_errors']) > 0 ? self::FAILURE : self::SUCCESS;
     }
 }

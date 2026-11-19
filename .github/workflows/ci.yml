@@ -33,6 +33,10 @@ jobs:
           php tools/ci-check.php --strict
           php bin/cajeer api:lint --strict --json
           php tools/build-release.php --dry-run --all --json > /dev/null
+      - name: Database dialect and migration compatibility regression
+        run: |
+          php tools/database-compatibility-regression.php
+          python3 tools/database-compatibility-sqlite-regression.py
       - name: Runtime and queue fault-injection acceptance
         run: php tools/runtime-queue-resilience-regression.php
       - name: Security hardening acceptance
