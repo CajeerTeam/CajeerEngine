@@ -1,3 +1,12 @@
+# 1.7.8 — AI Background Automation
+
+- Owner-isolated scheduled and one-off OpenAI prompts with real queue workers and persistent per-run history.
+- Scheduler-driven dispatch, durable queue idempotency, atomic worker claims and interruption handling without unsafe automatic provider retries.
+- AI Chat conversation output with existing token limits, budget reservations and USD cost accounting.
+- Admin UI for creating, editing, pausing, launching and inspecting schedules (Nuxt and static production UI).
+- Three-database migrations, RBAC rechecks, audit events and integration coverage.
+- [Operations and API guide](docs/ai-background-automation-1.7.8.md).
+
 # 1.7.7 — AI Budget & Cost Control
 
 - Integer USD-micro cost ledger with snapshotted per-model input, cached-input and output prices.

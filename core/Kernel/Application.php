@@ -362,6 +362,9 @@ final class Application
         $container->set(ImportExportService::class, fn (): ImportExportService => new ImportExportService($rootPath));
         $container->set(ReleaseCandidateAuditor::class, fn (): ReleaseCandidateAuditor => new ReleaseCandidateAuditor($rootPath));
         $container->set(StableReleaseService::class, fn (ServiceContainer $c): StableReleaseService => new StableReleaseService($rootPath, $c->get(ConfigRepository::class)));
+        $container->set(\CajeerEngine\AI\AiBackgroundAutomation::class, fn (ServiceContainer $c): \CajeerEngine\AI\AiBackgroundAutomation => new \CajeerEngine\AI\AiBackgroundAutomation(
+            $c->get(DatabaseManager::class), $c->get(ManagedQueueDriverInterface::class), $c->get(AiChat::class)
+        ));
         $container->set(QueueWorker::class, fn (ServiceContainer $c): QueueWorker => new QueueWorker(
             $c->get(ManagedQueueDriverInterface::class),
             $c->get(SearchIndexer::class),
@@ -372,6 +375,7 @@ final class Application
             $c->get(\CajeerEngine\Analytics\Reporting\AnalyticsHub::class),
             $c->get(\CajeerEngine\AI\AiTranslationStudio::class),
             $c->get(\CajeerEngine\AI\AiSupportCenter::class),
+            $c->get(\CajeerEngine\AI\AiBackgroundAutomation::class),
         ));
         $container->set(SchedulerRunner::class, fn (ServiceContainer $c): SchedulerRunner => new SchedulerRunner(
             $rootPath,
@@ -382,6 +386,7 @@ final class Application
             $c->get(ExtensionRuntime::class)->platform(),
             \CajeerEngine\Scheduler\TaskRunStore::fromConfig($rootPath,$c->get(ConfigRepository::class),$c->get(DatabaseManager::class)),
             $c->get(\CajeerEngine\Analytics\Reporting\AnalyticsHub::class),
+            $c->get(\CajeerEngine\AI\AiBackgroundAutomation::class),
         ));
 
         $container->set('controller.health', fn (): HealthController => new HealthController($rootPath));
@@ -511,6 +516,9 @@ final class Application
             $c->get(\CajeerEngine\AI\AiExternalAnalytics::class), $c->get(RateLimiter::class), $c->get(AuditLogger::class),
             $c->get(\CajeerEngine\AI\AiSeoContentInsights::class), $c->get(AiContentEditor::class)
         ));
+        $container->set('controller.aiAutomations', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\AiAutomationController => new \CajeerEngine\Api\Controller\AiAutomationController(
+            $c->get(\CajeerEngine\AI\AiBackgroundAutomation::class), $c->get(RateLimiter::class), $c->get(AuditLogger::class)
+        ));
         $container->set('controller.ai', fn (ServiceContainer $c): AiController => new AiController(
             $c->get(AiChat::class), $c->get(AiSettings::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class),
             $c->get(AiContentEditor::class), $c->get(AiSeoAssistant::class), $c->get(\CajeerEngine\AI\AiTranslationStudio::class), $c->get(ManagedQueueDriverInterface::class),
@@ -623,6 +631,7 @@ final class Application
         $public = $container->get('controller.public');
 
         $ai = $container->get('controller.ai');
+        $aiAutomations = $container->get('controller.aiAutomations');
         $knowledge = $container->get('controller.knowledge');
         $support = $container->get('controller.support');
         $integrations = $container->get('controller.integrations');
@@ -632,7 +641,7 @@ final class Application
         $analyticsEvents = $container->get('controller.analyticsEvents');
         $migration = $container->get('controller.migration');
         $aiMigration = $container->get('controller.aiMigration');
-        $controllers = compact('aiMigration', 'support', 'knowledge', 'ai', 'identityAdmin', 'oidc', 'migration', 'analyticsHub', 'tracking', 'analyticsEvents', 'consent', 'integrations', 'health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
+        $controllers = compact('aiAutomations', 'aiMigration', 'support', 'knowledge', 'ai', 'identityAdmin', 'oidc', 'migration', 'analyticsHub', 'tracking', 'analyticsEvents', 'consent', 'integrations', 'health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
         foreach (\CajeerEngine\Http\RouteRegistry::all() as [$method, $path, $name, $controller, $action, $scopes]) {
             $router->add([$method], $path, $name, [$controllers[$controller], $action], $scopes);
         }

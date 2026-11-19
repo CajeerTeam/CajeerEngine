@@ -184,3 +184,7 @@ Manage privacy policy at `/admin/#/privacy`. Public pages display a consent bann
 ### Integration Center (1.3.1)
 
 См. [руководство по интеграциям](docs/integration-center.md).
+
+### AI Background Automation (1.7.8)
+
+Owner-scoped scheduled and manual OpenAI prompts run on the existing Scheduler and QueueWorker, with saved conversations, pause/resume, history and AI budget enforcement. [Configuration and operations](docs/ai-background-automation-1.7.8.md).

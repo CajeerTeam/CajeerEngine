@@ -57,7 +57,7 @@ final readonly class AiChat
     }
 
     /** @return array<string,mixed> */
-    public function send(string $userId, ?string $id, string $message, ?callable $onDelta = null, bool $toolsEnabled = false, array $scopes = [], ?callable $onTool = null, bool $actionsEnabled = false): array
+    public function send(string $userId, ?string $id, string $message, ?callable $onDelta = null, bool $toolsEnabled = false, array $scopes = [], ?callable $onTool = null, bool $actionsEnabled = false, string $billingModule = 'chat'): array
     {
         $message = trim($message);
         if ($message === '' || strlen($message) > 12000 || !preg_match('//u', $message)) throw new \InvalidArgumentException('Message must be valid UTF-8 and 1–12000 bytes.');
@@ -72,7 +72,7 @@ final readonly class AiChat
         $month = gmdate('Y-m');
         $costJob = self::uuid();
         // Reserve a deliberately conservative upper bound before the external call.
-        $prepared = $this->db->transaction(function (PDO $pdo) use ($userId, $id, $newId, $message, $settings, $now, $busyUntil, $month, $definitions, $costJob): array {
+        $prepared = $this->db->transaction(function (PDO $pdo) use ($userId, $id, $newId, $message, $settings, $now, $busyUntil, $month, $definitions, $costJob, $billingModule): array {
             // Reclaim reservations abandoned by dead PHP workers after the 180s lease expires.
             $expiredQuery = 'SELECT id, reserved_tokens, reservation_period FROM ce_ai_conversations WHERE user_id = ? AND busy_until > 0 AND busy_until < ? AND reserved_tokens > 0';
             if (in_array($this->db->driver(), ['mysql', 'pgsql'], true)) $expiredQuery .= ' FOR UPDATE';
@@ -119,7 +119,7 @@ final readonly class AiChat
             if ($usage->rowCount() !== 1) throw new \DomainException('Monthly AI token budget reached.');
             $reserve = $pdo->prepare('UPDATE ce_ai_conversations SET reserved_tokens = ?, reservation_period = ? WHERE id = ? AND user_id = ?');
             $reserve->execute([$reservation, $month, $id, $userId]);
-            (new AiCostControl($this->db, $this->settings))->hold($pdo, $costJob, $userId, $definitions === [] ? 'chat' : 'chat_tools', $settings, $reservation, $busyUntil, $now);
+            (new AiCostControl($this->db, $this->settings))->hold($pdo, $costJob, $userId, $billingModule === 'chat' && $definitions !== [] ? 'chat_tools' : $billingModule, $settings, $reservation, $busyUntil, $now);
             return ['input' => $input, 'reservation' => $reservation, 'title' => $row['title']];
         });
         try {

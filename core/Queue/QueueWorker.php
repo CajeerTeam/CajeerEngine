@@ -10,9 +10,15 @@ final class QueueWorker
 {
     private JobHandlerRegistry $handlers;
     private bool $stopping=false;
-    public function __construct(private readonly ManagedQueueDriverInterface $queue,private readonly SearchIndexer $searchIndexer,private readonly WebhookRepository $webhooks,private readonly WebhookDispatcher $dispatcher,private readonly ?\CajeerEngine\Extension\Runtime\PlatformServices $platform=null,private readonly ?\CajeerEngine\Analytics\ServerEvents $analytics=null,private readonly ?\CajeerEngine\Analytics\Reporting\AnalyticsHub $analyticsHub=null,private readonly ?\CajeerEngine\AI\AiTranslationStudio $translationStudio=null,private readonly ?\CajeerEngine\AI\AiSupportCenter $supportCenter=null)
+    public function __construct(private readonly ManagedQueueDriverInterface $queue,private readonly SearchIndexer $searchIndexer,private readonly WebhookRepository $webhooks,private readonly WebhookDispatcher $dispatcher,private readonly ?\CajeerEngine\Extension\Runtime\PlatformServices $platform=null,private readonly ?\CajeerEngine\Analytics\ServerEvents $analytics=null,private readonly ?\CajeerEngine\Analytics\Reporting\AnalyticsHub $analyticsHub=null,private readonly ?\CajeerEngine\AI\AiTranslationStudio $translationStudio=null,private readonly ?\CajeerEngine\AI\AiSupportCenter $supportCenter=null,private readonly ?\CajeerEngine\AI\AiBackgroundAutomation $aiAutomations=null)
     {
         $this->handlers=new JobHandlerRegistry();
+        $this->handlers->register('ai.automation.execute', function (array $payload, JobContext $context): void {
+            if ($this->aiAutomations === null || !is_string($payload['run_id']??null)) throw new \RuntimeException('AI Background Automation unavailable');
+            $context->heartbeat();
+            $this->aiAutomations->execute($payload['run_id'], $context);
+            $context->heartbeat();
+        });
         $this->handlers->register('ai.support.reply', function ($payload, JobContext $ctx): void {
             if ($this->supportCenter === null || !is_string($payload['ticket_id'] ?? null)) throw new \RuntimeException('AI Support job unavailable.');
             $ctx->heartbeat();

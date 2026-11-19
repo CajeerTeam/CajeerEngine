@@ -5,7 +5,92 @@ type Conversation = { id: string; title: string; updated_at: number; total_input
 type PendingAction = { id: string; action: string; payload: Record<string, unknown>; before: Record<string, unknown> | null; expected_revision: number | null; state: string; expires_at: number }
 type ToolRun = { name: string; status: string; duration_ms: number }
 type Message = { id: string; role: 'user' | 'assistant'; content: string; created_at: number; tools?: ToolRun[] }
+type Automation = { id:string; title:string; prompt:string; interval_minutes:number; enabled:boolean; revision:number; next_run_at:number; updated_at:number }
+type AutomationRun = { id:string; scheduled_for:number|null; status:string; queued_at:number; started_at:number|null; finished_at:number|null; conversation_id:string|null; error:string|null }
 type AiStatus = { configured: boolean; credential_source: string; model: string; max_output_tokens: number; monthly_token_limit: number; global_monthly_limit_cents: number; global_daily_limit_cents: number; user_monthly_limit_cents: number; user_daily_limit_cents: number; model_pricing: {input:number;cached:number;output:number}|null }
+const automations = ref<Automation[]>([])
+const automationRuns = ref<AutomationRun[]>([])
+const automationSelected = ref<string | null>(null)
+const automationBusy = ref(false)
+const automationTitle = ref('')
+const automationPrompt = ref('')
+const automationMinutes = ref(1440)
+const automationEnabled = ref(true)
+const automationEditing = ref(false)
+const selectedAutomation = computed(() => automations.value.find(item => item.id === automationSelected.value) || null)
+const refreshAutomations = async () => {
+  automations.value = (await api.request<{ data:Automation[] }>('/ai/automations')).data
+  if (automationSelected.value && !automations.value.some(item => item.id === automationSelected.value)) {
+    automationSelected.value = null
+    automationRuns.value = []
+  }
+  if (automationSelected.value) await refreshAutomationRuns()
+}
+const refreshAutomationRuns = async () => {
+  if (automationSelected.value) automationRuns.value = (await api.request<{ data:AutomationRun[] }>('/ai/automations/' + encodeURIComponent(automationSelected.value) + '/runs')).data
+}
+const selectAutomation = async (item: Automation) => {
+  automationSelected.value = item.id
+  automationTitle.value = item.title
+  automationPrompt.value = item.prompt
+  automationMinutes.value = item.interval_minutes
+  automationEnabled.value = item.enabled
+  automationEditing.value = true
+  try { await refreshAutomationRuns() } catch(e) { error.value = e instanceof Error ? e.message : 'Ошибка истории автоматизации.' }
+}
+const newAutomation = () => {
+  automationSelected.value = null; automationRuns.value = []
+  automationTitle.value = ''; automationPrompt.value = ''; automationMinutes.value = 1440
+  automationEnabled.value = true; automationEditing.value = true
+}
+const saveAutomation = async () => {
+  automationBusy.value = true; error.value = ''; info.value = ''
+  try {
+    const body = {title:automationTitle.value, prompt:automationPrompt.value, interval_minutes:automationMinutes.value, enabled:automationEnabled.value}
+    if (selectedAutomation.value) {
+      await api.request('/ai/automations/' + encodeURIComponent(selectedAutomation.value.id), {method:'PATCH',body:JSON.stringify({...body,revision:selectedAutomation.value.revision})})
+    } else {
+      const result = (await api.request<{data:Automation}>('/ai/automations', {method:'POST',body:JSON.stringify(body)})).data
+      automationSelected.value = result.id
+    }
+    await refreshAutomations(); automationEditing.value = false
+    info.value = 'AI-сценарий сохранён.'
+  } catch(e) { error.value = e instanceof Error ? e.message : 'Ошибка сохранения AI-сценария.' }
+  finally { automationBusy.value = false }
+}
+const toggleAutomation = async (item: Automation) => {
+  automationBusy.value = true; error.value = ''
+  try {
+    await api.request('/ai/automations/' + encodeURIComponent(item.id), {method:'PATCH',body:JSON.stringify({revision:item.revision, enabled:!item.enabled})})
+    await refreshAutomations()
+  } catch(e) { error.value = e instanceof Error ? e.message : 'Не удалось изменить расписание.' }
+  finally { automationBusy.value = false }
+}
+const runAutomation = async (item:Automation) => {
+  automationBusy.value = true; error.value = ''
+  try {
+    await api.request('/ai/automations/' + encodeURIComponent(item.id) + '/run', {method:'POST',body:'{}'})
+    automationSelected.value = item.id
+    await refreshAutomations()
+    info.value = 'AI-задание помещено в очередь.'
+  } catch(e) { error.value = e instanceof Error ? e.message : 'Не удалось запустить AI-сценарий.' }
+  finally { automationBusy.value = false }
+}
+const deleteAutomation = async (item:Automation) => {
+  if (!window.confirm('Удалить AI-сценарий «'+item.title+'»?')) return
+  automationBusy.value = true; error.value = ''
+  try {
+    await api.request('/ai/automations/' + encodeURIComponent(item.id), {method:'DELETE'})
+    await refreshAutomations()
+    automationEditing.value = false
+  } catch(e) { error.value = e instanceof Error ? e.message : 'Не удалось удалить AI-сценарий.' }
+  finally { automationBusy.value = false }
+}
+const openAutomationResult = async (run:AutomationRun) => {
+  if (!run.conversation_id) return
+  await load()
+  await open(run.conversation_id)
+}
 const settings = ref<AiStatus | null>(null)
 const conversations = ref<Conversation[]>([])
 const active = ref<string | null>(null)
@@ -85,6 +170,7 @@ const load = async () => {
     }
     priceRates.value = s.data.model_pricing || {input:0,cached:0,output:0}
     await loadCosts()
+    await refreshAutomations()
   } catch (e) { error.value = e instanceof Error ? e.message : 'Ошибка AI.' }
   finally { loading.value = false }
 }
@@ -257,6 +343,43 @@ const openSaved = async () => {
       </article>
       <p v-if="!pendingActions.length">Предложений, ожидающих подтверждения, нет.</p>
     </section>
+    <section class="ce-ai-settings" aria-label="AI Background Automation">
+      <h2>AI Background Automation</h2>
+      <p>Регулярные AI-запросы выполняются через очередь и Scheduler. Результаты сохраняются в личных диалогах; запись в CMS и AI-инструменты отключены. Применяются лимиты токенов и финансовые ограничения.</p>
+      <div class="ce-automation-actions">
+        <button v-if="canWrite" type="button" :disabled="automationBusy" @click="newAutomation">Новый сценарий</button>
+        <button type="button" :disabled="automationBusy" @click="refreshAutomations">Обновить статусы</button>
+      </div>
+      <div v-for="item in automations" :key="item.id" class="ce-automation-item">
+        <div><strong>{{ item.title }}</strong> · {{ item.enabled ? 'Активен' : 'Приостановлен' }}
+          <div><small>Интервал: {{ item.interval_minutes }} мин · Следующий запуск: {{ new Date(item.next_run_at * 1000).toLocaleString() }}</small></div>
+        </div>
+        <div class="ce-automation-actions">
+          <button type="button" :disabled="automationBusy" @click="selectAutomation(item)">История / изменить</button>
+          <template v-if="canWrite">
+            <button type="button" :disabled="automationBusy || !settings?.configured" @click="runAutomation(item)">Запустить сейчас</button>
+            <button type="button" :disabled="automationBusy" @click="toggleAutomation(item)">{{ item.enabled ? 'Пауза' : 'Возобновить' }}</button>
+            <button type="button" :disabled="automationBusy" @click="deleteAutomation(item)">Удалить</button>
+          </template>
+        </div>
+      </div>
+      <p v-if="!automations.length">Сценариев пока нет.</p>
+      <form v-if="automationEditing && canWrite" class="ce-automation-form" @submit.prevent="saveAutomation">
+        <h3>{{ selectedAutomation ? 'Изменение сценария' : 'Создать сценарий' }}</h3>
+        <label>Название <input v-model="automationTitle" required maxlength="160" /></label>
+        <label>Запрос для OpenAI <textarea v-model="automationPrompt" required maxlength="12000" rows="4" /></label>
+        <label>Интервал <select v-model.number="automationMinutes"><option :value="60">Ежечасно</option><option :value="360">Каждые 6 часов</option><option :value="1440">Ежедневно</option><option :value="10080">Еженедельно</option></select></label>
+        <label><input v-model="automationEnabled" type="checkbox" /> Включить автоматические запуски</label>
+        <div class="ce-automation-actions"><button type="submit" :disabled="automationBusy || !settings?.configured">Сохранить</button><button type="button" @click="automationEditing=false">Отмена</button></div>
+      </form>
+      <div v-if="selectedAutomation" class="ce-automation-history">
+        <h3>История: {{ selectedAutomation.title }}</h3>
+        <button type="button" :disabled="automationBusy" @click="refreshAutomationRuns">Обновить историю</button>
+        <table><thead><tr><th>Время</th><th>Статус</th><th>Результат</th></tr></thead><tbody>
+          <tr v-for="run in automationRuns" :key="run.id"><td>{{ new Date(run.queued_at * 1000).toLocaleString() }}</td><td>{{ run.status }} <small v-if="run.error">{{ run.error }}</small></td><td><button v-if="run.conversation_id" type="button" @click="openAutomationResult(run)">Открыть диалог</button><span v-else>—</span></td></tr>
+        </tbody></table>
+      </div>
+    </section>
     <section v-if="viewCosts" class="ce-ai-settings" aria-label="AI Budget & Cost Control">
       <h2>AI Budget & Cost Control</h2>
       <p>Расходы в USD по сохранённым ответам OpenAI; суммы расчётные, не официальный счёт провайдера.</p>
@@ -309,4 +432,5 @@ const openSaved = async () => {
 <style scoped>
 .ce-ai{max-width:1300px}.ce-ai-layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:18px;margin-top:20px}.ce-ai-sidebar,.ce-ai-main,.ce-ai-settings{border:1px solid #e2e8f0;border-radius:12px;padding:15px;background:white}.ce-ai-sidebar{max-height:65vh;overflow:auto}.ce-ai-item{display:flex;align-items:center;gap:4px;padding:7px 0;border-bottom:1px solid #e2e8f0}.ce-ai-title{flex:1;text-align:left;overflow-wrap:anywhere}.ce-ai-title[aria-current=page]{font-weight:bold}.ce-ai-item button{border:0;border-radius:5px;background:#f1f5f9;padding:7px;cursor:pointer}.ce-ai-messages{height:min(54vh,650px);min-height:250px;overflow-y:auto;display:flex;flex-direction:column;gap:13px}.ce-ai-message{padding:12px;border-radius:10px;background:#f1f5f9}.ce-ai-message.user{background:#eaf2ff}.ce-ai-message p{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0 0}.ce-ai-compose{display:grid;gap:10px;margin-top:14px}.ce-ai-compose textarea,.ce-ai-settings input{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px}.ce-ai-compose button,.ce-ai-settings button,.ce-ai-sidebar>button{padding:10px;border:0;border-radius:8px;background:#155eef;color:white;cursor:pointer}.ce-ai-compose button:disabled{opacity:.5}.ce-ai-settings{margin-top:20px}.ce-ai-settings form{display:grid;gap:12px;padding-top:14px}.ce-ai-settings label{display:grid;gap:5px}.ce-ai-settings fieldset{display:grid;gap:9px;border:1px solid #cbd5e1;border-radius:8px;padding:12px}.ce-ai-settings table{width:100%;border-collapse:collapse}.ce-ai-settings th,.ce-ai-settings td{text-align:left;padding:6px;border-bottom:1px solid #e2e8f0}.ce-ai-settings select{padding:6px}.ce-ai-settings button[type=button]{background:#64748b}.ce-ai-error{color:#b42318}.ce-ai-notice{padding:12px;background:#fff4dc;margin-bottom:12px}@media(max-width:850px){.ce-ai-layout{grid-template-columns:1fr}.ce-ai-sidebar{max-height:190px}}
 .ce-ai-action{border-top:1px solid #d7dfe9;padding:16px 0}.ce-ai-action-diff{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.ce-ai-action pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f9;padding:10px;border-radius:8px;max-height:250px;overflow:auto}.ce-ai-action-buttons{display:flex;gap:10px;margin-top:10px}@media(max-width:800px){.ce-ai-action-diff{grid-template-columns:1fr}}
+.ce-automation-item{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #e2e8f0}.ce-automation-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.ce-automation-form{display:grid;gap:12px;margin-top:20px}.ce-automation-form textarea,.ce-automation-form input:not([type=checkbox]){width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:8px}.ce-automation-history{margin-top:18px}.ce-automation-history td small{display:block}
 </style>

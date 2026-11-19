@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.7.7'
+const ADMIN_VERSION = '1.7.8'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -60,7 +60,7 @@ const state = {
     knowledgeChat: {active:null,messages:[],busy:false,visibility:'all',locale:'',question:''},
     support: {selected:null,status:'',offset:0,busy:false,reply:'',draft:'',draftSources:[],assignee:'',priority:'normal',ticketStatus:'open'},
     translation: {type:'',entry:'',locale:'en',instructions:'',updateExisting:false,overview:null,glossary:[],proposal:null,busy:false,batch:null,batchSelection:[],batchUpdateExisting:false},
-    aiSelected: null, aiMessages: [], aiBusy: false, aiToolsEnabled: false, aiActionsEnabled: false, aiActionsBusy: false, aiToolsRunning: [], aiEditor: {field:'title',mode:'generate',instructions:'',selection:'',busy:false,proposal:null},
+    aiAutomationSelected: null, aiAutomationEditing: false, aiAutomationRuns: [], aiSelected: null, aiMessages: [], aiBusy: false, aiToolsEnabled: false, aiActionsEnabled: false, aiActionsBusy: false, aiToolsRunning: [], aiEditor: {field:'title',mode:'generate',instructions:'',selection:'',busy:false,proposal:null},
     role: { handle: '', name: '', permissions: 'content:read,content:write' },
     token: { name: 'Admin token', scopes: 'content:read,content:write' },
     redirect: { from: '', to: '/', status: 301, enabled: true },
@@ -212,7 +212,7 @@ async function routeLoad(route) {
     if (route === 'cms') await Promise.allSettled([loadSilent('cmsOverview', '/cms'), loadSilent('theme', '/cms/theme'), loadSilent('navigation', '/cms/navigation'), loadSilent('redirects', '/cms/redirects'), loadSilent('publicRoutes', `/cms/routes?limit=100&offset=${state.forms.routeOffset || 0}`)])
     if (route === 'users') await Promise.allSettled([loadSilent('users', '/users'), loadSilent('roles', '/roles'), loadSilent('tokens', '/api-tokens')])
     if (route === 'identity') await Promise.allSettled([loadSilent('identity', '/identity/account'), loadSilent('sessions', '/auth/sessions'), ...(integrationScope('users:read') ? [loadIdentityUsers()] : [])])
-    if (route === 'ai') await Promise.allSettled([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations'),loadSilent('aiTools','/ai/tools'),loadSilent('aiActions','/ai/actions'),...(integrationScope('system:read')?[loadSilent('aiCosts','/ai/costs?days=30')]:[])])
+    if (route === 'ai') await Promise.allSettled([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations'),loadSilent('aiTools','/ai/tools'),loadSilent('aiActions','/ai/actions'),loadSilent('aiAutomations','/ai/automations'),...(integrationScope('system:read')?[loadSilent('aiCosts','/ai/costs?days=30')]:[])])
     if (route === 'diagnostics') await loadSilent('aiDiagnostics','/ai/diagnostics?window_minutes='+state.forms.diagnostics.window)
     if (route === 'knowledge') await Promise.allSettled([loadSilent('kbCategories','/knowledge/categories'),loadSilent('kbDocuments','/knowledge/documents?limit=30&offset='+state.forms.knowledge.offset),loadSilent('kbTypes','/content-types')])
     if (route === 'knowledge-chat') await Promise.allSettled([loadSilent('kbChatConversations','/knowledge/chat/conversations'),loadSilent('aiStatus','/ai/status')])
@@ -720,6 +720,17 @@ function table(headers, rows) {
   return `<div class="table-wrap"><table><thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`
 }
 
+function automationView() {
+  const f=state.forms
+  const items=asArray(state.cache.aiAutomations)
+  const canWrite=integrationScope('content:write')
+  const selected=items.find(x=>x.id===f.aiAutomationSelected)
+  const lines=items.map(item=>`<article class="card" style="margin:10px 0;padding:12px"><strong>${escapeHtml(item.title)}</strong> · ${item.enabled?'Активен':'Пауза'}<p class="muted">Интервал: ${Number(item.interval_minutes)} мин · Следующий запуск: ${new Date(Number(item.next_run_at)*1000).toLocaleString()}</p><div class="row-actions"><button type="button" class="btn small secondary" data-ai-automation-edit="${escapeHtml(item.id)}">История / изменить</button>${canWrite?`<button type="button" class="btn small" data-ai-automation-run="${escapeHtml(item.id)}">Запустить</button><button type="button" class="btn small secondary" data-ai-automation-toggle="${escapeHtml(item.id)}">${item.enabled?'Пауза':'Возобновить'}</button><button type="button" class="btn small danger" data-ai-automation-delete="${escapeHtml(item.id)}">Удалить</button>`:''}</div></article>`).join('')
+  const form = canWrite&&f.aiAutomationEditing?`<form data-ai-automation-form class="form" style="margin-top:14px"><h3>${selected?'Изменить':'Создать'} сценарий</h3><div class="form-row"><label>Название</label><input class="input" name="title" required maxlength="160" value="${escapeHtml(selected?.title||'')}"></div><div class="form-row"><label>Запрос для OpenAI</label><textarea class="input" name="prompt" required maxlength="12000" rows="4">${escapeHtml(selected?.prompt||'')}</textarea></div><div class="form-row"><label>Интервал</label><select class="input" name="interval_minutes">${[60,360,1440,10080].map(min=>`<option value="${min}" ${Number(selected?.interval_minutes||1440)===min?'selected':''}>${min===60?'Ежечасно':min===360?'Каждые 6 часов':min===1440?'Ежедневно':'Еженедельно'}</option>`).join('')}</select></div><label><input type="checkbox" name="enabled" ${selected?.enabled??true?'checked':''}> Включено</label><div class="row-actions"><button class="btn" type="submit">Сохранить</button><button type="button" class="btn secondary" data-ai-automation-cancel>Отмена</button></div></form>`:''
+  const runs=selected?`<h3>История: ${escapeHtml(selected.title)}</h3><button type="button" class="btn small secondary" data-ai-automation-refresh-runs>Обновить историю</button>${table(['Время','Статус','Результат'],asArray(f.aiAutomationRuns).map(run=>`<tr><td>${new Date(Number(run.queued_at)*1000).toLocaleString()}</td><td>${escapeHtml(run.status)}${run.error?' · '+escapeHtml(run.error):''}</td><td>${run.conversation_id?`<button type="button" class="btn small" data-ai-automation-open-result="${escapeHtml(run.conversation_id)}">Открыть диалог</button>`:'—'}</td></tr>`))}`:''
+  return `<section class="card" style="margin-top:18px"><h2>AI Background Automation</h2><p class="muted">Регулярные запросы обрабатываются очередью и Scheduler. Результаты — в личных AI-диалогах. Без AI-инструментов и автоматических изменений CMS. Используются действующие лимиты токенов и USD.</p><div class="row-actions">${canWrite?'<button class="btn" type="button" data-ai-automation-new>Новый сценарий</button>':''}<button class="btn secondary" type="button" data-ai-automation-refresh>Обновить</button></div>${lines||'<p class="muted">Сценариев нет.</p>'}${form}${runs}</section>`
+}
+
 function aiView() {
   const f = state.forms
   const status = dataOf(state.cache.aiStatus, {})
@@ -744,18 +755,52 @@ function aiView() {
   const costRows = list => table(['Модуль / модель / пользователь','Запросы','USD'],asArray(list).map(row=>`<tr><td>${escapeHtml(row.label)}</td><td>${Number(row.requests)}</td><td>${money(row.cost_micro_usd)}</td></tr>`))
   const costView = mayReadCosts ? `<section class="card" style="margin-top:18px"><h2>AI Budget & Cost Control</h2><p class="muted">Оценочные расходы по зафиксированному usage OpenAI. Реальный счёт провайдера может отличаться.</p><button type="button" class="btn secondary small" data-ai-costs-refresh>Обновить</button>${alertsHtml}<ul>${balanceRows}</ul><h3>По модулям</h3>${costRows(costs.by_module)}<h3>По моделям</h3>${costRows(costs.by_model)}<details><summary>По пользователям</summary>${costRows(costs.by_user)}</details><p class="muted">${escapeHtml(costs.notice||'')}</p></section>` : ''
   const settingsView = canManage ? `<details class="card"><summary><strong>Настройки OpenAI</strong></summary><form data-ai-settings class="form" style="margin-top:14px"><div class="form-row"><label>API-ключ (пустое поле сохраняет текущий)</label><input class="input" name="api_key" type="password" autocomplete="off" placeholder="sk-..."></div><div class="form-row"><label>Модель</label><input class="input" name="model" required value="${escapeHtml(status.model || 'gpt-4.1-mini')}"></div><div class="form-row"><label>Лимит токенов ответа</label><input class="input" name="max_output_tokens" type="number" min="128" max="4096" value="${Number(status.max_output_tokens || 1024)}" required></div><div class="form-row"><label>Месячный бюджет токенов на пользователя</label><input class="input" name="monthly_token_limit" type="number" min="1000" max="10000000" value="${Number(status.monthly_token_limit || 250000)}" required></div><fieldset><legend>Лимиты USD cents (0 — без лимита)</legend>${[['global_monthly_limit_cents','CMS / месяц',10000],['global_daily_limit_cents','CMS / день',2000],['user_monthly_limit_cents','Пользователь / месяц',2000],['user_daily_limit_cents','Пользователь / день',500]].map(([key,label,defaultValue])=>`<div class="form-row"><label>${label}</label><input class="input" name="${key}" type="number" min="0" max="100000000" value="${Number(status[key]??defaultValue)}" required></div>`).join('')}</fieldset><fieldset><legend>Тарифы модели · центы USD / 1 млн токенов</legend><p>Текущие ставки: ${escapeHtml(JSON.stringify(status.model_pricing||null))}. Для новой модели задайте проверенную цену перед запросом.</p><label><input name="price_override" type="checkbox"> Изменить цены выбранной модели</label>${[['input','Входные'],['cached','Кешированные'],['output','Выходные']].map(([key,label])=>`<div class="form-row"><label>${label}</label><input class="input" name="price_${key}" type="number" min="0" max="10000000" value="${Number(status.model_pricing?.[key]??0)}"></div>`).join('')}</fieldset><div class="row-actions"><button type="submit" class="btn">Сохранить настройки</button><button type="button" class="btn danger" data-ai-remove-key>Удалить сохранённый ключ</button></div><p class="muted">Требуются system:write и integrations:secrets, CSRF и повторное подтверждение в Identity Center.</p></form></details>` : ''
-  const html = `<div class="card"><p>OpenAI: <strong>${status.configured ? 'подключён' : 'не настроен'}</strong> · Модель: <code>${escapeHtml(status.model || '—')}</code> · Ключ: ${escapeHtml(status.credential_source || 'none')}</p>${!status.configured ? '<p class="muted">Администратор должен настроить OpenAI API-ключ.</p>' : ''}</div><div class="ai-layout"><aside class="card"><button class="btn" data-ai-new ${f.aiBusy ? 'disabled' : ''}>Новый диалог</button><div class="ai-threads">${rows || '<p class="muted">Диалогов нет</p>'}</div></aside><section class="card"><h2>${escapeHtml(title)}</h2><div class="ai-messages" aria-live="polite">${content || '<p class="muted">Отправьте первое сообщение.</p>'}<article class="ai-bubble assistant" data-ai-stream style="display:${f.aiBusy ? '' : 'none'}"><strong>ChatGPT</strong><div>Генерация…</div></article></div><form data-ai-chat class="form">${toolPanel}<textarea class="input" rows="4" maxlength="12000" name="message" placeholder="Сообщение для ChatGPT" ${!status.configured || f.aiBusy ? 'disabled' : ''} required></textarea><button class="btn" type="submit" ${!status.configured || f.aiBusy ? 'disabled' : ''}>${f.aiBusy ? 'Генерация…' : 'Отправить'}</button></form></section></div>${actionsView}${costView}${settingsView}`
+  const html = `<div class="card"><p>OpenAI: <strong>${status.configured ? 'подключён' : 'не настроен'}</strong> · Модель: <code>${escapeHtml(status.model || '—')}</code> · Ключ: ${escapeHtml(status.credential_source || 'none')}</p>${!status.configured ? '<p class="muted">Администратор должен настроить OpenAI API-ключ.</p>' : ''}</div><div class="ai-layout"><aside class="card"><button class="btn" data-ai-new ${f.aiBusy ? 'disabled' : ''}>Новый диалог</button><div class="ai-threads">${rows || '<p class="muted">Диалогов нет</p>'}</div></aside><section class="card"><h2>${escapeHtml(title)}</h2><div class="ai-messages" aria-live="polite">${content || '<p class="muted">Отправьте первое сообщение.</p>'}<article class="ai-bubble assistant" data-ai-stream style="display:${f.aiBusy ? '' : 'none'}"><strong>ChatGPT</strong><div>Генерация…</div></article></div><form data-ai-chat class="form">${toolPanel}<textarea class="input" rows="4" maxlength="12000" name="message" placeholder="Сообщение для ChatGPT" ${!status.configured || f.aiBusy ? 'disabled' : ''} required></textarea><button class="btn" type="submit" ${!status.configured || f.aiBusy ? 'disabled' : ''}>${f.aiBusy ? 'Генерация…' : 'Отправить'}</button></form></section></div>${actionsView}${automationView()}${costView}${settingsView}`
   // Handlers are bound after render in bindForms; no raw model output is interpreted as HTML.
   return html
 }
 
 async function aiRefresh() {
-  await Promise.all([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations'),loadSilent('aiTools','/ai/tools'),loadSilent('aiActions','/ai/actions'),...(integrationScope('system:read')?[loadSilent('aiCosts','/ai/costs?days=30')]:[])])
+  await Promise.all([loadSilent('aiStatus','/ai/status'),loadSilent('aiConversations','/ai/conversations'),loadSilent('aiTools','/ai/tools'),loadSilent('aiActions','/ai/actions'),loadSilent('aiAutomations','/ai/automations'),...(integrationScope('system:read')?[loadSilent('aiCosts','/ai/costs?days=30')]:[])])
 }
 
 function bindAi() {
   if (state.route !== 'ai') return
   const f = state.forms
+  const automationGuard=async(fn)=>{try{await fn()}catch(e){setNotice('error',e.message,e.payload)}}
+  const refreshRuns=async()=>{if(f.aiAutomationSelected)f.aiAutomationRuns=asArray(await api('/ai/automations/'+encodeURIComponent(f.aiAutomationSelected)+'/runs'))}
+  document.querySelector('[data-ai-automation-refresh]')?.addEventListener('click',()=>automationGuard(async()=>{await loadSilent('aiAutomations','/ai/automations');await refreshRuns();render()}))
+  document.querySelector('[data-ai-automation-new]')?.addEventListener('click',()=>{f.aiAutomationSelected=null;f.aiAutomationEditing=true;f.aiAutomationRuns=[];render()})
+  document.querySelector('[data-ai-automation-cancel]')?.addEventListener('click',()=>{f.aiAutomationEditing=false;render()})
+  document.querySelectorAll('[data-ai-automation-edit]').forEach(el=>el.addEventListener('click',()=>automationGuard(async()=>{
+    f.aiAutomationSelected=el.dataset.aiAutomationEdit;f.aiAutomationEditing=true;await refreshRuns();render()
+  })))
+  document.querySelectorAll('[data-ai-automation-toggle]').forEach(el=>el.addEventListener('click',()=>automationGuard(async()=>{
+    const item=asArray(state.cache.aiAutomations).find(x=>x.id===el.dataset.aiAutomationToggle);if(!item)return
+    await api('/ai/automations/'+encodeURIComponent(item.id),{method:'PATCH',body:JSON.stringify({revision:item.revision,enabled:!item.enabled})})
+    await loadSilent('aiAutomations','/ai/automations');await refreshRuns();render()
+  })))
+  document.querySelectorAll('[data-ai-automation-delete]').forEach(el=>el.addEventListener('click',()=>automationGuard(async()=>{
+    const id=el.dataset.aiAutomationDelete;if(!confirm('Удалить AI-сценарий?'))return
+    await api('/ai/automations/'+encodeURIComponent(id),{method:'DELETE'})
+    if(f.aiAutomationSelected===id){f.aiAutomationSelected=null;f.aiAutomationEditing=false;f.aiAutomationRuns=[]}
+    await loadSilent('aiAutomations','/ai/automations');render()
+  })))
+  document.querySelectorAll('[data-ai-automation-run]').forEach(el=>el.addEventListener('click',()=>automationGuard(async()=>{
+    const id=el.dataset.aiAutomationRun;await api('/ai/automations/'+encodeURIComponent(id)+'/run',{method:'POST',body:'{}'})
+    f.aiAutomationSelected=id;await refreshRuns();render();setNotice('ok','AI-задание добавлено в очередь.')
+  })))
+  document.querySelectorAll('[data-ai-automation-open-result]').forEach(el=>el.addEventListener('click',()=>automationGuard(async()=>{
+    f.aiSelected=el.dataset.aiAutomationOpenResult;f.aiMessages=asArray(await api('/ai/conversations/'+encodeURIComponent(f.aiSelected)));await loadSilent('aiConversations','/ai/conversations');render()
+  })))
+  document.querySelector('[data-ai-automation-refresh-runs]')?.addEventListener('click',()=>automationGuard(async()=>{await refreshRuns();render()}))
+  document.querySelector('[data-ai-automation-form]')?.addEventListener('submit',event=>{event.preventDefault();automationGuard(async()=>{
+    const form=new FormData(event.currentTarget);const selected=asArray(state.cache.aiAutomations).find(x=>x.id===f.aiAutomationSelected)
+    const body={title:String(form.get('title')),prompt:String(form.get('prompt')),interval_minutes:Number(form.get('interval_minutes')),enabled:form.has('enabled')}
+    if(selected)await api('/ai/automations/'+encodeURIComponent(selected.id),{method:'PATCH',body:JSON.stringify({...body,revision:selected.revision})})
+    else {const result=dataOf(await api('/ai/automations',{method:'POST',body:JSON.stringify(body)}));f.aiAutomationSelected=result.id}
+    f.aiAutomationEditing=false;await loadSilent('aiAutomations','/ai/automations');await refreshRuns();render();setNotice('ok','AI-сценарий сохранён.')
+  })})
   document.querySelector('[data-ai-tools-toggle]')?.addEventListener('change',e=>{f.aiToolsEnabled=!!e.target.checked;if(!f.aiToolsEnabled)f.aiActionsEnabled=false;render()})
   document.querySelector('[data-ai-actions-toggle]')?.addEventListener('change',e=>{f.aiActionsEnabled=!!e.target.checked})
   const guard = async (action) => { try { await action() } catch(e) { setNotice('error',e.message,e.payload) } }
