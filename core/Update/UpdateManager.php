@@ -50,7 +50,7 @@ final class UpdateManager
             if (!isset($zip[$name])||$zip[$name]->getSize()>16*1024*1024) throw new \RuntimeException('Missing manifest');
             $m=json_decode($zip[$name]->getContent(),true,512,JSON_THROW_ON_ERROR);
             $version=$m['version']??''; $mode=$m['mode']??'';
-            if (!is_string($version)||!preg_match('/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/D',$version)||!in_array($mode,['source','dist'],true)) throw new \RuntimeException('Invalid release identity');
+            if (!is_string($version)||!preg_match('/^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?$/D',$version)||!in_array($mode,['source','dist'],true)) throw new \RuntimeException('Invalid release identity');
             $m=(new ReleaseArtifactVerifier())->verify($packagePath,$mode,$version);
             foreach ($m['removed_files']??[] as $file) if (!is_string($file)||!$this->managed($file)||in_array($file,$m['files'],true)) throw new \RuntimeException('Invalid removed file');
             if (version_compare(PHP_VERSION,'8.4.1','<')||version_compare(PHP_VERSION,'9.0','>=')) throw new \RuntimeException('Unsupported PHP runtime');

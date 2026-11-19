@@ -75,6 +75,12 @@ try {
     $wrongSidecar = $one['target'] . '.sha256';
     file_put_contents($wrongSidecar, str_repeat('0', 64));
     ensure(!$builder->verifyRelease('source', false, $one['target'])['ok'], 'incorrect external SHA256 fails verification');
+    // The checksums subcommand must reject a valid digest paired with the wrong ZIP name.
+    file_put_contents($wrongSidecar, $one['sha256'] . '  unrelated.zip' . PHP_EOL);
+    $checks = $builder->verifyArtifacts($workspace . '/one')['checks'];
+    ensure(($checks['source']['valid'] ?? true) === false, 'artifact inventory rejects checksum sidecar with wrong basename');
+    file_put_contents($wrongSidecar, $one['sha256'] . '  ' . basename($one['target']) . PHP_EOL);
+    ensure(($builder->verifyArtifacts($workspace . '/one')['checks']['source']['valid'] ?? false) === true, 'artifact inventory accepts exact checksum sidecar');
     // Installer lock test without mutating an actual installation or connecting to DB.
     $installerLock = fopen($copy . '/storage/app/install-running.lock', 'c');
     flock($installerLock, LOCK_EX);

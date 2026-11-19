@@ -48,6 +48,24 @@ final class BaselineAcceptanceTest extends TestCase
         }
     }
 
+    public function testCandidateVersionValidationAcceptsSemVerAndRejectsMalformedPreRelease(): void
+    {
+        $root = sys_get_temp_dir() . '/ce-semver-' . bin2hex(random_bytes(6));
+        self::assertTrue(mkdir($root, 0700, true));
+        try {
+            foreach (['1.9.0-rc.1' => 'pass', '1.9.0-rc..1' => 'fail',
+                      '01.9.0' => 'fail', '1.9.0-rc.01' => 'fail',
+                      '1.8.9' => 'pass'] as $version => $expected) {
+                file_put_contents($root . '/VERSION', $version . PHP_EOL);
+                $checks = (new VersionVerifier($root))->verify();
+                self::assertSame($expected, $checks[0]->status, $version);
+            }
+        } finally {
+            @unlink($root . '/VERSION');
+            @rmdir($root);
+        }
+    }
+
     public function testAutomationRoutesMatchActualRuntimeAndExposeRequestSchemas(): void
     {
         $checks = (new OpenApiLinter($this->root()))->lint();

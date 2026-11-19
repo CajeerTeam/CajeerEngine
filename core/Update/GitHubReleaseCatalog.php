@@ -15,7 +15,7 @@ final class GitHubReleaseCatalog
         foreach ($payload as $release) {
             if (!is_array($release) || ($release['draft'] ?? true) !== false || !is_bool($release['prerelease'] ?? null)) continue;
             $tag = $release['tag_name'] ?? null;
-            if (!is_string($tag) || !preg_match('/^v?((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?)$/D', $tag, $match)) continue;
+            if (!is_string($tag) || !preg_match('/^v?((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?)$/D', $tag, $match)) continue;
             $version = $match[1];
             $prerelease = $release['prerelease'];
             // A prerelease flag or SemVer suffix must never enter the stable channel.

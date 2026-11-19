@@ -40,7 +40,7 @@ final readonly class UpdateResolver
             $releaseChannel = (string) ($release['channel'] ?? 'stable');
             if ($releaseChannel !== $channel && $channel !== 'dev') { continue; }
             $version = (string) ($release['version'] ?? '');
-            if ($version === '') { continue; }
+            if (!preg_match('/^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?$/D', $version)) { continue; }
             if ($latest === null || version_compare($version, (string) $latest['version'], '>')) {
                 $latest = $release;
             }

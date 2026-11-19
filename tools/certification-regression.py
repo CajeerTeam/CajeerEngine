@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Test report fail-closed behavior and the real concurrent HTTPS load transport."""
 import copy
+import hashlib
+import zipfile
 import importlib.util
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,10 +20,28 @@ a=e.a
 
 
 def fixture(directory, version, commit):
-    for mode in ('source','dist'): (directory/f'cajeerengine-{version}-{mode}.zip').write_bytes(mode.encode())
+    index={'format':'cajeerengine.release-artifacts.v1','version':version,'artifacts':[]}
+    for mode in ('source','dist'):
+        name=f'cajeerengine-{version}-{mode}.zip'
+        files={'VERSION':(version+'\n').encode(),
+               'public/admin/assets/admin-manifest.json':json.dumps({'version':version,'ready':True}).encode()}
+        manifest={'format':'cajeerengine.release-manifest.v5','project':'cajeerengine',
+                  'version':version,'mode':mode,'artifact':name,'files':sorted(files),
+                  'checksums':{k:hashlib.sha256(v).hexdigest() for k,v in files.items()}}
+        with zipfile.ZipFile(directory/name,'w',compression=zipfile.ZIP_DEFLATED) as z:
+            for k,v in files.items(): z.writestr('cajeerengine/'+k,v)
+            z.writestr('cajeerengine/release-manifest.json',json.dumps(manifest))
+        digest=a.sha(directory/name)
+        (directory/(name+'.sha256')).write_text(f'{digest}  {name}\n')
+        (directory/(name.removesuffix('.zip')+'.manifest.json')).write_text(json.dumps({**manifest,'artifact_sha256':digest}))
+        index['artifacts'].append({'mode':mode,'name':name,'sha256':digest,
+                                  'size':(directory/name).stat().st_size,'path':'/tmp/'+name,
+                                  'checksum_file':'/tmp/'+name+'.sha256'})
+    (directory/f'cajeerengine-{version}-artifacts.json').write_text(json.dumps(index))
     report={'schema':1,'ok':True,'version':version,'profile':'nginx-tls-fpm-pgsql','global_rate_limit':10000,'auth_rate_limit':20,
             'artifact_sha256':a.sha(directory/f'cajeerengine-{version}-dist.zip'),'checks':dict.fromkeys(a.SECURITY,True),
-            'load':{'requests':400,'workers':8,'errors':0,'requests_per_second':100,'p95_ms':30,'routes':{r:{'requests':100,'errors':0,'p95_ms':30} for r in a.ROUTES}}}
+            'load':{'requests':400,'workers':8,'errors':0,'requests_per_second':100,'p95_ms':30,
+                    'routes':{r:{'requests':100,'errors':0,'p95_ms':30} for r in a.ROUTES}}}
     a.write_report(directory/'production-acceptance.json',report)
     a.write_report(directory/'dependency-audit.json',{'advisories':[],'abandoned':[]})
     e.seal(directory,version,commit)
@@ -34,7 +54,7 @@ class EvidenceTests(unittest.TestCase):
             d=Path(tmp); fixture(d,'1.3.0','a'*40); e.verify(d,'1.3.0','a'*40)
             with self.assertRaises(ValueError): e.verify(d,'1.3.0','b'*40)
             (d/'cajeerengine-1.3.0-source.zip').write_bytes(b'changed')
-            with self.assertRaises(ValueError): e.verify(d,'1.3.0','a'*40)
+            with self.assertRaises((ValueError,zipfile.BadZipFile)): e.verify(d,'1.3.0','a'*40)
 
     def test_reject_report_failures(self):
         cases=[('security',lambda r:r['checks'].pop('rate_limit')),
@@ -59,6 +79,27 @@ class EvidenceTests(unittest.TestCase):
             with self.assertRaises(ValueError): e.seal(d,'1.3.0','a'*40)
             (d/'production-acceptance.json').unlink()
             with self.assertRaises(FileNotFoundError): e.verify(d,'1.3.0','a'*40)
+
+    def test_reject_modified_archive_and_sidecars(self):
+        tests=[
+            ('body',lambda d,v:(d/f'cajeerengine-{v}-source.zip').write_bytes(b'invalid ZIP')),
+            ('checksum name',lambda d,v:(d/f'cajeerengine-{v}-dist.zip.sha256').write_text('0'*64+'  wrong.zip\n')),
+            ('sidecar',lambda d,v:(d/f'cajeerengine-{v}-source.manifest.json').write_text('{}')),
+            ('index',lambda d,v:(d/f'cajeerengine-{v}-artifacts.json').write_text('{}')),
+        ]
+        for label,change in tests:
+            with self.subTest(case=label),tempfile.TemporaryDirectory() as tmp:
+                d=Path(tmp);v='1.8.9';fixture(d,v,'a'*40);change(d,v)
+                with self.assertRaises((ValueError,zipfile.BadZipFile,KeyError)):
+                    e.verify(d,v,'a'*40)
+
+    def test_reject_extra_zip_entry_and_stale_payload(self):
+        for name,extra in [('extra','cajeerengine/.env'),('duplicate','cajeerengine/VERSION')]:
+            with self.subTest(case=name),tempfile.TemporaryDirectory() as tmp:
+                d=Path(tmp);v='1.8.9';fixture(d,v,'a'*40)
+                with zipfile.ZipFile(d/f'cajeerengine-{v}-source.zip','a') as z:
+                    z.writestr(extra,b'private')
+                with self.assertRaises(ValueError): e.verify(d,v,'a'*40)
 
     def test_real_tls_load_transport_and_semantic_failure(self):
         # This is a test of the load generator, not a CMS benchmark. No production certificate is emitted.

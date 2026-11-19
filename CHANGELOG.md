@@ -1,3 +1,12 @@
+# 1.8.9 — Release Candidate Qualification
+
+- Strengthened real release certification: inspect ZIP members, manifest/checksums, published admin identity, artifact sidecars and artifact index **before** issuing or accepting a certification.
+- Bind source/dist bytes and all packaging sidecars to the immutable checkout and observed production/dependency evidence; reject modification or stale artifacts, duplicate entries and malformed archives.
+- Correct checksum-sidecar filename verification in release artifact checks, and accept valid SemVer release-candidate identifiers in version checks.
+- Run executable qualification regressions in pull-request and release CI, including negative tests for corrupted archives, sidecars, and incorrectly tagged releases.
+- Existing operations runbooks remain under their 1.8.8 filenames and are validated against version 1.8.9; no database migration required.
+- Candidate is **not** certified until the full CI, production host, dependency audit and signing steps succeed on real infrastructure.
+
 # 1.8.8 — Documentation & Operational Readiness
 
 - Verified operational handbook covering installation, signed updates, backup/restore drills, monitoring, incident response, secrets and on-call acceptance.

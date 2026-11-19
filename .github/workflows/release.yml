@@ -105,6 +105,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y nginx
           sudo python3 deploy/test_production.py
+      - name: Physical source ZIP reproducibility, verification and tampering
+        run: php tools/release-regression.php
       - name: Concurrent rate limiter and certification regressions
         run: |
           php tools/rate-limit-concurrency.php
@@ -429,6 +431,8 @@ jobs:
           sudo --preserve-env=CE_DB_USER,CE_DB_PASSWORD,CE_DEPLOY_DISPOSABLE,CE_CERT_REPORT bash deploy/host-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip"
       - name: Seal production certification for exact release bytes
         run: python3 tools/certification-evidence.py seal "$RUNNER_TEMP/release"
+      - name: Re-open release certification and recheck all payload bytes
+        run: python3 tools/certification-evidence.py verify "$RUNNER_TEMP/release"
       - uses: actions/upload-artifact@v7
         with:
           name: cajeerengine-verified-release

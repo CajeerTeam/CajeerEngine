@@ -21,9 +21,9 @@ final readonly class VersionVerifier
         $admin = $this->json('admin/package.json');
         $checks = [];
 
-        $checks[] = preg_match('/^[0-9]+\.[0-9]+\.[0-9]+$/D', $version) === 1
+        $checks[] = preg_match('/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?$/D', $version) === 1
             ? CheckResult::pass('version', 'VERSION', 'VERSION содержит корректный номер релиза.')
-            : CheckResult::fail('version', 'VERSION', 'VERSION должен содержать версию MAJOR.MINOR.PATCH.', ['actual' => $version]);
+            : CheckResult::fail('version', 'VERSION', 'VERSION должен содержать SemVer MAJOR.MINOR.PATCH с допустимым prerelease-суффиксом.', ['actual' => $version]);
 
         $expected = [
             'release.json' => $release['version'] ?? null,

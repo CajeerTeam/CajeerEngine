@@ -22,7 +22,7 @@ function release(string $tag, bool $pre = false, bool $draft = false): array {
 }
 $incomplete = release('v9.0.0'); array_pop($incomplete['assets']);
 $pending = release('v8.0.0'); $pending['assets'][0]['state'] = 'starter';
-$data = Catalog::normalize([release('v1.2.6'), release('v1.3.0-rc.1', true), release('v9.1.0', false, true), $incomplete, $pending, release('v9.2.0-beta.1'), release('not-semver')]);
+$data = Catalog::normalize([release('v1.2.6'), release('v1.3.0-rc.1', true), release('v9.1.0', false, true), $incomplete, $pending, release('v9.2.0-beta.1'), release('not-semver'), release('v1.9.0-rc.01', true), release('v1.9.0-rc..1', true), release('v01.9.0')]);
 check(count($data['releases']) === 2, 'only complete published SemVer releases');
 $a = $data['releases'][0]['artifacts']['dist'];
 check($a['download_url'] === E::PROJECT_URL.'/releases/download/v1.2.6/cajeerengine-1.2.6-dist.zip' && $a['sha256'] === str_repeat('a',64), 'canonical asset URL and digest');
@@ -34,6 +34,12 @@ try {
     $cfg = ['core'=>['releases_url'=>$tmp,'channel'=>'stable']];
     $result = (new UpdateResolver($cfg))->check('1.2.5');
     check($result['update_available'] && $result['latest']['version'] === '1.2.6', 'resolver selects latest stable');
+    // Offline/custom catalogs are also untrusted input and cannot inject invalid versions.
+    $tampered = $data;
+    $tampered['releases'][] = ['version'=>'999.9.9-rc..1','channel'=>'stable'];
+    file_put_contents($tmp, json_encode($tampered, JSON_THROW_ON_ERROR));
+    check((new UpdateResolver($cfg))->check('1.2.5')['latest']['version'] === '1.2.6', 'malformed offline release version ignored');
+    file_put_contents($tmp, json_encode($data, JSON_THROW_ON_ERROR));
     $cfg['core']['channel']='rc';
     check((new UpdateResolver($cfg))->check('1.2.5')['latest']['version'] === '1.3.0-rc.1', 'resolver selects rc');
     $cfg['core']['releases_url']=$tmp.'.missing'; $cfg['core']['channel']='stable';

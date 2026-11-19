@@ -41,6 +41,8 @@ jobs:
         run: |
           php tools/database-compatibility-regression.php
           python3 tools/database-compatibility-sqlite-regression.py
+      - name: Release certification tamper and load regression
+        run: python3 tools/certification-regression.py
       - name: Deployment and disaster recovery acceptance (actual SQLite)
         run: |
           php tools/deployment-recovery-acceptance.php

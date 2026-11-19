@@ -158,7 +158,9 @@ final readonly class ReleaseBuilder
             $exists = is_file($artifact);
             $checksumExists = is_file($checksum);
             $sha = $exists ? (hash_file('sha256', $artifact) ?: '') : '';
-            $expected = $checksumExists ? trim(explode(' ', trim((string) file_get_contents($checksum)))[0] ?? '') : '';
+            $expectedLine = $checksumExists ? trim((string) file_get_contents($checksum)) : '';
+            $expected = preg_match('/^[a-f0-9]{64}  [^\s\/]+\.zip$/D', $expectedLine) === 1
+                && $expectedLine === ($sha . '  ' . basename($artifact)) ? $sha : '';
             $checks[$mode] = [
                 'artifact' => $artifact,
                 'exists' => $exists,
@@ -374,7 +376,7 @@ final readonly class ReleaseBuilder
     private function version(): string
     {
         $version = trim((string) @file_get_contents($this->rootPath . '/VERSION'));
-        if (!preg_match('/^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?$/D', $version)) throw new \RuntimeException('Invalid VERSION');
+        if (!preg_match('/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?$/D', $version)) throw new \RuntimeException('Invalid VERSION');
         return $version;
     }
 

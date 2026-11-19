@@ -52,8 +52,6 @@ with tempfile.TemporaryDirectory(prefix='ce-gh-publish-') as temp:
         package = release / name
         (release / (name + '.sha256')).write_text(f'{hashlib.sha256(package.read_bytes()).hexdigest()}  {name}\n')
         (release / (name + '.sig')).write_text('fixture signature')
-        (release / f'cajeerengine-{VERSION}-{mode}.manifest.json').write_text('{}')
-    (release / f'cajeerengine-{VERSION}-artifacts.json').write_text('{}')
     def run(mode, tag='v'+VERSION, repo='cajeerteam/CajeerEngine', success=False):
         state = base / (mode+'.json')
         env = dict(os.environ, PATH=f'{base}:{os.environ["PATH"]}', MOCK_MODE=mode, MOCK_STATE=str(state))
