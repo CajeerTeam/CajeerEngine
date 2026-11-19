@@ -254,7 +254,7 @@ final readonly class AiTranslationStudio
             $this->db->transaction(function (PDO $pdo) use ($proposalId, $uid, $source, $sourceHash, $target, $targetLocale, $typeHandle, $title, $data, $now, $period, $job, $reserve, $response, $batchItemId): void {
                 $pdo->prepare('INSERT INTO ce_ai_translation_proposals (id, user_id, type_handle, source_entry_id, source_revision, source_hash, target_locale, target_entry_id, target_revision, translated_title, translated_data, batch_item_id, created_at, expires_at, applied_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)')
                     ->execute([$proposalId, $uid, $typeHandle, $source['id'], (int)$source['revision'], $sourceHash, $targetLocale, $target['id'] ?? null, $target['revision'] ?? null, $title, json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE), $batchItemId, $now, $now + 604800]);
-                $this->settle($pdo, $uid, $period, $job, $reserve, (int)$response['usage']['input_tokens'] + (int)$response['usage']['output_tokens']);
+                $this->settle($pdo, $uid, $period, $job, $reserve, $response['usage']);
                 $pdo->prepare('DELETE FROM ce_ai_translation_proposals WHERE user_id = ? AND expires_at < ?')->execute([$uid, $now]);
             });
             return ['id' => $proposalId, 'type' => $typeHandle, 'source_entry_id' => $entryId, 'target_entry_id' => $target['id'] ?? null,
@@ -262,7 +262,7 @@ final readonly class AiTranslationStudio
                 'target_locale' => $targetLocale, 'original_title' => $source['title'], 'translated_title' => $title,
                 'translated_data' => $data, 'segment_count' => count($translated), 'usage' => $response['usage'], 'expires_at' => $now + 604800];
         } catch (\Throwable $e) {
-            $this->release($uid, $period, $job, $reserve);
+            $this->release($uid, $period, $job, $reserve, $response['usage'] ?? null);
             throw $e;
         }
     }

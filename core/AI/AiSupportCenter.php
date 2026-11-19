@@ -298,11 +298,11 @@ final readonly class AiSupportCenter
                 }
             }
             $this->db->transaction(function (PDO $pdo) use ($actor, $period, $job, $reserved, $result): void {
-                $this->settle($pdo, $actor, $period, $job, $reserved, $result['usage']['input_tokens'] + $result['usage']['output_tokens']);
+                $this->settle($pdo, $actor, $period, $job, $reserved, $result['usage']);
             });
             if ($answer['sources'] === []) $answer = ['text' => '', 'sources' => []];
             return $answer + ['usage' => $result['usage']];
-        } catch (\Throwable $e) { $this->release($actor, $period, $job, $reserved); throw $e; }
+        } catch (\Throwable $e) { $this->release($actor, $period, $job, $reserved, $result['usage'] ?? null); throw $e; }
     }
 
     /** Best-effort AI response; upstream outages never prevent creation or human handoff. */

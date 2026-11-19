@@ -31,7 +31,7 @@ try {
     $config->set('database.connections.sqlite.database',':memory:');
     $db=new DatabaseManager($config);
     $pdo=$db->connection();$pdo->exec('PRAGMA foreign_keys = ON');
-    foreach (['0031_ai_chat','0034_ai_knowledge_base','0037_ai_tools'] as $migration)
+    foreach (['0031_ai_chat','0034_ai_knowledge_base','0037_ai_tools','0040_ai_cost_control'] as $migration)
         $pdo->exec((string)file_get_contents($root.'/migrations/sqlite/'.$migration.'.sql'));
     $types=new ContentTypeRepository($workspace,$db);
     $entries=new ContentEntryRepository($workspace,$db);
@@ -59,7 +59,7 @@ try {
     $trace=[];
     $answer=$chat->send($owner,null,'Найди инструкцию deploy',null,true,['content:read'],function(array $tool)use(&$trace):void{$trace[]=$tool;});
     verify171($answer['text']==='Документ о развёртывании найден.' && count($answer['tools'])===1, 'real AI Chat saves tool-assisted model answer');
-    verify171($answer['usage']===['input_tokens'=>104,'output_tokens'=>30],'multi-round token accounting committed');
+    verify171($answer['usage']===['input_tokens'=>104,'output_tokens'=>30,'cached_input_tokens'=>0],'multi-round token accounting committed');
     $history=$chat->messages($owner,$answer['conversation_id']);
     verify171(count($history)===2 && count($history[1]['tools'])===1,'persisted tool names and status displayed in history');
     verify171(count($trace)===1 && $trace[0]['name']==='cms_knowledge_search','SSE callback receives tool trace');

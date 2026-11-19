@@ -30,6 +30,7 @@ try{
     putenv('OPENAI_API_KEY=sk-test-ai-translation-service');putenv('CONTENT_STORAGE=file');putenv('CMS_STORAGE=file');
     $config=new ConfigRepository($root);$config->set('database.default','sqlite');$config->set('database.connections.sqlite.database',':memory:');
     $db=new DatabaseManager($config);$db->connection()->exec(file_get_contents($root.'/migrations/sqlite/0031_ai_chat.sql'));
+    $db->connection()->exec((string)file_get_contents($root.'/migrations/sqlite/0040_ai_cost_control.sql'));
     $db->connection()->exec(file_get_contents($root.'/migrations/sqlite/0032_ai_content_editor.sql'));
     $db->connection()->exec(file_get_contents($root.'/migrations/sqlite/0033_ai_translation_studio.sql'));
     $types=new ContentTypeRepository($dir,$db);$entries=new ContentEntryRepository($dir,$db);

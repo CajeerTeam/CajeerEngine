@@ -182,13 +182,12 @@ final readonly class AiCmsDiagnostics
             finally { if (function_exists('sodium_memzero')) sodium_memzero($key); }
             $explanation = trim((string)$answer['text']);
             if ($explanation === '' || strlen($explanation) > 12000 || !preg_match('//u', $explanation)) throw new \DomainException('Invalid AI explanation.');
-            $used = max(0, (int)$answer['usage']['input_tokens']) + max(0, (int)$answer['usage']['output_tokens']);
-            $this->db->transaction(function (PDO $pdo) use ($userId, $period, $job, $reserve, $used): void {
-                $this->settle($pdo, $userId, $period, $job, $reserve, $used);
+            $this->db->transaction(function (PDO $pdo) use ($userId, $period, $job, $reserve, $answer): void {
+                $this->settle($pdo, $userId, $period, $job, $reserve, $answer['usage']);
             });
             return ['diagnostics' => $snapshot, 'explanation' => $explanation, 'usage' => $answer['usage'], 'model' => $status['model']];
         } catch (\Throwable $exception) {
-            $this->release($userId, $period, $job, $reserve);
+            $this->release($userId, $period, $job, $reserve, $answer['usage'] ?? null);
             throw $exception;
         }
     }

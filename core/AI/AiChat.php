@@ -70,8 +70,9 @@ final readonly class AiChat
         $id ??= self::uuid();
         $now = time(); $busyUntil = $now + ($definitions === [] ? 180 : 600);
         $month = gmdate('Y-m');
+        $costJob = self::uuid();
         // Reserve a deliberately conservative upper bound before the external call.
-        $prepared = $this->db->transaction(function (PDO $pdo) use ($userId, $id, $newId, $message, $settings, $now, $busyUntil, $month, $definitions): array {
+        $prepared = $this->db->transaction(function (PDO $pdo) use ($userId, $id, $newId, $message, $settings, $now, $busyUntil, $month, $definitions, $costJob): array {
             // Reclaim reservations abandoned by dead PHP workers after the 180s lease expires.
             $expiredQuery = 'SELECT id, reserved_tokens, reservation_period FROM ce_ai_conversations WHERE user_id = ? AND busy_until > 0 AND busy_until < ? AND reserved_tokens > 0';
             if (in_array($this->db->driver(), ['mysql', 'pgsql'], true)) $expiredQuery .= ' FOR UPDATE';
@@ -82,6 +83,7 @@ final readonly class AiChat
                 $release->execute([(int)$item['reserved_tokens'], (int)$item['reserved_tokens'], $userId, $item['reservation_period']]);
                 $clear = $pdo->prepare('UPDATE ce_ai_conversations SET busy_until = 0, reserved_tokens = 0, reservation_period = NULL WHERE id = ? AND user_id = ?');
                 $clear->execute([$item['id'], $userId]);
+                (new AiCostControl($this->db, $this->settings))->reap($pdo, $now, 30);
             }
             if ($newId) {
                 $title = preg_replace('/\s+/u', ' ', $message);
@@ -117,6 +119,7 @@ final readonly class AiChat
             if ($usage->rowCount() !== 1) throw new \DomainException('Monthly AI token budget reached.');
             $reserve = $pdo->prepare('UPDATE ce_ai_conversations SET reserved_tokens = ?, reservation_period = ? WHERE id = ? AND user_id = ?');
             $reserve->execute([$reservation, $month, $id, $userId]);
+            (new AiCostControl($this->db, $this->settings))->hold($pdo, $costJob, $userId, $definitions === [] ? 'chat' : 'chat_tools', $settings, $reservation, $busyUntil, $now);
             return ['input' => $input, 'reservation' => $reservation, 'title' => $row['title']];
         });
         try {
@@ -127,7 +130,7 @@ final readonly class AiChat
             $result['tools'] ??= [];
             if (count($result['tools']) > 8) throw new \RuntimeException('Too many tool calls.');
             $created = (int)round(microtime(true) * 1000000);
-            $this->db->transaction(function (PDO $pdo) use ($id, $userId, $message, $result, $settings, $prepared, $month, $created, $busyUntil): void {
+            $this->db->transaction(function (PDO $pdo) use ($id, $userId, $message, $result, $settings, $prepared, $month, $created, $busyUntil, $costJob): void {
                 $this->owned($pdo, $userId, $id, true);
                 $insert = $pdo->prepare('INSERT INTO ce_ai_messages (id, conversation_id, role, content, created_at, model, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
                 $insert->execute([self::uuid(), $id, 'user', $message, $created, null, 0, 0]);
@@ -144,16 +147,23 @@ final readonly class AiChat
                 if ($update->rowCount() !== 1) throw new \RuntimeException('Conversation generation lease expired.');
                 $usage = $pdo->prepare('UPDATE ce_ai_usage SET reserved_tokens = reserved_tokens - ?, used_tokens = used_tokens + ? WHERE user_id = ? AND period = ?');
                 $usage->execute([$prepared['reservation'], $result['usage']['input_tokens'] + $result['usage']['output_tokens'], $userId, $month]);
+                (new AiCostControl($this->db, $this->settings))->settle($pdo, $costJob, $result['usage']);
             });
             return ['conversation_id' => $id, 'title' => $prepared['title'], 'text' => $result['text'], 'usage' => $result['usage'], 'model' => $settings['model'], 'tools' => $result['tools']];
         } catch (\Throwable $error) {
+            // If OpenAI completed but CMS persistence failed, usage is still billable.
+            $chargeUsage = isset($result) && is_array($result['usage'] ?? null) ? $result['usage'] : null;
             try {
-                $this->db->transaction(function (PDO $pdo) use ($userId, $id, $busyUntil, $month, $prepared, $newId): void {
+                $this->db->transaction(function (PDO $pdo) use ($userId, $id, $busyUntil, $month, $prepared, $newId, $costJob, $chargeUsage): void {
                     $release = $pdo->prepare('UPDATE ce_ai_conversations SET busy_until = 0, reserved_tokens = 0, reservation_period = NULL WHERE id = ? AND user_id = ? AND busy_until = ?');
                     $release->execute([$id, $userId, $busyUntil]);
                     if ($release->rowCount() === 1) {
-                        $stmt = $pdo->prepare('UPDATE ce_ai_usage SET reserved_tokens = CASE WHEN reserved_tokens >= ? THEN reserved_tokens - ? ELSE 0 END WHERE user_id = ? AND period = ?');
-                        $stmt->execute([$prepared['reservation'], $prepared['reservation'], $userId, $month]);
+                        $total = $chargeUsage === null ? 0 : max(0,(int)($chargeUsage['input_tokens']??0))+max(0,(int)($chargeUsage['output_tokens']??0));
+                        $stmt = $pdo->prepare('UPDATE ce_ai_usage SET reserved_tokens = CASE WHEN reserved_tokens >= ? THEN reserved_tokens - ? ELSE 0 END, used_tokens = used_tokens + ? WHERE user_id = ? AND period = ?');
+                        $stmt->execute([$prepared['reservation'], $prepared['reservation'], $total, $userId, $month]);
+                        $cost=new AiCostControl($this->db, $this->settings);
+                        if ($chargeUsage !== null) $cost->settle($pdo, $costJob, $chargeUsage);
+                        else $cost->release($pdo, $costJob);
                         if ($newId) {
                             // A failed first message must not leave an empty conversation.
                             $remove = $pdo->prepare('DELETE FROM ce_ai_conversations WHERE id = ? AND user_id = ? AND busy_until = 0');

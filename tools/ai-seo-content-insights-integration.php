@@ -35,7 +35,7 @@ try {
     $config->set('database.default','sqlite');$config->set('database.connections.sqlite.database',':memory:');
     $config->set('app.url','https://site.example');$config->set('analytics.enabled',true);$config->set('integrations.enabled',true);
     $db=new DatabaseManager($config);
-    foreach(['0015_analytics_hub','0017_analytics_sync_runs','0031_ai_chat','0032_ai_content_editor'] as $file)
+    foreach(['0015_analytics_hub','0017_analytics_sync_runs','0031_ai_chat','0032_ai_content_editor','0040_ai_cost_control'] as $file)
         $db->connection()->exec((string)file_get_contents($root.'/migrations/sqlite/'.$file.'.sql'));
     $types=new ContentTypeRepository($dir,$db);$entries=new ContentEntryRepository($dir,$db);
     $types->create(['handle'=>'pages','name'=>'Pages','fields'=>[['handle'=>'body','type'=>'richtext']]]);

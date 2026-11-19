@@ -124,6 +124,18 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "api_v1_ai_costs": {
+        "method": "GET",
+        "path": "/ai/costs",
+        "parameters": [
+            {
+                "name": "days",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
     "api_v1_ai_diagnostics_explain": {
         "method": "POST",
         "path": "/ai/diagnostics/explain",

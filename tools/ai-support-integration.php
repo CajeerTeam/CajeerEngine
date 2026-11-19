@@ -50,7 +50,7 @@ try {
     $cfg->set('database.default', 'sqlite');
     $cfg->set('database.connections.sqlite.database', ':memory:');
     $db = new DatabaseManager($cfg);$pdo=$db->connection();
-    foreach (['0001_initial_schema','0031_ai_chat','0032_ai_content_editor','0034_ai_knowledge_base','0036_ai_support_center'] as $migration) {
+    foreach (['0001_initial_schema','0031_ai_chat','0032_ai_content_editor','0034_ai_knowledge_base','0036_ai_support_center','0040_ai_cost_control'] as $migration) {
         $pdo->exec((string)file_get_contents($root.'/migrations/sqlite/'.$migration.'.sql'));
     }
     $kb = new AiKnowledgeBase($db, new ContentEntryRepository($directory, $db), new ContentTypeRepository($directory, $db));

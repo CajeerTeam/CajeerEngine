@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CajeerEngine\Api\Controller;
 
 use CajeerEngine\AI\AiChat;
+use CajeerEngine\AI\AiCostControl;
 use CajeerEngine\AI\AiCmsDiagnostics;
 use CajeerEngine\AI\AiContentEditor;
 use CajeerEngine\AI\AiSeoAssistant;
@@ -23,7 +24,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /** Admin-only chat endpoints. Authorization/CSRF/step-up also run in the core middleware. */
 final readonly class AiController
 {
-    public function __construct(private AiChat $chat, private AiSettings $settings, private AuditLogger $audit, private RateLimiter $limiter, private AiContentEditor $editor, private AiSeoAssistant $seo, private AiTranslationStudio $translations, private \CajeerEngine\Queue\ManagedQueueDriverInterface $queue, private AiCmsDiagnostics $diagnostics, private AiTools $tools, private AiActions $actions) {}
+    public function __construct(private AiChat $chat, private AiSettings $settings, private AuditLogger $audit, private RateLimiter $limiter, private AiContentEditor $editor, private AiSeoAssistant $seo, private AiTranslationStudio $translations, private \CajeerEngine\Queue\ManagedQueueDriverInterface $queue, private AiCmsDiagnostics $diagnostics, private AiTools $tools, private AiActions $actions, private AiCostControl $costs) {}
 
     private function user(Request $request): string
     {
@@ -58,6 +59,17 @@ final readonly class AiController
         $data = $this->settings->update($this->body($request));
         $this->audit->record('ai.settings.updated', $uid, ['model' => $data['model'], 'configured' => $data['configured']]);
         return $this->ok($data);
+    }
+
+    public function costs(Request $request): JsonResponse
+    {
+        $uid = $this->user($request);
+        $days = filter_var($request->query->get('days','30'), FILTER_VALIDATE_INT);
+        if ($days === false || $days < 1 || $days > 366) throw new \InvalidArgumentException('Invalid AI cost report period.');
+        $hit = $this->limiter->hit('ai-cost-report', $uid, 20, 60);
+        if (!$hit['allowed']) return new JsonResponse(['error'=>['code'=>'ai_cost_rate_limit','message'=>'Too many AI billing report requests.']],429,
+            ['Retry-After'=>(string)$hit['retry_after'],'Cache-Control'=>'no-store']);
+        return $this->ok($this->costs->report($days));
     }
 
     public function tools(Request $request): JsonResponse

@@ -182,10 +182,9 @@ final readonly class AiExternalAnalytics
             finally {if(function_exists('sodium_memzero')) sodium_memzero($key);}
             $explanation=trim((string)$answer['text']);
             if ($explanation==='' || strlen($explanation)>12000 || !preg_match('//u',$explanation)) throw new \DomainException('Invalid AI analytics explanation.');
-            $used=max(0,(int)$answer['usage']['input_tokens'])+max(0,(int)$answer['usage']['output_tokens']);
-            $this->db->transaction(fn(PDO $pdo) => $this->settle($pdo,$userId,$period,$job,$reserve,$used));
+            $this->db->transaction(fn(PDO $pdo) => $this->settle($pdo,$userId,$period,$job,$reserve,$answer['usage']));
             return ['insights'=>$insights,'explanation'=>$explanation,'model'=>$status['model'],'usage'=>$answer['usage']];
-        } catch (\Throwable $e) {$this->release($userId,$period,$job,$reserve);throw $e;}
+        } catch (\Throwable $e) {$this->release($userId,$period,$job,$reserve,$answer['usage']??null);throw $e;}
     }
 
     private static function quality(array $section): array

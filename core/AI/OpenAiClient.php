@@ -38,13 +38,14 @@ class OpenAiClient
             if (($tool['type'] ?? '') !== 'function' || !is_string($tool['name'] ?? null)) throw new \InvalidArgumentException('Invalid tool declaration.');
             $names[$tool['name']] = true;
         }
-        $total = ['input_tokens'=>0,'output_tokens'=>0];
+        $total = ['input_tokens'=>0,'output_tokens'=>0,'cached_input_tokens'=>0];
         $trace = []; $callsMade = 0;
         for ($round = 0; $round < 4; ++$round) {
             // The final round must produce an answer rather than another function call.
             $response = $this->request($key, $model, $input, $maxOutput, $tools, null, $round === 3);
             $total['input_tokens'] += $response['usage']['input_tokens'];
             $total['output_tokens'] += $response['usage']['output_tokens'];
+            $total['cached_input_tokens'] += (int)($response['usage']['cached_input_tokens'] ?? 0);
             if ($response['calls'] === []) {
                 if (trim($response['text']) === '') throw new AiProviderException('OpenAI returned no final answer.', 502);
                 if ($onDelta !== null) {
@@ -112,7 +113,7 @@ class OpenAiClient
         $ch = curl_init($url);
         if ($ch === false) throw new AiProviderException('Cannot initialize OpenAI transport.', 503);
         $status = 0; $pending = ''; $seenBytes = 0; $text = ''; $completed = false; $responseId = '';
-        $usage = ['input_tokens'=>0,'output_tokens'=>0]; $calls = []; $providerError = null;
+        $usage = ['input_tokens'=>0,'output_tokens'=>0,'cached_input_tokens'=>0]; $calls = []; $providerError = null;
         $onEvent = static function(string $data) use (&$text,&$completed,&$responseId,&$usage,&$calls,&$providerError,$onDelta): void {
             $event = json_decode($data, true);
             if (!is_array($event)) return;
@@ -126,7 +127,7 @@ class OpenAiClient
                 $completed = true;
                 $response = $event['response'] ?? [];
                 $responseId = (string)($response['id'] ?? '');
-                $usage = ['input_tokens'=>max(0,(int)($response['usage']['input_tokens'] ?? 0)), 'output_tokens'=>max(0,(int)($response['usage']['output_tokens'] ?? 0))];
+                $usage = ['input_tokens'=>max(0,(int)($response['usage']['input_tokens'] ?? 0)), 'output_tokens'=>max(0,(int)($response['usage']['output_tokens'] ?? 0)), 'cached_input_tokens'=>max(0,(int)($response['usage']['input_tokens_details']['cached_tokens'] ?? 0))];
                 foreach ($response['output'] ?? [] as $item) {
                     if (($item['type'] ?? '') === 'function_call') $calls[] = $item;
                     elseif (($item['type'] ?? '') === 'message' && $text === '') {

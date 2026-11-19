@@ -36,27 +36,48 @@ trait AiBudgetLease
             if ($stmt->rowCount() !== 1) throw new \DomainException('Monthly AI token budget reached.');
             $pdo->prepare('INSERT INTO ce_ai_editor_jobs (id, user_id, period, reserved_tokens, expires_at) VALUES (?, ?, ?, ?, ?)')
                 ->execute([$job, $uid, $period, $tokens, $lease]);
+            (new AiCostControl($this->db, $this->settings))->hold($pdo, $job, $uid, $this->aiCostModule(), $this->settings->status(), $tokens, $lease, $now);
         });
     }
 
-    private function settle(PDO $pdo, string $uid, string $period, string $job, int $reserve, int $used): void
+    private function settle(PDO $pdo, string $uid, string $period, string $job, int $reserve, int|array $used): void
     {
         $stmt = $pdo->prepare('DELETE FROM ce_ai_editor_jobs WHERE id = ? AND user_id = ?');
         $stmt->execute([$job, $uid]);
         if ($stmt->rowCount() !== 1) throw new \RuntimeException('AI editor generation lease was lost.');
+        $total = is_array($used) ? (int)($used['input_tokens'] ?? 0) + (int)($used['output_tokens'] ?? 0) : $used;
         $pdo->prepare('UPDATE ce_ai_usage SET reserved_tokens = CASE WHEN reserved_tokens >= ? THEN reserved_tokens - ? ELSE 0 END, used_tokens = used_tokens + ? WHERE user_id = ? AND period = ?')
-            ->execute([$reserve, $reserve, $used, $uid, $period]);
+            ->execute([$reserve, $reserve, $total, $uid, $period]);
+        (new AiCostControl($this->db, $this->settings))->settle($pdo, $job, is_array($used) ? $used : ['input_tokens'=>$used,'output_tokens'=>0]);
     }
 
-    private function release(string $uid, string $period, string $job, int $reserve): void
+    private function aiCostModule(): string
+    {
+        return match (static::class) {
+            AiContentEditor::class => 'editor',
+            AiTranslationStudio::class => 'translation',
+            AiKnowledgeChat::class => 'knowledge_chat',
+            AiSupportCenter::class => 'support',
+            AiCmsDiagnostics::class => 'diagnostics',
+            AiExternalAnalytics::class => 'analytics',
+            AiMigrationCopilot::class => 'migration',
+            default => 'ai',
+        };
+    }
+
+    private function release(string $uid, string $period, string $job, int $reserve, ?array $usage = null): void
     {
         try {
-            $this->db->transaction(function (PDO $pdo) use ($uid, $period, $job, $reserve): void {
+            $this->db->transaction(function (PDO $pdo) use ($uid, $period, $job, $reserve, $usage): void {
                 $stmt = $pdo->prepare('DELETE FROM ce_ai_editor_jobs WHERE id = ? AND user_id = ?');
                 $stmt->execute([$job, $uid]);
                 if ($stmt->rowCount() === 1) {
-                    $pdo->prepare('UPDATE ce_ai_usage SET reserved_tokens = CASE WHEN reserved_tokens >= ? THEN reserved_tokens - ? ELSE 0 END WHERE user_id = ? AND period = ?')
-                        ->execute([$reserve, $reserve, $uid, $period]);
+                    $total = $usage === null ? 0 : max(0, (int)($usage['input_tokens'] ?? 0)) + max(0, (int)($usage['output_tokens'] ?? 0));
+                    $pdo->prepare('UPDATE ce_ai_usage SET reserved_tokens = CASE WHEN reserved_tokens >= ? THEN reserved_tokens - ? ELSE 0 END, used_tokens = used_tokens + ? WHERE user_id = ? AND period = ?')
+                        ->execute([$reserve, $reserve, $total, $uid, $period]);
+                    $cost = new AiCostControl($this->db, $this->settings);
+                    if ($usage !== null) $cost->settle($pdo, $job, $usage);
+                    else $cost->release($pdo, $job);
                 }
             });
         } catch (\Throwable) { /* The lease is reclaimable by the next request after expiry. */ }

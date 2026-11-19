@@ -31,7 +31,7 @@ try {
     $config->set('database.default','sqlite');$config->set('database.connections.sqlite.database',':memory:');
     $config->set('analytics.enabled',true);$config->set('integrations.enabled',true);
     $db=new DatabaseManager($config);
-    foreach(['0031_ai_chat','0032_ai_content_editor'] as $migration) $db->connection()->exec((string)file_get_contents($root.'/migrations/sqlite/'.$migration.'.sql'));
+    foreach(['0031_ai_chat','0032_ai_content_editor','0040_ai_cost_control'] as $migration) $db->connection()->exec((string)file_get_contents($root.'/migrations/sqlite/'.$migration.'.sql'));
     foreach(['0015_analytics_hub','0017_analytics_sync_runs'] as $migration)$db->connection()->exec((string)file_get_contents($root.'/migrations/sqlite/'.$migration.'.sql'));
     $provider=new class implements ReportProvider {
         public function id():string{return 'metrika';}

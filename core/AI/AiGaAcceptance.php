@@ -41,6 +41,8 @@ final readonly class AiGaAcceptance
             $configured = $state['configured'] === true;
             $record('openai_configuration', $configured, 'Configure an OpenAI API key for AI Editor / RAG / Support.');
             $record('token_limits', (int)$state['max_output_tokens'] >= 128 && (int)$state['monthly_token_limit'] >= 1000, 'Set safe output and monthly token limits.');
+            $record('model_pricing', $state['model_pricing'] !== null, 'Configure verified model input, cached and output prices before running AI.');
+            $record('cost_limits', (int)$state['global_monthly_limit_cents'] > 0 && (int)$state['user_monthly_limit_cents'] > 0, 'Set global and per-user hard spending caps.');
             if ($configured) {
                 $key = $settings->key();
                 try { $record('credential_decryption', $key !== '', 'OpenAI key must be decryptable by this PHP worker.'); }
@@ -51,6 +53,7 @@ final readonly class AiGaAcceptance
         }
         $tables = [
             'ce_ai_conversations', 'ce_ai_messages', 'ce_ai_tool_calls', 'ce_ai_actions', 'ce_ai_usage', 'ce_ai_editor_jobs',
+            'ce_ai_cost_balances', 'ce_ai_cost_reservations', 'ce_ai_cost_events',
             'ce_ai_editor_proposals', 'ce_ai_translation_proposals', 'ce_ai_translation_glossary',
             'ce_kb_categories', 'ce_kb_documents', 'ce_kb_chunks', 'ce_kb_terms',
             'ce_ai_kb_conversations', 'ce_ai_kb_messages', 'ce_support_tickets', 'ce_support_messages',
@@ -70,23 +73,41 @@ final readonly class AiGaAcceptance
             }
         } catch (\Throwable) {
             $record('database_connectivity', false, 'Database connection or schema cannot be read.');
-            $record('ai_sql_schema', false, 'Apply migrations 0031–0037 before enabling AI.');
+            $record('ai_sql_schema', false, 'Apply migrations through 0040 before enabling AI.');
         }
         if ($probeProvider) {
             // Explicit operator opt-in: this makes one billable outbound OpenAI request.
             if (!$configured || !extension_loaded('curl')) $record('live_provider', false, 'Configure OpenAI and ext-curl first.');
             else {
                 $key = '';
+                $cost = new AiCostControl($this->db, $settings);
+                $raw = bin2hex(random_bytes(16));
+                $job = substr($raw,0,8).'-'.substr($raw,8,4).'-'.substr($raw,12,4).'-'.substr($raw,16,4).'-'.substr($raw,20);
+                $reserved = false; $reply = null;
                 try {
                     $state = $settings->status();
+                    $this->db->transaction(static function (PDO $pdo) use ($cost, $job, $state): void {
+                        $cost->hold($pdo, $job, 'system:acceptance', 'acceptance', $state, 2048, time()+180);
+                    });
+                    $reserved = true;
                     $key = $settings->key();
                     $reply = (new OpenAiClient())->complete($key, $state['model'], [
                         ['role' => 'user', 'content' => 'Respond with the word READY only.'],
                     ], 128);
-                    $record('live_provider', trim($reply['text']) !== '' && $reply['usage']['input_tokens'] > 0, 'Provider responded with billed token usage.');
+                    $this->db->transaction(static fn(PDO $pdo) => $cost->settle($pdo, $job, $reply['usage']));
+                    $reserved = false;
+                    $record('live_provider', trim($reply['text']) !== '' && $reply['usage']['input_tokens'] > 0, 'Provider responded with accounted token usage.');
                 } catch (\Throwable) {
-                    $record('live_provider', false, 'OpenAI provider probe failed; check connectivity, credentials and billing.');
-                } finally { if ($key !== '' && function_exists('sodium_memzero')) sodium_memzero($key); }
+                    $record('live_provider', false, 'OpenAI provider probe failed; check connectivity, spending cap, credentials and billing.');
+                } finally {
+                    if ($reserved) {
+                        try { $this->db->transaction(static function(PDO $pdo) use ($cost, $job, $reply): void {
+                            if (is_array($reply['usage'] ?? null)) $cost->settle($pdo, $job, $reply['usage']);
+                            else $cost->release($pdo, $job);
+                        }); } catch (\Throwable) { /* Expired provider reservations are reconciled conservatively. */ }
+                    }
+                    if ($key !== '' && function_exists('sodium_memzero')) sodium_memzero($key);
+                }
             }
         }
         return ['ok' => array_all($checks, static fn (array $check): bool => $check['status'] === 'pass'), 'version' => $version, 'checks' => $checks];

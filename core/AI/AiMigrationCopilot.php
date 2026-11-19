@@ -233,9 +233,8 @@ final readonly class AiMigrationCopilot
             finally{if(function_exists('sodium_memzero'))sodium_memzero($key);}
             $text=trim((string)$answer['text']);
             if($text===''||strlen($text)>12000||!preg_match('//u',$text))throw new \DomainException('Invalid OpenAI migration explanation.');
-            $used=max(0,(int)$answer['usage']['input_tokens'])+max(0,(int)$answer['usage']['output_tokens']);
-            $this->db->transaction(fn(PDO $pdo)=>$this->settle($pdo,$userId,$period,$job,$reserve,$used));
+            $this->db->transaction(fn(PDO $pdo)=>$this->settle($pdo,$userId,$period,$job,$reserve,$answer['usage']));
             return ['report'=>$report,'explanation'=>$text,'usage'=>$answer['usage'],'model'=>$settings['model']];
-        }catch(\Throwable $e){$this->release($userId,$period,$job,$reserve);throw $e;}
+        }catch(\Throwable $e){$this->release($userId,$period,$job,$reserve,$answer['usage']??null);throw $e;}
     }
 }

@@ -1,3 +1,11 @@
+# 1.7.7 — AI Budget & Cost Control
+
+- Integer USD-micro cost ledger with snapshotted per-model input, cached-input and output prices.
+- Atomic per-user and installation daily/monthly spending caps, reservations and crash reconciliation.
+- Admin billing dashboard and module/model/user breakdown with 50/80/100% budget warnings.
+- Existing chat, editor, translations, knowledge chat, support, diagnostics, analytics and migration requests now settle cost and token budgets together.
+- Unknown model pricing fails closed until an administrator configures rates.
+
 # 1.7.6 — AI Migration Remediation
 
 - Восстановление отсутствующих 301-редиректов только по сохранённым подтверждённым SEO-картам миграции с проверкой существующих маршрутов и целевых опубликованных страниц.

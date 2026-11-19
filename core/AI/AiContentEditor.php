@@ -186,14 +186,14 @@ final readonly class AiContentEditor
                 $statement->execute([$proposalId, $userId, $type, $entryId, $field, $ctx['field_type'], $mode,
                     hash('sha256', $ctx['original']), $text, $selection === '' ? null : $selection, $blockIndex, $blockField, $ctx['revision'], $now, $now + 604800]);
                 $this->settle($pdo, $userId, $period, $jobId, $reserve,
-                    (int)$response['usage']['input_tokens'] + (int)$response['usage']['output_tokens']);
+                    $response['usage']);
                 $pdo->prepare('DELETE FROM ce_ai_editor_proposals WHERE user_id = ? AND expires_at < ?')->execute([$userId, $now]);
             });
             return ['id' => $proposalId, 'type' => $type, 'entry_id' => $entryId, 'field' => $field,
                 'field_type' => $ctx['field_type'], 'block_index' => $blockIndex, 'block_field' => $blockField, 'mode' => $mode, 'original' => $source, 'proposed' => $text,
                 'expected_revision' => $ctx['revision'], 'expires_at' => $now + 604800, 'usage' => $response['usage']];
         } catch (\Throwable $exception) {
-            $this->release($userId, $period, $jobId, $reserve);
+            $this->release($userId, $period, $jobId, $reserve, $response['usage'] ?? null);
             throw $exception;
         }
     }

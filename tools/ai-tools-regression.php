@@ -59,7 +59,7 @@ $result=$provider->completeWithTools('sk-example','gpt-4.1-mini',[['role'=>'user
     function(string $name,array $args)use(&$messages):array { $messages[]=[$name,$args];return ['items'=>[['id'=>'entry-1','title'=>'Sample page']]]; },
     function(string $delta) use (&$trace):void {$trace[]=$delta;});
 check171($result['text']==='Найден материал' && implode('',$trace)===$result['text'],'final generated answer streamed');
-check171($result['usage']===['input_tokens'=>250,'output_tokens'=>55],'usage accumulated across model round trips');
+check171($result['usage']===['input_tokens'=>250,'output_tokens'=>55,'cached_input_tokens'=>0],'usage accumulated across model round trips');
 check171(count($result['tools'])===1 && $result['tools'][0]['status']==='ok' && count($messages)===1,'one real tool callback executed');
 $second=$provider->requests[1]['input'];
 check171($second[count($second)-2]['type']==='function_call' && $second[count($second)-1]['type']==='function_call_output',

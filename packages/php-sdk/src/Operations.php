@@ -168,6 +168,21 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'api_v1_ai_costs' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/costs',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'days',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'api_v1_ai_diagnostics_explain' => 
   array (
     'method' => 'POST',

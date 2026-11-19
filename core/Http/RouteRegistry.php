@@ -207,6 +207,7 @@ final class RouteRegistry
             ['POST', '/api/v1/ai/analytics/explain', 'api.v1.ai.analytics.explain', 'aiAnalytics', 'explain', ['analytics:read']],
             ['GET', '/api/v1/ai/status', 'api.v1.ai.status', 'ai', 'status', ['content:read']],
             ['PUT', '/api/v1/ai/settings', 'api.v1.ai.settings', 'ai', 'configure', ['system:write', 'integrations:secrets']],
+            ['GET', '/api/v1/ai/costs', 'api.v1.ai.costs', 'ai', 'costs', ['system:read']],
             ['GET', '/api/v1/ai/tools', 'api.v1.ai.tools', 'ai', 'tools', ['content:read']],
             ['GET', '/api/v1/ai/actions', 'api.v1.ai.actions', 'ai', 'actions', ['content:read']],
             ['GET', '/api/v1/ai/actions/{id}', 'api.v1.ai.actions.show', 'ai', 'actionShow', ['content:read']],

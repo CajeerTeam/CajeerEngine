@@ -212,7 +212,7 @@ final readonly class AiKnowledgeChat
                     }
                 }
             } catch (\Throwable $e) {
-                $this->release($userId, $period, $job, $reserved);
+                $this->release($userId, $period, $job, $reserved, $result['usage'] ?? null);
                 throw $e;
             }
         }
@@ -233,7 +233,7 @@ final readonly class AiKnowledgeChat
                 $insert->execute([$answerId, $conversationId, 'assistant', $answer['text'], json_encode($answer['sources'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
                     $created + 1, $usage['input_tokens'], $usage['output_tokens']]);
                 $pdo->prepare('UPDATE ce_ai_kb_conversations SET updated_at = ? WHERE id = ? AND user_id = ?')->execute([time(), $conversationId, $userId]);
-                if ($lease) $this->settle($pdo, $userId, $period, $job, $reserved, $usage['input_tokens'] + $usage['output_tokens']);
+                if ($lease) $this->settle($pdo, $userId, $period, $job, $reserved, $usage);
             });
             // Read through the same revocation filter used for history, avoiding a stale
             // answer escaping in the response after a concurrent document update.
@@ -248,7 +248,7 @@ final readonly class AiKnowledgeChat
             return ['conversation_id' => $conversationId, 'message_id' => $answerId,
                 'text' => $answer['text'], 'sources' => $answer['sources'], 'usage' => $usage, 'model' => $model];
         } catch (\Throwable $e) {
-            if ($lease) $this->release($userId, $period, $job, $reserved);
+            if ($lease) $this->release($userId, $period, $job, $reserved, $result['usage'] ?? null);
             throw $e;
         }
     }
