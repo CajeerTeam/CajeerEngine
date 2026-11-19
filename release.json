@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.7.4-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.7.4-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.7.5-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.7.5-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.7.4-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.7.5-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -46,7 +46,8 @@
     "AI Security & Acceptance 1.6.9: outbound credential rejection before OpenAI HTTP, durable token budget and existing permissions, race-safe idempotent support replies, opt-in bounded privacy retention with rollback, real PDO acceptance and offline secret-boundary regression.",
     "AI Assistant ChatGPT GA 1.7.2: read-only live deployment acceptance, optional OpenAI provider probe, concurrent ticket and RAG protection, and complete CI AI regression gates.",
     "AI External Analytics 1.7.3: evidence-based per-provider comparisons and seven-day changes on persisted reports, credential-free AI explanations with shared monthly budget, read-only CMS tool, dual admin interfaces and release regressions.",
-    "AI SEO & Content Insights 1.7.4: exact CMS URL matching against saved page-level analytics, conservative period comparisons, prioritized SEO audits and revision-confirmed proposals in Nuxt and static SPA."
+    "AI SEO & Content Insights 1.7.4: exact CMS URL matching against saved page-level analytics, conservative period comparisons, prioritized SEO audits and revision-confirmed proposals in Nuxt and static SPA.",
+    "AI Migration Copilot 1.7.5: read-only post-import DLE/WordPress audit from saved reconciliation and bounded live target redirects/media/route checks, prioritized operator guidance, credential-free AI explanation, Nuxt and SPA."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",

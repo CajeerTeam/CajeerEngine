@@ -57,6 +57,8 @@ final class RouteRegistry
             ['POST', '/api/v1/migration/projects/{id}/plan', 'api.v1.migration.projects.plan', 'migration', 'plan', ['migration:run', 'users:read']],
             ['POST', '/api/v1/migration/projects/{id}/approve', 'api.v1.migration.projects.approve', 'migration', 'approve', ['migration:run', 'migration:write', 'users:read']],
             ['GET', '/api/v1/migration/projects', 'api.v1.migration.projects.index', 'migration', 'index', ['migration:read']],
+            ['GET', '/api/v1/ai/migration/projects/{id}/report', 'api.v1.ai.migration.report', 'aiMigration', 'report', ['migration:read']],
+            ['POST', '/api/v1/ai/migration/projects/{id}/explain', 'api.v1.ai.migration.explain', 'aiMigration', 'explain', ['migration:read']],
             ['POST', '/api/v1/migration/projects', 'api.v1.migration.projects.create', 'migration', 'create', ['migration:write', 'integrations:secrets']],
             ['GET', '/api/v1/migration/projects/{id}', 'api.v1.migration.projects.show', 'migration', 'show', ['migration:read']],
             ['PUT', '/api/v1/migration/projects/{id}', 'api.v1.migration.projects.update', 'migration', 'update', ['migration:write', 'integrations:secrets']],

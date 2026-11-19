@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.7.4'
+const ADMIN_VERSION = '1.7.5'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -44,6 +44,7 @@ const state = {
   cache: {},
   forms: {
     contentType: defaultContentType(),
+    migrationCopilot: {report:null,explanation:'',usage:null,busy:false},
     entryType: 'pages',
     entryStatus: 'all',
     entrySearch: '',
@@ -549,8 +550,28 @@ function migrationView(){
   const source=editing?selected.source:'wordpress-wxr', c=editing?selected.config:{}, report=selected?.report
   const field=(name,label,value='',type='text')=>`<label>${escapeHtml(label)}<input name="${name}" type="${type}" value="${escapeHtml(value)}" ${type==='password'?'autocomplete="new-password"':''}></label>`
   const sourceFields=`<div data-migration-db>${field('host','IPv4 базы (разрешённый оператором)',c.host)}${field('port','Порт',c.port||3306,'number')}${field('database','Имя базы',c.database)}${field('prefix','Префикс таблиц (пусто = авто)',c.prefix)}<label>Кодировка соединения<select name="charset">${['utf8mb4','utf8','cp1251'].map(v=>`<option ${v===c.charset?'selected':''}>${v}</option>`).join('')}</select></label></div><div data-migration-rest>${field('url','HTTPS URL сайта WordPress',c.url,'url')}</div><div data-migration-credentials>${field('username','Пользователь (REST: необязательно)')}${field('password','Пароль БД / WordPress Application Password','','password')}</div>`
-  return `<div class="grid two"><div class="card"><h2>1. Проекты миграции</h2><p>Анализ источника без изменения сайта назначения.</p>${projects.map(p=>`<div class="notice"><strong>${escapeHtml(p.name)}</strong> · ${escapeHtml(kinds[p.source])} · ${escapeHtml(p.status)} <button class="btn secondary" data-migration-open="${p.id}">Открыть</button></div>`).join('')||'<p>Нет проектов.</p>'}${manage?`<button class="btn secondary" data-migration-new>Новый проект</button><h3>${editing?'Изменить подключение':'Создать проект'}</h3><form class="form" data-migration-form data-id="${editing?selected.id:''}">${field('name','Название',editing?selected.name:'')}<label>Источник<select name="source">${Object.entries(kinds).map(([k,v])=>`<option value="${k}" ${k===source?'selected':''}>${escapeHtml(v)}</option>`).join('')}</select></label>${sourceFields}<p>Изменение подключения сбрасывает предыдущий отчёт; credentials нужно ввести заново.</p><button class="btn" type="submit">Сохранить проект</button></form>`:''}</div><div class="card"><h2>2. Анализ источника</h2>${selected?`<h3>${escapeHtml(selected.name)}</h3><p>${escapeHtml(kinds[selected.source])} · ревизия ${selected.revision}</p>${manage&&!completed?'<button class="btn secondary" data-migration-edit>Изменить подключение</button>':''}${write&&!completed?'<button class="btn ghost" data-migration-delete>Удалить</button>':''}${run&&!completed?`<button class="btn" data-migration-scan>Запустить / повторить анализ</button>${selected.source==='wordpress-wxr'&&write?'<form class="form" data-migration-upload><label>WXR XML (до 32 MiB)<input type="file" name="file" accept=".xml,text/xml,application/xml" required></label><button class="btn" type="submit">Загрузить и анализировать</button></form>':''}`:''}${selected.error?`<div class="notice error">${escapeHtml(selected.error)}${report?' (ниже предыдущий успешный отчёт)':''}</div>`:''}${report?`<h2>3. Отчёт совместимости</h2><p>Последний успешный анализ: ${escapeHtml(report.scanned_at)}</p><table><thead><tr><th>Сущность</th><th>Количество</th><th>Совместимость</th></tr></thead><tbody>${Object.entries(report.counts||{}).map(([k,v])=>`<tr><td>${escapeHtml(k)}</td><td>${v===null?'Недоступно':escapeHtml((report.details?.lower_bound_counts||[]).includes(k)?'≥ '+v:v)}</td><td>${escapeHtml(report.compatibility?.[k])}</td></tr>`).join('')}</tbody></table><h3>Типы, статусы, поля и структура</h3><pre>${escapeHtml(JSON.stringify({types:report.types,statuses:report.statuses,fields:report.fields,details:report.details},null,2))}</pre><h3>Ограничения</h3><ul>${(report.warnings||[]).map(w=>`<li>${escapeHtml(w)}</li>`).join('')}</ul><button class="btn secondary" data-migration-export>Скачать JSON отчёт</button>`:'<p>Отчёт появится после успешного анализа.</p>'}`:'<p>Создайте или откройте проект.</p>'}</div></div>${selected&&report&&!selected.error?migrationPlanningView(selected,write&&!completed,run&&!completed)+migrationExecutionView(selected):''}`
+  return `<div class="grid two"><div class="card"><h2>1. Проекты миграции</h2><p>Анализ источника без изменения сайта назначения.</p>${projects.map(p=>`<div class="notice"><strong>${escapeHtml(p.name)}</strong> · ${escapeHtml(kinds[p.source])} · ${escapeHtml(p.status)} <button class="btn secondary" data-migration-open="${p.id}">Открыть</button></div>`).join('')||'<p>Нет проектов.</p>'}${manage?`<button class="btn secondary" data-migration-new>Новый проект</button><h3>${editing?'Изменить подключение':'Создать проект'}</h3><form class="form" data-migration-form data-id="${editing?selected.id:''}">${field('name','Название',editing?selected.name:'')}<label>Источник<select name="source">${Object.entries(kinds).map(([k,v])=>`<option value="${k}" ${k===source?'selected':''}>${escapeHtml(v)}</option>`).join('')}</select></label>${sourceFields}<p>Изменение подключения сбрасывает предыдущий отчёт; credentials нужно ввести заново.</p><button class="btn" type="submit">Сохранить проект</button></form>`:''}</div><div class="card"><h2>2. Анализ источника</h2>${selected?`<h3>${escapeHtml(selected.name)}</h3><p>${escapeHtml(kinds[selected.source])} · ревизия ${selected.revision}</p>${manage&&!completed?'<button class="btn secondary" data-migration-edit>Изменить подключение</button>':''}${write&&!completed?'<button class="btn ghost" data-migration-delete>Удалить</button>':''}${run&&!completed?`<button class="btn" data-migration-scan>Запустить / повторить анализ</button>${selected.source==='wordpress-wxr'&&write?'<form class="form" data-migration-upload><label>WXR XML (до 32 MiB)<input type="file" name="file" accept=".xml,text/xml,application/xml" required></label><button class="btn" type="submit">Загрузить и анализировать</button></form>':''}`:''}${selected.error?`<div class="notice error">${escapeHtml(selected.error)}${report?' (ниже предыдущий успешный отчёт)':''}</div>`:''}${report?`<h2>3. Отчёт совместимости</h2><p>Последний успешный анализ: ${escapeHtml(report.scanned_at)}</p><table><thead><tr><th>Сущность</th><th>Количество</th><th>Совместимость</th></tr></thead><tbody>${Object.entries(report.counts||{}).map(([k,v])=>`<tr><td>${escapeHtml(k)}</td><td>${v===null?'Недоступно':escapeHtml((report.details?.lower_bound_counts||[]).includes(k)?'≥ '+v:v)}</td><td>${escapeHtml(report.compatibility?.[k])}</td></tr>`).join('')}</tbody></table><h3>Типы, статусы, поля и структура</h3><pre>${escapeHtml(JSON.stringify({types:report.types,statuses:report.statuses,fields:report.fields,details:report.details},null,2))}</pre><h3>Ограничения</h3><ul>${(report.warnings||[]).map(w=>`<li>${escapeHtml(w)}</li>`).join('')}</ul><button class="btn secondary" data-migration-export>Скачать JSON отчёт</button>`:'<p>Отчёт появится после успешного анализа.</p>'}`:'<p>Создайте или откройте проект.</p>'}</div></div>${selected&&report&&!selected.error?migrationPlanningView(selected,write&&!completed,run&&!completed)+migrationExecutionView(selected):''}${selected?migrationCopilotView(selected):''}`
 }
+function migrationCopilotView(project) {
+  const cache=state.forms.migrationCopilot
+  const report=cache.report?.project_id===project.id?cache.report:null
+  const problems=report?.findings||[]
+  const warnings=report?.warnings||[]
+  return `<section class="card" style="margin-top:18px"><h2>AI Migration Copilot · после миграции</h2>
+    <p class="muted">Чтение отчётов и ограниченная проверка текущих медиа, редиректов и маршрутов. Исходный сайт не запрашивается, команды не выполняются.</p>
+    <div class="row-actions"><button class="btn" data-migration-copilot-check ${cache.busy?'disabled':''}>Проверить проект</button>
+    ${report?.import_complete?`<button class="btn secondary" data-migration-copilot-explain ${cache.busy?'disabled':''}>Объяснить через OpenAI</button>`:''}
+    ${report?'<button class="btn secondary" data-migration-copilot-export>Экспорт JSON</button>':''}</div>
+    ${report?`<p>Импорт: ${report.import_complete?'завершён':'не завершён'} · Сверка: ${report.validation_available?(report.validation_ready?'готово':'есть расхождения'):'нет отчёта'} · Cutover: ${report.cutover_confirmed?'подтверждён':'не подтверждён'}</p>
+      <p class="muted">Проверено ${escapeHtml(report.checked_at)}; последний migration:validate: ${escapeHtml(report.validation_checked_at||'нет')}</p>
+      ${warnings.map(w=>`<div class="notice">${escapeHtml(w)}</div>`).join('')}
+      <h3>Счётчики</h3><pre>${escapeHtml(JSON.stringify({counts:report.counts,checks:report.checks,findings:report.finding_counts},null,2))}</pre>
+      <h3>Отклонения (${Number(report.finding_total)||0})</h3>
+      ${table(['Приоритет','Код','Источник','Действие'],problems.map(p=>`<tr><td>${escapeHtml(p.severity)}</td><td>${escapeHtml(p.code)}</td><td>${escapeHtml(p.source)}</td><td>${escapeHtml(p.action)}</td></tr>`))}
+      <p>Повторная операторская проверка:</p><pre>${escapeHtml(report.next_step)}</pre>`:''}
+    ${report&&cache.explanation?`<h3>AI-объяснение</h3><p style="white-space:pre-wrap">${escapeHtml(cache.explanation)}</p><p class="muted">${cache.usage?'Токены: '+Number(cache.usage.input_tokens)+' / '+Number(cache.usage.output_tokens):''}</p>`:''}</section>`
+}
+
 function migrationValidationView(p){
   const v=p.validation, id=p.id
   if(!v)return `<div class="card"><h2>9. Validation & Cutover</h2><p>После завершения миграции выполните серверную сверку содержимого, маршрутов, sitemap и файлов.</p><pre>${escapeHtml('php bin/cajeer migration:validate '+id)}</pre><button class="btn secondary" data-migration-refresh>Обновить результат</button></div>`
@@ -596,7 +617,7 @@ function bindMigration(){
   const projects=dataOf(state.cache.migrationProjects,{projects:[]}).projects||[], selected=projects.find(p=>p.id===state.cache.migrationSelected)
   const execute=async(el,fn)=>{if(el.dataset.busy)return;el.dataset.busy='1';el.disabled=true;try{await fn();if(state.route==='migration')render()}catch(e){setNotice('error',e.message)}finally{delete el.dataset.busy;el.disabled=false}}
   const refresh=()=>loadSilent('migrationProjects','/migration/projects')
-  document.querySelectorAll('[data-migration-open]').forEach(b=>b.addEventListener('click',()=>{state.cache.migrationSelected=b.dataset.migrationOpen;state.cache.migrationEditing=false;render()}))
+  document.querySelectorAll('[data-migration-open]').forEach(b=>b.addEventListener('click',()=>{state.cache.migrationSelected=b.dataset.migrationOpen;state.cache.migrationEditing=false;state.forms.migrationCopilot={report:null,explanation:'',usage:null,busy:false};render()}))
   document.querySelector('[data-migration-new]')?.addEventListener('click',()=>{state.cache.migrationSelected=null;state.cache.migrationEditing=false;render()})
   document.querySelector('[data-migration-edit]')?.addEventListener('click',()=>{state.cache.migrationEditing=true;render()})
   const f=document.querySelector('[data-migration-form]')
@@ -604,6 +625,26 @@ function bindMigration(){
   if(!selected)return
   const path='/migration/projects/'+selected.id
   bindMigrationPlanning(selected,path,execute,refresh)
+  document.querySelector('[data-migration-copilot-check]')?.addEventListener('click',e=>execute(e.currentTarget,async()=>{
+    const cop=state.forms.migrationCopilot
+    cop.report=null;cop.explanation='';cop.usage=null;cop.busy=true
+    try{cop.report=dataOf(await api('/ai/migration/projects/'+encodeURIComponent(selected.id)+'/report'))}
+    finally{cop.busy=false}
+  }))
+  document.querySelector('[data-migration-copilot-explain]')?.addEventListener('click',e=>execute(e.currentTarget,async()=>{
+    const cop=state.forms.migrationCopilot;cop.busy=true
+    try{
+      const result=dataOf(await api('/ai/migration/projects/'+encodeURIComponent(selected.id)+'/explain',{method:'POST',body:'{}'}))
+      cop.report=result.report;cop.explanation=result.explanation;cop.usage=result.usage
+    }finally{cop.busy=false}
+  }))
+  document.querySelector('[data-migration-copilot-export]')?.addEventListener('click',()=>{
+    const report=state.forms.migrationCopilot.report
+    if(!report||report.project_id!==selected.id)return
+    const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}))
+    const link=document.createElement('a');link.href=url;link.download='migration-copilot-'+selected.id+'.json';link.click()
+    setTimeout(()=>URL.revokeObjectURL(url),1000)
+  })
   document.querySelector('[data-migration-refresh]')?.addEventListener('click',e=>execute(e.currentTarget,refresh))
   document.querySelector('[data-migration-result-export]')?.addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(selected.execution,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='migration-result-'+selected.id+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)})
   document.querySelector('[data-migration-scan]')?.addEventListener('click',e=>execute(e.currentTarget,async()=>{await api(path+'/scan',{method:'POST',body:JSON.stringify({revision:selected.revision})});await refresh()}))

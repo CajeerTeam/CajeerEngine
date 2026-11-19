@@ -451,6 +451,13 @@ final class Application
 
         $container->set('controller.search', fn (ServiceContainer $c): SearchController => new SearchController($c->get(SearchService::class),new \CajeerEngine\Privacy\ConsentPolicy($rootPath)));
         $container->set('controller.migration', fn (ServiceContainer $c) => new \CajeerEngine\Api\Controller\MigrationController(\CajeerEngine\Migration\MigrationFactory::create($rootPath,$c->get(DatabaseManager::class),$c->get(ContentTypeRepository::class),$c->get(ContentEntryRepository::class),$c->get(UserRepository::class)),$c->get(AuditLogger::class)));
+        $container->set(\CajeerEngine\AI\AiMigrationCopilot::class, fn (ServiceContainer $c): \CajeerEngine\AI\AiMigrationCopilot => new \CajeerEngine\AI\AiMigrationCopilot(
+            $rootPath, \CajeerEngine\Migration\MigrationFactory::create($rootPath,$c->get(DatabaseManager::class),$c->get(ContentTypeRepository::class),$c->get(ContentEntryRepository::class),$c->get(UserRepository::class)),
+            $c->get(DatabaseManager::class),$c->get(AiSettings::class),$c->get(OpenAiClient::class)
+        ));
+        $container->set('controller.aiMigration', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\AiMigrationController => new \CajeerEngine\Api\Controller\AiMigrationController(
+            $c->get(\CajeerEngine\AI\AiMigrationCopilot::class),$c->get(RateLimiter::class),$c->get(AuditLogger::class)
+        ));
         $container->set('controller.analyticsHub', fn (ServiceContainer $c) => new \CajeerEngine\Api\Controller\AnalyticsHubController($c->get(\CajeerEngine\Analytics\Reporting\AnalyticsHub::class),$c->get(AuditLogger::class)));
         $container->set('controller.analyticsEvents', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\AnalyticsEventController => new \CajeerEngine\Api\Controller\AnalyticsEventController(new \CajeerEngine\Analytics\EventConfig($rootPath), new \CajeerEngine\Analytics\EventJournal($rootPath), $c->get(AuditLogger::class), new \CajeerEngine\Analytics\ServerEvents($rootPath,$c->get(IntegrationCenter::class),$c->get(ManagedQueueDriverInterface::class))));
         $container->set('controller.tracking', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\TrackingController => new \CajeerEngine\Api\Controller\TrackingController(new \CajeerEngine\Privacy\TrackingConfig($rootPath), $c->get(AuditLogger::class)));
@@ -615,7 +622,8 @@ final class Application
         $analyticsHub = $container->get('controller.analyticsHub');
         $analyticsEvents = $container->get('controller.analyticsEvents');
         $migration = $container->get('controller.migration');
-        $controllers = compact('support', 'knowledge', 'ai', 'identityAdmin', 'oidc', 'migration', 'analyticsHub', 'tracking', 'analyticsEvents', 'consent', 'integrations', 'health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
+        $aiMigration = $container->get('controller.aiMigration');
+        $controllers = compact('aiMigration', 'support', 'knowledge', 'ai', 'identityAdmin', 'oidc', 'migration', 'analyticsHub', 'tracking', 'analyticsEvents', 'consent', 'integrations', 'health', 'system', 'contentTypes', 'entries', 'runtime', 'search', 'queue', 'scheduler', 'webhooks', 'extensions', 'installer', 'importExport', 'updates', 'rc', 'stable', 'admin', 'media', 'public', 'cms', 'database', 'auth', 'users', 'roles', 'apiTokens', 'security');
         foreach (\CajeerEngine\Http\RouteRegistry::all() as [$method, $path, $name, $controller, $action, $scopes]) {
             $router->add([$method], $path, $name, [$controllers[$controller], $action], $scopes);
         }

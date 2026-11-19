@@ -160,6 +160,30 @@ export const operations = {
         "parameters": [],
         "bodyRequired": true
     },
+    "api_v1_ai_migration_explain": {
+        "method": "POST",
+        "path": "/ai/migration/projects/{id}/explain",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_ai_migration_report": {
+        "method": "GET",
+        "path": "/ai/migration/projects/{id}/report",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
     "api_v1_ai_seo_audit": {
         "method": "GET",
         "path": "/ai/seo/audit",

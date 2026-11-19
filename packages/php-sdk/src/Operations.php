@@ -216,6 +216,36 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'api_v1_ai_migration_explain' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/migration/projects/{id}/explain',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_migration_report' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/migration/projects/{id}/report',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'api_v1_ai_seo_audit' => 
   array (
     'method' => 'GET',
