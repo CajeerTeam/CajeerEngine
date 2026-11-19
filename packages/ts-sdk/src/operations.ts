@@ -194,6 +194,39 @@ export const operations = {
         ],
         "bodyRequired": false
     },
+    "api_v1_ai_seo_insights": {
+        "method": "GET",
+        "path": "/ai/seo/insights",
+        "parameters": [
+            {
+                "name": "connection_id",
+                "in": "query",
+                "required": true
+            },
+            {
+                "name": "from",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "to",
+                "in": "query",
+                "required": false
+            },
+            {
+                "name": "limit",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_seo_insights_propose": {
+        "method": "POST",
+        "path": "/ai/seo/insights/proposals",
+        "parameters": [],
+        "bodyRequired": true
+    },
     "api_v1_ai_seo_propose": {
         "method": "POST",
         "path": "/ai/seo/proposals",

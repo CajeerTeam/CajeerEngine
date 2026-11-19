@@ -488,8 +488,13 @@ final class Application
             $c->get(\CajeerEngine\AI\AiKnowledgeBase::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class),
             $c->get(AiKnowledgeChat::class)
         ));
+        $container->set(\CajeerEngine\AI\AiSeoContentInsights::class, fn (ServiceContainer $c): \CajeerEngine\AI\AiSeoContentInsights => new \CajeerEngine\AI\AiSeoContentInsights(
+            $c->get(\CajeerEngine\Analytics\Reporting\AnalyticsHub::class),$c->get(AiSeoAssistant::class),
+            new \CajeerEngine\Public\RouteIndex($rootPath,$c->get(DatabaseManager::class)), $c->get(ConfigRepository::class)
+        ));
         $container->set('controller.aiAnalytics', fn (ServiceContainer $c): \CajeerEngine\Api\Controller\AiAnalyticsController => new \CajeerEngine\Api\Controller\AiAnalyticsController(
-            $c->get(\CajeerEngine\AI\AiExternalAnalytics::class), $c->get(RateLimiter::class), $c->get(AuditLogger::class)
+            $c->get(\CajeerEngine\AI\AiExternalAnalytics::class), $c->get(RateLimiter::class), $c->get(AuditLogger::class),
+            $c->get(\CajeerEngine\AI\AiSeoContentInsights::class), $c->get(AiContentEditor::class)
         ));
         $container->set('controller.ai', fn (ServiceContainer $c): AiController => new AiController(
             $c->get(AiChat::class), $c->get(AiSettings::class), $c->get(AuditLogger::class), $c->get(RateLimiter::class),

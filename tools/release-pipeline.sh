@@ -32,8 +32,11 @@ php tools/oidc-api-integration.php --require-db
 php tools/integration-http-regression.php
 php tools/ai-ga-acceptance-regression.php --require-db
 php tools/ai-actions-integration.php --require-db
+php tools/ai-seo-content-insights-regression.php
+php tools/ai-seo-content-insights-integration.php --require-db
 python3 tools/ai-actions-sqlite-regression.py
 python3 tools/ai-actions-browser.py
+python3 tools/ai-seo-content-insights-browser.py
 python3 tools/ai-ga-sqlite-regression.py
 php tools/consent-regression.php
 php tools/tracking-regression.php

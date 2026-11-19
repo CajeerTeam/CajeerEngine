@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '1.7.3'
+const ADMIN_VERSION = '1.7.4'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -53,7 +53,7 @@ const state = {
     mediaAlt: '',
     user: { name: '', email: '', password: '', roles: 'admin' },
     identitySearch: '', identityLinked: 'all', identityOffset: 0, identitySelected: '',
-    seo: {type:'',entry:'',field:'seo_title',instructions:'',audit:null,batch:null,proposal:null,busy:false},
+    seo: {type:'',entry:'',field:'seo_title',instructions:'',audit:null,batch:null,proposal:null,busy:false,insights:null,insightSource:'',insightFrom:'',insightTo:'',insightProposal:null,insightItem:null},
     diagnostics: {window:60,focus:'',explanation:null,usage:null,busy:false},
     knowledge: {selected:null, category:'', query:'', offset:0, search:'', visibility:'all', results:[], busy:false, kind:'', entry:''},
     knowledgeChat: {active:null,messages:[],busy:false,visibility:'all',locale:'',question:''},
@@ -221,6 +221,7 @@ async function routeLoad(route) {
       const available=asArray(state.cache.seoTypes)
       if(!available.some(t=>t.handle===state.forms.seo.type))state.forms.seo.type=available[0]?.handle||''
       if(state.forms.seo.type)await loadSilent('seoEntries','/content/'+encodeURIComponent(state.forms.seo.type)+'?status=all&limit=200&offset=0')
+      if(integrationScope('analytics:read'))await loadSilent('analyticsHub','/analytics/reports')
     }
     if (route === 'translations') {
       await loadSilent('translationTypes','/content-types')
@@ -939,7 +940,22 @@ function seoView() {
   const batch=reports.length?`<section class="card"><h2>Проверено опубликованных страниц: ${reports.length} из ${Number(f.batch?.meta?.available||reports.length)}</h2>${table(['Материал','Балл','Замечания',''],reports.map(x=>`<tr><td>${escapeHtml(x.title)}</td><td>${Number(x.score)}/100</td><td>${x.issues.length}</td><td><button class="btn small secondary" data-seo-open="${escapeHtml(x.entry_id)}">Открыть</button></td></tr>`))}</section>`:'';
   const issues=r?.issues||[];
   const report=r?`<section class="card"><h2>SEO-аудит: ${escapeHtml(r.title)} · ${Number(r.score)}/100</h2><p>Ревизия ${Number(r.revision)} · ${escapeHtml(r.status)} · URL ${escapeHtml(r.path||'(нет)')}</p><p><strong>SEO Title:</strong> ${escapeHtml(r.seo.title||'(нет)')}<br><strong>Description:</strong> ${escapeHtml(r.seo.description||'(нет)')}<br><strong>Canonical:</strong> ${escapeHtml(r.seo.canonical_url||'(автоматический)')}<br><strong>Noindex:</strong> ${r.seo.noindex?'Да':'Нет'}</p><p>Слов: ${Number(r.stats.words)} · H1: ${Number(r.stats.headings.h1)} · H2: ${Number(r.stats.headings.h2)} · Проверено внутренних ссылок: ${Number(r.stats.internal_links_checked)}</p>${issues.length?table(['Приоритет','Замечание','Действие'],issues.map(i=>`<tr><td>${escapeHtml(i.severity)}</td><td>${escapeHtml(i.message)}</td><td>${escapeHtml(i.action)}</td></tr>`)):'<p>Выбранные проверки не выявили замечаний.</p>'}<p class="muted">${escapeHtml(r.notes)}</p><div class="card"><h3>AI-рекомендация</h3><form data-seo-propose class="form">${heading('Поле',{name:'field',values:[['seo_title','SEO Title'],['meta_description','Meta Description']],current:f.field})}<label>Ключевая фраза / рекомендации<textarea class="input" name="instructions" rows="3" maxlength="1500">${escapeHtml(f.instructions)}</textarea></label><button class="btn secondary" ${f.busy?'disabled':''} type="submit">${f.busy?'Выполняется…':'Сгенерировать предложение'}</button></form>${f.proposal?`<h3>Сравнение: ревизия ${Number(f.proposal.expected_revision)}</h3><div class="ai-editor-compare"><div><strong>Текущее значение</strong><pre class="ai-editor-text">${escapeHtml(f.proposal.original||'(пусто)')}</pre></div><div><strong>Предложение</strong><pre class="ai-editor-text">${escapeHtml(f.proposal.proposed)}</pre></div></div><p class="muted">Токены: ${Number(f.proposal.usage?.input_tokens||0)} / ${Number(f.proposal.usage?.output_tokens||0)}</p><div class="toolbar"><button class="btn" data-seo-accept>Применить как новую ревизию</button><button class="btn secondary" data-seo-reject>Отклонить</button></div>`:''}</div></section>`:'';
-  return `<section class="card"><h2>Анализ страниц и SEO-оптимизация</h2><p>Проверка читает сохранённые данные и маршруты CMS, без запросов к внешним сайтам. AI-рекомендации не применяются автоматически.</p><div class="toolbar"><div style="min-width:200px">${typesHtml}</div><div style="min-width:250px">${entriesHtml}</div><button class="btn" data-seo-audit ${f.busy?'disabled':''}>${f.busy?'Проверка…':'Анализировать'}</button><button class="btn secondary" data-seo-batch ${f.busy?'disabled':''}>Проверить опубликованные (до 30)</button></div></section>${batch}${report}`;
+  const sources=integrationScope('analytics:read')?dataOf(state.cache.analyticsHub,{items:[]}).items||[]:[];
+  const usable=sources.filter(x=>['search_console','webmaster','ga4','metrika','matomo','plausible','cf_web'].includes(x.provider));
+  const selected=f.insightSource||usable[0]?.id||'', insight=f.insights;
+  const insightRows=insight?.items||[];
+  const insightPanel=`<section class="card"><h2>AI SEO & Content Insights</h2><p>Сопоставление сохранённой статистики и SEO-проверок по публичному URL. Изменение метрик не доказывает SEO-причину.</p>
+    <form class="form" data-seo-insights><label>Источник<select class="input" name="connection_id">${usable.map(x=>`<option value="${escapeHtml(x.id)}" ${selected===x.id?'selected':''}>${escapeHtml(x.name)} · ${escapeHtml(x.provider)}</option>`).join('')}</select></label>
+    <label>Начало периода (необязательно)<input class="input" type="date" name="from" value="${escapeHtml(f.insightFrom)}"></label>
+    <label>Конец периода<input class="input" type="date" name="to" value="${escapeHtml(f.insightTo)}"></label>
+    <button class="btn" ${!usable.length||f.busy?'disabled':''}>Сопоставить страницы</button></form>
+    ${!usable.length?'<p>Нет доступных аналитических источников или права analytics:read.</p>':''}
+    ${insight?`<p>${insight.available?`Проверено строк: ${Number(insight.examined||0)} · Рекомендаций: ${Number(insight.matched||0)} · Сравнение: ${escapeHtml(insight.comparison_status||'—')}`:escapeHtml(insight.message||'Нет данных')}</p>${(insight.warnings||[]).map(w=>`<p class="notice">${escapeHtml(w)}</p>`).join('')}
+      ${insightRows.length?table(['Страница','SEO','Статистика','Рекомендации'],insightRows.map(row=>`<tr><td>${escapeHtml(row.title)}<p class="muted">${escapeHtml(row.path)}</p></td><td>${Number(row.score)}/100</td><td>${escapeHtml(row.metric)}: ${Number(row.current)}<p>${row.change_percent===null?'Сравнение недоступно':escapeHtml(row.change_percent)+'%'}</p></td><td><p>Приоритет ${Number(row.priority)}</p>${row.recommendations.map(rec=>`<p>${escapeHtml(rec.action)}</p>${rec.field?`<button class="btn secondary small" data-seo-insight-propose="${escapeHtml(row.entry_id)}" data-field="${escapeHtml(rec.field)}" ${f.busy?'disabled':''}>Подготовить ${escapeHtml(rec.field)}</button>`:''}`).join('')}</td></tr>`)):'<p>Нет совпавших опубликованных страниц с рекомендациями.</p>'}
+      <p class="muted">${escapeHtml(insight.notes||'')}</p>`:''}
+    ${f.insightProposal?`<div class="card"><h3>Предпросмотр: ${escapeHtml(f.insightItem?.path||'')} · ревизия ${Number(f.insightProposal.expected_revision)}</h3><div class="ai-editor-compare"><div><strong>Было</strong><pre>${escapeHtml(f.insightProposal.original||'(пусто)')}</pre></div><div><strong>Предложено</strong><pre>${escapeHtml(f.insightProposal.proposed)}</pre></div></div><div class="toolbar"><button class="btn" data-seo-insight-approve>Подтвердить и сохранить</button><button class="btn secondary" data-seo-insight-reject>Отклонить</button></div></div>`:''}
+  </section>`;
+  return `<section class="card"><h2>Анализ страниц и SEO-оптимизация</h2><p>Проверка читает сохранённые данные и маршруты CMS, без запросов к внешним сайтам. AI-рекомендации не применяются автоматически.</p><div class="toolbar"><div style="min-width:200px">${typesHtml}</div><div style="min-width:250px">${entriesHtml}</div><button class="btn" data-seo-audit ${f.busy?'disabled':''}>${f.busy?'Проверка…':'Анализировать'}</button><button class="btn secondary" data-seo-batch ${f.busy?'disabled':''}>Проверить опубликованные (до 30)</button></div></section>${batch}${report}${insightPanel}`;
 }
 function bindSeo() {
   if(state.route!=='seo')return;
@@ -960,6 +976,39 @@ function bindSeo() {
     if(f.busy)return;f.busy=true;
     try{f.batch=dataOf(await api('/ai/seo/batch?'+new URLSearchParams({type:f.type,limit:'30'})));setNotice('ok','Пакетная проверка завершена.')}
     catch(e){setNotice('error',e.message,e.payload)}finally{f.busy=false;render()}
+  });
+  document.querySelector('[data-seo-insights]')?.addEventListener('submit',async e=>{
+    e.preventDefault();if(f.busy)return
+    const fields=new FormData(e.currentTarget),id=String(fields.get('connection_id')||''),from=String(fields.get('from')||''),to=String(fields.get('to')||'')
+    if(Boolean(from)!==Boolean(to))return setNotice('error','Выберите обе даты или оставьте пустыми.')
+    f.busy=true;f.insightSource=id;f.insightFrom=from;f.insightTo=to;f.insightProposal=null;f.insightItem=null
+    try{f.insights=dataOf(await api('/ai/seo/insights?'+new URLSearchParams({connection_id:id,limit:'40',...(from?{from,to}:{})})));setNotice('ok','Сопоставление сохранённых отчётов и SEO-аудита завершено.')}
+    catch(err){setNotice('error',err.message,err.payload)}finally{f.busy=false;render()}
+  });
+  document.querySelectorAll('[data-seo-insight-propose]').forEach(button=>button.addEventListener('click',async()=>{
+    if(f.busy)return
+    const item=f.insights?.items?.find(x=>x.entry_id===button.dataset.seoInsightPropose)
+    if(!item)return
+    f.busy=true;f.insightItem=item;f.insightProposal=null
+    try{
+      const response=dataOf(await api('/ai/seo/insights/proposals',{method:'POST',body:JSON.stringify({
+        connection_id:f.insightSource||dataOf(state.cache.analyticsHub,{items:[]}).items?.[0]?.id,
+        type:item.type,entry_id:item.entry_id,field:button.dataset.field,
+        ...(f.insightFrom?{from:f.insightFrom,to:f.insightTo}:{})
+      })}));f.insightProposal=response.proposal;setNotice('ok','Предложение готово. Проверьте перед применением.')
+    }catch(err){setNotice('error',err.message,err.payload)}finally{f.busy=false;render()}
+  }));
+  document.querySelector('[data-seo-insight-reject]')?.addEventListener('click',()=>{f.insightProposal=null;f.insightItem=null;render()});
+  document.querySelector('[data-seo-insight-approve]')?.addEventListener('click',async()=>{
+    if(f.busy||!f.insightProposal||!f.insightItem)return
+    if(!confirm('SEO-метаданные опубликованной страницы изменятся. Подтвердить новую ревизию?'))return
+    f.busy=true
+    try{
+      await api('/ai/editor/proposals/'+encodeURIComponent(f.insightProposal.id)+'/apply',{method:'POST',body:JSON.stringify({confirm_published:true})})
+      f.insightProposal=null;f.insightItem=null
+      f.insights=dataOf(await api('/ai/seo/insights?'+new URLSearchParams({connection_id:f.insightSource,limit:'40',...(f.insightFrom?{from:f.insightFrom,to:f.insightTo}:{})})))
+      setNotice('ok','SEO-правка сохранена как новая ревизия.')
+    }catch(err){setNotice('error',err.message,err.payload)}finally{f.busy=false;render()}
   });
   const form=document.querySelector('[data-seo-propose]');
   form?.addEventListener('input',()=>{f.proposal=null;f.field=form.elements.field.value;f.instructions=form.elements.instructions.value});

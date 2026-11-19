@@ -1,43 +1,43 @@
 {
-    "name": "CajeerEngine Admin UI",
-    "version": "1.7.3",
-    "mode": "production-static-spa",
-    "base_path": "/admin/",
-    "api_base": "/api/v1",
-    "files": {
-        "index.html": {
-            "path": "/admin/index.html",
-            "exists": true,
-            "size": 718,
-            "sha256": "c7574b6ed959a9f5c121121ccb92e9eabf2764346a78a9ed3d727c37f1eee2cb"
-        },
-        "assets/admin-app.js": {
-            "path": "/admin/assets/admin-app.js",
-            "exists": true,
-            "size": 276793,
-            "sha256": "42dd8f8a5f6d36b72d745591b06ec0ea9f448d20588c0f4e50bb75c7197c7d25"
-        },
-        "assets/admin-app.css": {
-            "path": "/admin/assets/admin-app.css",
-            "exists": true,
-            "size": 7990,
-            "sha256": "a25f148cc62ff8548be64add5621fc3650e6cd6a055906f326b3076aa7a2bd77"
-        },
-        "assets/admin-preview.js": {
-            "path": "/admin/assets/admin-preview.js",
-            "exists": true,
-            "size": 37,
-            "sha256": "df4086c8ff8bb84c7b7194564ca88dd3e82166ab2fc2abced2cbee4025e3a372"
-        },
-        "assets/admin-preview.css": {
-            "path": "/admin/assets/admin-preview.css",
-            "exists": true,
-            "size": 44,
-            "sha256": "f8a2648f337a5b161162e530a6b93655ea5efdefd33969f11d1b332a397b7db0"
-        }
+  "name": "CajeerEngine Admin UI",
+  "version": "1.7.4",
+  "mode": "production-static-spa",
+  "base_path": "/admin/",
+  "api_base": "/api/v1",
+  "files": {
+    "index.html": {
+      "path": "/admin/index.html",
+      "exists": true,
+      "size": 718,
+      "sha256": "489d14b8a96f3d1b6388b5d90fd108689474acb0623385d96941126696e6c6b3"
     },
-    "quality": {
-        "production_assets": true
+    "assets/admin-app.js": {
+      "path": "/admin/assets/admin-app.js",
+      "exists": true,
+      "size": 283304,
+      "sha256": "2ecae4b8900b307a96d4adef6f40395a95c277133dd5f11a08baccb8300871ed"
     },
-    "ready": true
+    "assets/admin-app.css": {
+      "path": "/admin/assets/admin-app.css",
+      "exists": true,
+      "size": 7990,
+      "sha256": "a25f148cc62ff8548be64add5621fc3650e6cd6a055906f326b3076aa7a2bd77"
+    },
+    "assets/admin-preview.js": {
+      "path": "/admin/assets/admin-preview.js",
+      "exists": true,
+      "size": 37,
+      "sha256": "df4086c8ff8bb84c7b7194564ca88dd3e82166ab2fc2abced2cbee4025e3a372"
+    },
+    "assets/admin-preview.css": {
+      "path": "/admin/assets/admin-preview.css",
+      "exists": true,
+      "size": 44,
+      "sha256": "f8a2648f337a5b161162e530a6b93655ea5efdefd33969f11d1b332a397b7db0"
+    }
+  },
+  "quality": {
+    "production_assets": true
+  },
+  "ready": true
 }

@@ -210,6 +210,8 @@ final class RouteRegistry
             ['POST', '/api/v1/ai/chat/stream', 'api.v1.ai.chat.stream', 'ai', 'stream', ['content:read']],
             ['GET', '/api/v1/ai/diagnostics', 'api.v1.ai.diagnostics.snapshot', 'ai', 'diagnosticsSnapshot', ['system:read']],
             ['POST', '/api/v1/ai/diagnostics/explain', 'api.v1.ai.diagnostics.explain', 'ai', 'diagnosticsExplain', ['system:read']],
+            ['GET', '/api/v1/ai/seo/insights', 'api.v1.ai.seo.insights', 'aiAnalytics', 'seoInsights', ['analytics:read', 'content:read']],
+            ['POST', '/api/v1/ai/seo/insights/proposals', 'api.v1.ai.seo.insights.propose', 'aiAnalytics', 'seoProposal', ['analytics:read', 'content:read', 'content:write']],
             ['GET', '/api/v1/ai/seo/audit', 'api.v1.ai.seo.audit', 'ai', 'seoAudit', ['content:read']],
             ['GET', '/api/v1/ai/seo/batch', 'api.v1.ai.seo.batch', 'ai', 'seoBatch', ['content:read']],
             ['POST', '/api/v1/ai/seo/proposals', 'api.v1.ai.seo.propose', 'ai', 'seoPropose', ['content:read', 'content:write']],

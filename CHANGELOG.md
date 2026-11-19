@@ -1,3 +1,11 @@
+# 1.7.4 — AI SEO & Content Insights
+
+- сопоставление сохранённых URL из Analytics Hub с опубликованными маршрутами CMS; проверка происхождения URL по `APP_URL`;
+- достоверные сравнения страниц одного провайдера в равных периодах, предупреждения о семплировании, ограничениях и устаревших отчётах;
+- приоритизация реальных SEO-замечаний и подтверждённой динамики, без утверждения причинности;
+- безопасная генерация предложений SEO Title и Description через существующий AI Editor, ручное утверждение с ревизиями;
+- новые API-маршруты, Nuxt/static SPA, регрессии и документация.
+
 # 1.7.3 — AI External Analytics
 
 - Read-only numeric analytics insights from real Analytics Hub snapshots for each connection, including provider-specific period comparisons, quality warnings, 7-day trend signals and bounded channel/page breakdowns.
