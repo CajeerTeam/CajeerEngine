@@ -96,6 +96,99 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'api_v1_ai_automations_delete' => 
+  array (
+    'method' => 'DELETE',
+    'path' => '/ai/automations/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_automations_index' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/automations',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_automations_run' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/automations/{id}/run',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_automations_runs' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/automations/{id}/runs',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_automations_show' => 
+  array (
+    'method' => 'GET',
+    'path' => '/ai/automations/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
+  'api_v1_ai_automations_store' => 
+  array (
+    'method' => 'POST',
+    'path' => '/ai/automations',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
+  'api_v1_ai_automations_update' => 
+  array (
+    'method' => 'PATCH',
+    'path' => '/ai/automations/{id}',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'id',
+        'in' => 'path',
+        'required' => true,
+      ),
+    ),
+    'bodyRequired' => true,
+  ),
   'api_v1_ai_chat' => 
   array (
     'method' => 'POST',

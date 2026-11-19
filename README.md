@@ -189,6 +189,10 @@ Manage privacy policy at `/admin/#/privacy`. Public pages display a consent bann
 
 Owner-scoped scheduled and manual OpenAI prompts run on the existing Scheduler and QueueWorker, with saved conversations, pause/resume, history and AI budget enforcement. [Configuration and operations](docs/ai-background-automation-1.7.8.md).
 
+### Release baseline & CI stabilization (1.8.1)
+
+The current release synchronizes CMS, Nuxt/static admin and SDK versions, restores the seven AI Automation API operations in OpenAPI and generated SDKs, and makes real PHP lint, the complete PHPUnit suite, PHPStan and admin builds mandatory release gates. See [release baseline 1.8.1](docs/release-baseline-1.8.1.md) for exact commands and the distinction between local audit and production acceptance.
+
 ### AI Automation GA (1.8.0)
 
 Production runtime hardening for background OpenAI jobs: validated one-shot job admission for supported file/Redis/PostgreSQL queues, a global emergency stop (`AI_AUTOMATION_ENABLED=false`), verified 24-hour worker deadline, immediate erasure of soft-deleted schedule prompts, bounded 30-day snapshot cleanup and durable backlog health counters. Apply migration `0043_ai_automation_ga.sql` and follow the [GA deployment and acceptance guide](docs/ai-automation-ga-1.8.0.md).

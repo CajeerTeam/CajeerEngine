@@ -1,0 +1,45 @@
+name: Baseline quality gates
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, pdo_pgsql, pdo_mysql, sodium, zip, dom, xml, xmlreader, xmlwriter, curl, gd
+          tools: composer:v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Install locked PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
+      - name: Composer schema and platform
+        run: |
+          composer validate --strict
+          composer check-platform-reqs
+      - name: Verify PHP, published assets, versions and API contract
+        run: |
+          node admin/scripts/publish-admin-assets.mjs --check > /dev/null
+          php tools/generate-api-sdk.php --check
+          php tools/ci-check.php --strict
+          php bin/cajeer api:lint --strict --json
+          php tools/build-release.php --dry-run --all --json > /dev/null
+      - name: Full unit and integration test suite
+        run: vendor/bin/phpunit --no-coverage
+      - name: Static analysis
+        run: composer analyse
+      - name: Build admin and SDK
+        run: |
+          npm install --prefix admin --no-audit --no-fund
+          npm run build --prefix admin
+          npm install --prefix packages/ts-sdk --no-audit --no-fund
+          npm run build --prefix packages/ts-sdk

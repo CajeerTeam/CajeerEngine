@@ -25,6 +25,9 @@ export TZ=UTC
 composer validate --strict
 composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
 composer check-platform-reqs --no-dev
+php tools/generate-api-sdk.php --check
+node admin/scripts/publish-admin-assets.mjs --check > /dev/null
+php tools/ci-check.php --strict
 python3 tools/unified-sessions-sqlite-regression.py
 php tools/unified-sessions-regression.php --require-db
 php tools/oidc-api-regression.php

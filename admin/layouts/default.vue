@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const auth = useAdminAuth()
+const adminVersion = useRuntimeConfig().public.adminVersion
 onMounted(() => auth.load())
 </script>
 
@@ -7,7 +8,7 @@ onMounted(() => auth.load())
   <main class="ce-admin-shell">
     <aside class="ce-admin-sidebar">
       <strong>CajeerEngine</strong>
-      <small>Admin UI 1.7.6</small>
+      <small>Admin UI {{ adminVersion }}</small>
       <nav>
         <NuxtLink to="/">Обзор</NuxtLink>
         <NuxtLink to="/content-types">Типы контента</NuxtLink>

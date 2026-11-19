@@ -1,3 +1,11 @@
+# 1.8.1 — Release Baseline & CI Stabilization
+
+- Synchronize the CMS, release metadata, PHP/TypeScript SDKs, Nuxt and deployed static admin UI to 1.8.1.
+- Restore AI Automation OpenAPI operations with explicit authorization and request schemas; regenerate both executable SDK operation registries.
+- Replace PHP tokenization with actual PHP CLI syntax lint; enforce real syntax verification in CI and release builds.
+- Run the full PHPUnit suite, static analysis, admin build, release audit and SDK checks as release-blocking quality gates.
+- Add baseline regression tests for version drift, missing API routes, syntax failures and admin asset mismatches.
+
 # 1.8.0 — AI Automation GA
 
 - Reject forged queue deliveries before they reach the billable OpenAI path; verify job identity and one-attempt policy.
@@ -86,3 +94,11 @@
   <script type="module" src="/admin/assets/admin-app.js"></script>
 </body>
 </html>
+
+# 1.4.8 — Migration Execution & Recovery (historical entry)
+
+- Checkpointed DLE and WordPress imports, resumable batch journal and backup-based rollback.
+
+# 1.4.5 — Users & Identity Migration (historical entry)
+
+- Transactional account and role migration, author associations and operator-driven activation.

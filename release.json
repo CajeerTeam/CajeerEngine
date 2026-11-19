@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.8.0-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.8.0-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.8.1-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.8.1-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.8.0-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.8.1-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -50,7 +50,8 @@
     "AI Migration Copilot 1.7.5: read-only post-import DLE/WordPress audit from saved reconciliation and bounded live target redirects/media/route checks, prioritized operator guidance, credential-free AI explanation, Nuxt and SPA.",
     "AI Migration Remediation 1.7.6: operator-approved one-time 301 redirect restoration from verified saved migration evidence and public route index repair, revalidation, transactional rollback, strict project/user ownership, Nuxt and static SPA.",
     "AI Automation Security & Acceptance 1.7.9: serialized per-owner quota locks, queue dead-letter reconciliation, fair retry offers, stale-run timeout, redacted worker exceptions, 30-day prompt cleanup, live acceptance tests.",
-    "AI Automation GA 1.8.0: standalone (still disabled) RabbitMQ deterministic IDs/one-attempt policy, fail-safe queue scans, operator kill switch, immediate soft-delete prompt redaction, bounded retention and backlog metrics, regression checks."
+    "AI Automation GA 1.8.0: standalone (still disabled) RabbitMQ deterministic IDs/one-attempt policy, fail-safe queue scans, operator kill switch, immediate soft-delete prompt redaction, bounded retention and backlog metrics, regression checks.",
+    "Release Baseline & CI Stabilization 1.8.1: synchronized runtime/admin/SDK versions, restored missing AI Automation OpenAPI endpoints and SDK operations, real PHP syntax gates, complete PHPUnit/analysis gates, and verified release artifacts."
   ],
   "notes": {
     "1.0.4": "Install UX release: real web/CLI installer, SQLite quick start, install lock, first admin creation, secrets generation and dist-ready release plan.",
@@ -110,7 +111,8 @@
     "1.7.6": "AI Migration Remediation — safe, approved migration repairs",
     "1.7.8": "AI Background Automation — durable, budgeted, owner-scoped scheduled OpenAI generations",
     "1.7.9": "AI Automation Security & Acceptance — hardened delivery, concurrency, privacy and regression verification",
-    "1.8.0": "AI Automation GA — hardened queue admission, RabbitMQ once-only delivery, privacy erasure, operator kill switch and bounded retention"
+    "1.8.0": "AI Automation GA — hardened queue admission, RabbitMQ once-only delivery, privacy erasure, operator kill switch and bounded retention",
+    "1.8.1": "Release Baseline & CI Stabilization — synchronized product versions, production API/SDK matching and comprehensive release gates"
   },
   "stability": "stable"
 }

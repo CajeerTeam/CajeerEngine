@@ -47,6 +47,27 @@ jobs:
           package-manager-cache: false
       - name: Install locked PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
+      - name: Verify source, admin, SDK and API versions; real PHP lint
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            [[ "$GITHUB_REF_NAME" == "v$(cat VERSION)" ]]
+          fi
+          composer validate --strict
+          node admin/scripts/publish-admin-assets.mjs --check > /dev/null
+          php tools/generate-api-sdk.php --check
+          php tools/ci-check.php --strict
+          php bin/cajeer api:lint --strict --json
+      - name: Full PHPUnit suite (all platform modules)
+        run: vendor/bin/phpunit --no-coverage
+      - name: PHPStan core static analysis
+        run: composer analyse
+      - name: Compile both admin interfaces and TypeScript SDK
+        run: |
+          npm install --prefix admin --no-audit --no-fund
+          npm run build --prefix admin
+          npm install --prefix packages/ts-sdk --no-audit --no-fund
+          npm run build --prefix packages/ts-sdk
       - name: Deployment safety regression (real Nginx TLS)
         run: |
           sudo apt-get update
@@ -86,8 +107,6 @@ jobs:
         run: php tools/identity-session-acceptance-integration.php --require-db
       - name: Identity 1.6.0 GA production SSO, self-link, transaction rollback, revocation (real PDO)
         run: php tools/identity-ga-integration.php --require-db
-      - name: AI Automation 1.8.0 GA PHP owner/queue/provider acceptance
-        run: vendor/bin/phpunit --filter AiBackgroundAutomationTest --no-coverage
       - name: AI Automation 1.8.0 GA cross-version migration and SQL privacy acceptance
         run: python3 tools/ai-automation-security-sqlite-regression.py
       - name: AI Automation 1.8.0 RabbitMQ deterministic one-shot delivery acceptance

@@ -39,6 +39,32 @@ final readonly class VersionVerifier
                 : CheckResult::fail('version', $file, $file . ' не синхронизирован с VERSION.', ['expected' => $version, 'actual' => $actual]);
         }
 
+        // Do not publish a correctly tagged archive with stale visible UI or download links.
+        $manifest = $this->json('public/admin/assets/admin-manifest.json');
+        $checks[] = ($manifest['version'] ?? null) === $version && ($manifest['ready'] ?? false) === true
+            ? CheckResult::pass('version', 'admin.manifest', 'Published admin assets declare the current version.')
+            : CheckResult::fail('version', 'admin.manifest', 'Published admin assets are stale.', ['expected' => $version, 'actual' => $manifest['version'] ?? null]);
+
+        foreach (['source', 'dist'] as $mode) {
+            $expectedArtifact = 'storage/releases/cajeerengine-' . $version . '-' . $mode . '.zip';
+            $key = $mode . '_artifact';
+            $actual = $release['distribution'][$key] ?? null;
+            $checks[] = $actual === $expectedArtifact
+                ? CheckResult::pass('version', 'release.' . $key, 'Release artifact path matches VERSION.')
+                : CheckResult::fail('version', 'release.' . $key, 'Release artifact path does not match VERSION.', ['expected' => $expectedArtifact, 'actual' => $actual]);
+        }
+        foreach (['admin/static/assets/admin-app.js', 'public/admin/assets/admin-app.js'] as $file) {
+            if ($dist && !is_file($this->rootPath . '/' . $file)) {
+                continue;
+            }
+            $content = @file_get_contents($this->rootPath . '/' . $file);
+            preg_match("/const ADMIN_VERSION\s*=\s*['\"]([^'\"]+)['\"]/", is_string($content) ? substr($content, 0, 512) : '', $matches);
+            $actual = $matches[1] ?? null;
+            $checks[] = $actual === $version
+                ? CheckResult::pass('version', $file, 'Static admin UI displays VERSION.')
+                : CheckResult::fail('version', $file, 'Static admin UI displays a stale version.', ['expected' => $version, 'actual' => $actual]);
+        }
+
 
         $phpRequirement = $composer['require']['php'] ?? null;
         $checks[] = $phpRequirement === '>=8.4.1 <9.0'

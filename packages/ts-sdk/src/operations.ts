@@ -70,6 +70,78 @@ export const operations = {
         ],
         "bodyRequired": false
     },
+    "api_v1_ai_automations_delete": {
+        "method": "DELETE",
+        "path": "/ai/automations/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_automations_index": {
+        "method": "GET",
+        "path": "/ai/automations",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "api_v1_ai_automations_run": {
+        "method": "POST",
+        "path": "/ai/automations/{id}/run",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
+    "api_v1_ai_automations_runs": {
+        "method": "GET",
+        "path": "/ai/automations/{id}/runs",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_automations_show": {
+        "method": "GET",
+        "path": "/ai/automations/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": false
+    },
+    "api_v1_ai_automations_store": {
+        "method": "POST",
+        "path": "/ai/automations",
+        "parameters": [],
+        "bodyRequired": true
+    },
+    "api_v1_ai_automations_update": {
+        "method": "PATCH",
+        "path": "/ai/automations/{id}",
+        "parameters": [
+            {
+                "name": "id",
+                "in": "path",
+                "required": true
+            }
+        ],
+        "bodyRequired": true
+    },
     "api_v1_ai_chat": {
         "method": "POST",
         "path": "/ai/chat",

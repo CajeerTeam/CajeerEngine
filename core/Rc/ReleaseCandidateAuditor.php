@@ -21,7 +21,7 @@ final readonly class ReleaseCandidateAuditor
             (new SecurityAuditor($this->rootPath))->audit(),
             (new TemplateSandboxAuditor($this->rootPath))->audit(),
             (new ReleaseVerifier($this->rootPath))->verify(),
-            $this->syntaxChecks(),
+            (new PhpSyntaxVerifier($this->rootPath))->verify(),
         );
 
         $serialized = array_map(static fn (CheckResult $check): array => $check->toArray(), $checks);
@@ -40,46 +40,6 @@ final readonly class ReleaseCandidateAuditor
         $result = $this->run();
         unset($result['checks']);
         return $result;
-    }
-
-    /** @return list<CheckResult> */
-    private function syntaxChecks(): array
-    {
-        $checks = [];
-        foreach ($this->phpFiles() as $file) {
-            $relative = str_replace($this->rootPath . '/', '', $file);
-            $tokens = @token_get_all((string) file_get_contents($file));
-            if (!is_array($tokens) || count($tokens) === 0) {
-                $checks[] = CheckResult::fail('syntax', $relative, 'PHP-файл не удалось токенизировать.', ['file' => $relative]);
-            } else {
-                $checks[] = CheckResult::pass('syntax', $relative, 'PHP-файл токенизируется.', ['file' => $relative]);
-            }
-        }
-        return $checks;
-    }
-
-    /** @return list<string> */
-    private function phpFiles(): array
-    {
-        $dirs = ['core', 'public', 'bin', 'installer', 'tools'];
-        $files = [];
-        foreach ($dirs as $dir) {
-            $path = $this->rootPath . '/' . $dir;
-            if (!is_dir($path)) {
-                continue;
-            }
-            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS));
-            foreach ($iterator as $file) {
-                if ($file instanceof \SplFileInfo && $file->isFile()) {
-                    $name = $file->getFilename();
-                    if ($file->getExtension() === 'php' || $name === 'cajeer') {
-                        $files[] = $file->getPathname();
-                    }
-                }
-            }
-        }
-        sort($files, SORT_STRING);
-        return $files;
     }
 
     /** @param list<array{status:string,group:string,name:string,message:string,context:array<string,mixed>}> $checks @return array<string, mixed> */
