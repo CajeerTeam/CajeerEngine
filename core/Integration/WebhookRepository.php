@@ -76,6 +76,38 @@ final readonly class WebhookRepository
         return null;
     }
 
+    /** Reject cleartext, loopback, embedded credentials and malformed destinations at registration. */
+    public static function validateDestination(mixed $value): string
+    {
+        if (!is_string($value) || strlen($value) < 9 || strlen($value) > 2048 || trim($value) !== $value
+            || preg_match('/[\x00-\x20\x7f]/', $value) || str_contains($value, '\\')) {
+            throw new \InvalidArgumentException('Invalid webhook destination.');
+        }
+        $parts = parse_url($value);
+        if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https' || empty($parts['host'])
+            || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment'])
+            || (isset($parts['port']) && $parts['port'] !== 443)) {
+            throw new \InvalidArgumentException('Webhook destination must use HTTPS without credentials.');
+        }
+        $host = strtolower(trim($parts['host'], '[]'));
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            if (!\CajeerEngine\Security\PublicHttpClient::isPublicIp($host)) throw new \InvalidArgumentException('Non-public webhook destination.');
+        } elseif (!preg_match('/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,62}$/D', $host)) {
+            throw new \InvalidArgumentException('Invalid webhook hostname.');
+        }
+        return $value;
+    }
+
+    /** @return list<string> */
+    private static function validateEvents(mixed $events): array
+    {
+        if (!is_array($events) || !array_is_list($events) || $events === [] || count($events) > 32) throw new \InvalidArgumentException('Invalid webhook events.');
+        foreach ($events as $event) {
+            if (!is_string($event) || ($event !== '*' && preg_match('/^[a-zA-Z][a-zA-Z0-9_.:-]{0,99}$/D', $event) !== 1)) throw new \InvalidArgumentException('Invalid webhook event.');
+        }
+        return array_values(array_unique($events));
+    }
+
     /** @param array<string, mixed> $payload @return array<string, mixed> */
     public function create(array $payload): array
     {
@@ -84,23 +116,21 @@ final readonly class WebhookRepository
 
     private function createLocked(array $payload): array
     {
-        $url = trim((string) ($payload['url'] ?? ''));
-        if (!filter_var($url, FILTER_VALIDATE_URL)) {
-            throw new \InvalidArgumentException('Webhook URL должен быть валидным URL.');
-        }
-        $events = $payload['events'] ?? ['*'];
-        if (!is_array($events)) {
-            $events = [(string) $events];
-        }
-        $secret = (string) ($payload['secret'] ?? 'whsec_' . bin2hex(random_bytes(24)));
+        $url = self::validateDestination($payload['url'] ?? null);
+        $events = self::validateEvents($payload['events'] ?? ['*']);
+        $secret = $payload['secret'] ?? 'whsec_' . bin2hex(random_bytes(24));
+        if (!is_string($secret) || strlen($secret) < 16 || strlen($secret) > 256 || preg_match('/[\x00-\x1f\x7f]/', $secret)) throw new \InvalidArgumentException('Invalid webhook signing secret.');
+        $name = $payload['name'] ?? 'Webhook';
+        if (!is_string($name) || trim($name) === '' || strlen($name) > 200 || preg_match('/[\x00-\x1f\x7f]/', $name)) throw new \InvalidArgumentException('Invalid webhook name.');
+        if (isset($payload['enabled']) && !is_bool($payload['enabled'])) throw new \InvalidArgumentException('Invalid webhook enabled flag.');
         $now = $this->now();
         $item = [
             'id' => Uuid::v4(),
-            'name' => trim((string) ($payload['name'] ?? 'Webhook')) ?: 'Webhook',
+            'name' => trim($name),
             'url' => $url,
-            'events' => array_values(array_unique(array_map('strval', $events))),
+            'events' => $events,
             'secret' => $secret,
-            'enabled' => filter_var($payload['enabled'] ?? true, FILTER_VALIDATE_BOOLEAN),
+            'enabled' => $payload['enabled'] ?? true,
             'created_at' => $now,
             'updated_at' => $now,
         ];
@@ -124,21 +154,29 @@ final readonly class WebhookRepository
                 continue;
             }
             if (array_key_exists('name', $payload)) {
-                $item['name'] = trim((string) $payload['name']) ?: (string) ($item['name'] ?? 'Webhook');
+                $name = $payload['name'];
+                if (!is_string($name) || trim($name) === '' || strlen($name) > 200 || preg_match('/[\x00-\x1f\x7f]/', $name)) throw new \InvalidArgumentException('Invalid webhook name.');
+                $item['name'] = trim($name);
             }
             if (array_key_exists('url', $payload)) {
-                $url = trim((string) $payload['url']);
-                if (!filter_var($url, FILTER_VALIDATE_URL)) {
-                    throw new \InvalidArgumentException('Webhook URL должен быть валидным URL.');
+                $url = self::validateDestination($payload['url']);
+                // Never carry a signing credential to another recipient.
+                if ($url !== $item['url'] && !array_key_exists('secret', $payload)) {
+                    throw new \InvalidArgumentException('Changing a webhook destination requires rotating its signing secret.');
                 }
                 $item['url'] = $url;
             }
             if (array_key_exists('events', $payload)) {
-                $events = is_array($payload['events']) ? $payload['events'] : [(string) $payload['events']];
-                $item['events'] = array_values(array_unique(array_map('strval', $events)));
+                $item['events'] = self::validateEvents($payload['events']);
+            }
+            if (array_key_exists('secret', $payload)) {
+                $secret = $payload['secret'];
+                if (!is_string($secret) || strlen($secret) < 16 || strlen($secret) > 256 || preg_match('/[\x00-\x1f\x7f]/', $secret)) throw new \InvalidArgumentException('Invalid webhook signing secret.');
+                $item['secret'] = $secret;
             }
             if (array_key_exists('enabled', $payload)) {
-                $item['enabled'] = filter_var($payload['enabled'], FILTER_VALIDATE_BOOLEAN);
+                if (!is_bool($payload['enabled'])) throw new \InvalidArgumentException('Invalid webhook enabled flag.');
+                $item['enabled'] = $payload['enabled'];
             }
             $item['updated_at'] = $this->now();
             $items[$i] = $item;

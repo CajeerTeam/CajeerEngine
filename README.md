@@ -189,7 +189,7 @@ Manage privacy policy at `/admin/#/privacy`. Public pages display a consent bann
 
 Owner-scoped scheduled and manual OpenAI prompts run on the existing Scheduler and QueueWorker, with saved conversations, pause/resume, history and AI budget enforcement. [Configuration and operations](docs/ai-background-automation-1.7.8.md).
 
-### Release baseline & CI stabilization (1.8.1)
+### Release baseline & CI stabilization (1.8.2)
 
 The current release synchronizes CMS, Nuxt/static admin and SDK versions, restores the seven AI Automation API operations in OpenAPI and generated SDKs, and makes real PHP lint, the complete PHPUnit suite, PHPStan and admin builds mandatory release gates. See [release baseline 1.8.1](docs/release-baseline-1.8.1.md) for exact commands and the distinction between local audit and production acceptance.
 
@@ -200,3 +200,7 @@ Production runtime hardening for background OpenAI jobs: validated one-shot job 
 ### AI Automation Security & Acceptance (1.7.9)
 
 The background automation delivery loop now serializes per-owner quotas, reconciles dead-letter jobs without repeating a provider call, fairly re-offers queued work, rejects inactive owners and retains only 30 days of completed prompt snapshots. Apply migration `0042_ai_automation_delivery_acceptance.sql` and review [security and recovery procedures](docs/ai-automation-security-acceptance-1.7.9.md).
+
+## 1.8.2 security hardening
+
+Review the [security deployment and acceptance notes](docs/security-hardening-1.8.2.md) before upgrading existing webhooks or session deployments.

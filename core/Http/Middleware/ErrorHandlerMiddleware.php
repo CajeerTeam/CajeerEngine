@@ -36,7 +36,9 @@ final readonly class ErrorHandlerMiddleware implements MiddlewareInterface
             $message = $e->getMessage();
             if ($e instanceof \PDOException) { return $this->jsonError($request, 'internal_error', 'Внутренняя ошибка базы данных.', 500); }
             $status = str_contains($message, 'не найден') ? Response::HTTP_NOT_FOUND : Response::HTTP_BAD_REQUEST;
-            return $this->jsonError($request, $status === Response::HTTP_NOT_FOUND ? 'not_found' : 'runtime_error', $message, $status);
+            $production = !in_array(strtolower($this->config->string('app.env', 'production')), ['local', 'dev', 'testing'], true);
+            return $this->jsonError($request, $status === Response::HTTP_NOT_FOUND ? 'not_found' : 'runtime_error',
+                $production ? ($status === Response::HTTP_NOT_FOUND ? 'Ресурс не найден.' : 'Операция не выполнена.') : $message, $status);
         } catch (\Throwable $e) {
             $requestId = (string) $request->attributes->get('request_id', '');
             $this->logger->error('Unhandled HTTP exception', [

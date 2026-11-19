@@ -42,10 +42,6 @@ final readonly class DatabaseController
                 'error' => [
                     'code' => 'database_migrations_unavailable',
                     'message' => 'Не удалось получить состояние миграций.',
-                    'details' => [
-                        'class' => $e::class,
-                        'message' => $e->getMessage(),
-                    ],
                     'request_id' => (string) $request->attributes->get('request_id', ''),
                 ],
             ], 503);

@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.8.1-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.8.1-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.8.2-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.8.2-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.8.1-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.8.2-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,6 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
+    "Security Hardening 1.8.2: owner-constrained API token revocation; strict token issuance validation; HTTPS-only webhook destinations with signing secret rotation on receiver change; no webhook signing secrets in list/update or receiver responses in logs; production error redaction and database diagnostic privacy; executable security regressions.",
     "Identity SkiF4er ID GA 1.6.0: atomic SSO unlink and session revocation, callback registry validation, serializable subject-mapping login, bounded signed token assertions, resilient real admin session UX and integration acceptance.",
     "AI Assistant ChatGPT 1.6.1: encrypted OpenAI configuration, live Responses API SSE streaming, durable per-user conversations, monthly budget reservation and recovery, Nuxt and static SPA UI.",
     "AI Content Editor 1.6.2: live generation and rewriting of title/text/richtext/block fields, durable per-user proposals, token budget reservations, revision CAS acceptance, and both admin interfaces.",

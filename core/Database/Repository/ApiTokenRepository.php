@@ -105,6 +105,20 @@ final readonly class ApiTokenRepository
         return $stmt->rowCount() > 0;
     }
 
+    /** Revoke only a non-session API token belonging to the current caller.
+     * The owner constraint belongs in the UPDATE, not in a preceding SELECT.
+     */
+    public function revokeOwned(string $id, string $ownerId): bool
+    {
+        if ($id === '' || $ownerId === '') return false;
+        $stmt = $this->database->connection()->prepare(
+            "UPDATE ce_api_tokens SET revoked_at = CURRENT_TIMESTAMP
+             WHERE id = :id AND user_id = :owner AND name <> 'admin-session' AND revoked_at IS NULL"
+        );
+        $stmt->execute(['id' => $id, 'owner' => $ownerId]);
+        return $stmt->rowCount() === 1;
+    }
+
     public function revokeForUser(string $userId): int
     {
         $stmt = $this->database->connection()->prepare('UPDATE ce_api_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = :user_id AND revoked_at IS NULL');

@@ -62,9 +62,15 @@ final readonly class WebhookDispatcher
         $responseBody = '';
 
         try {
-            [$statusCode, $responseBody] = $this->send((string) $webhook['url'], $request['headers'], $request['body']);
+            // Reject legacy insecure destinations as well as newly registered ones.
+            // Configuration validation alone is insufficient for persisted pre-upgrade webhooks.
+            $url = WebhookRepository::validateDestination($webhook['url'] ?? null);
+            if (strlen($secret) < 16 || strlen($secret) > 256) {
+                throw new \InvalidArgumentException('Missing or invalid signing secret.');
+            }
+            [$statusCode, $responseBody] = $this->send($url, $request['headers'], $request['body']);
         } catch (\Throwable $e) {
-            $error = $e->getMessage();
+            $error = 'delivery_failed';
         }
 
         $delivery = [
@@ -73,16 +79,24 @@ final readonly class WebhookDispatcher
             'webhook_id' => (string) ($webhook['id'] ?? ''),
             'webhook_name' => (string) ($webhook['name'] ?? ''),
             'event' => $event,
-            'url' => (string) ($webhook['url'] ?? ''),
+            'url' => self::publicDestination((string) ($webhook['url'] ?? '')),
             'status_code' => $statusCode,
             'ok' => $statusCode >= 200 && $statusCode < 300,
             'error' => $error,
-            'response_excerpt' => function_exists('mb_substr') ? mb_substr($responseBody, 0, 500) : substr($responseBody, 0, 500),
+            'response_excerpt' => '', // Never retain untrusted receiver response bodies (may contain credentials).
             'duration_ms' => round((microtime(true) - $started) * 1000, 2),
             'created_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
         ];
         $this->repository?->recordDelivery($delivery);
         return $delivery;
+    }
+
+    /** Record only the destination origin, never authentication-bearing paths or query parameters. */
+    private static function publicDestination(string $url): string
+    {
+        $parts = parse_url($url);
+        if (!is_array($parts) || !is_string($parts['host'] ?? null)) return '';
+        return ($parts['scheme'] ?? 'https') . '://' . $parts['host'];
     }
 
     /** @param array<string,string> $headers @return array{0:int,1:string} */

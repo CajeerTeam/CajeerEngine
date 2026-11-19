@@ -19,13 +19,14 @@ final readonly class WebhookController
     /** @param array<string, mixed> $parameters */
     public function index(Request $request, array $parameters): JsonResponse
     {
-        return new JsonResponse(['data' => array_map(static function (array $item): array { unset($item['secret']); return $item; }, $this->webhooks->all()), 'meta' => $this->webhooks->diagnostics()]);
+        return new JsonResponse(['data' => array_map(self::publicRecord(...), $this->webhooks->all()), 'meta' => $this->webhooks->diagnostics()], 200, ['Cache-Control'=>'no-store']);
     }
 
     /** @param array<string, mixed> $parameters */
     public function store(Request $request, array $parameters): JsonResponse
     {
-        return new JsonResponse(['data' => $this->webhooks->create($this->json($request))], Response::HTTP_CREATED);
+        // A newly created secret is shown once. It cannot be fetched on subsequent reads.
+        return new JsonResponse(['data' => $this->webhooks->create($this->json($request))], Response::HTTP_CREATED, ['Cache-Control'=>'no-store']);
     }
 
     /** @param array<string, mixed> $parameters */
@@ -35,7 +36,7 @@ final readonly class WebhookController
         if ($item === null) {
             return $this->notFound();
         }
-        return new JsonResponse(['data' => $item]);
+        return new JsonResponse(['data' => self::publicRecord($item)], 200, ['Cache-Control'=>'no-store']);
     }
 
     /** @param array<string, mixed> $parameters */
@@ -55,7 +56,7 @@ final readonly class WebhookController
             return $this->notFound();
         }
         $result = $this->dispatcher->dispatchWebhook($webhook, 'webhook.test', ['message' => 'CajeerEngine webhook test']);
-        return new JsonResponse(['data' => $result]);
+        return new JsonResponse(['data' => $result], 200, ['Cache-Control'=>'no-store']);
     }
 
     /** @param array<string, mixed> $parameters */
@@ -63,7 +64,7 @@ final readonly class WebhookController
     {
         $webhookId = (string) $request->query->get('webhook_id', '');
         $items = $this->webhooks->deliveries($webhookId !== '' ? $webhookId : null);
-        return new JsonResponse(['data' => $items, 'meta' => ['total' => count($items)]]);
+        return new JsonResponse(['data' => $items, 'meta' => ['total' => count($items)]], 200, ['Cache-Control'=>'no-store']);
     }
 
     /** @param array<string, mixed> $parameters */
@@ -74,6 +75,18 @@ final readonly class WebhookController
         $body = is_array($payload['payload'] ?? null) ? $payload['payload'] : [];
         $id=$this->webhooks->pushOutbox($event,$body);
         return new JsonResponse(['data'=>['event'=>$event,'event_id'=>$id,'queued'=>true,'deliveries'=>0,'items'=>[]]]);
+    }
+
+    /** @param array<string,mixed> $item @return array<string,mixed> */
+    private static function publicRecord(array $item): array
+    {
+        $item['secret_configured'] = is_string($item['secret'] ?? null) && $item['secret'] !== '';
+        unset($item['secret']);
+        if (is_string($item['url'] ?? null)) {
+            $item['url_has_query'] = parse_url($item['url'], PHP_URL_QUERY) !== null;
+            $item['url'] = preg_replace('/[?#].*$/s', '', $item['url']);
+        }
+        return $item;
     }
 
     /** @return array<string, mixed> */

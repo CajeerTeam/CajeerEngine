@@ -1,3 +1,13 @@
+# 1.8.2 — Security Hardening
+
+- Prevent cross-user API-token revocation with an atomic owner-constrained UPDATE; browser sessions cannot be revoked through the API-token endpoint; missing session registries fail closed and new session TTLs are capped at 30 days.
+- Validate new API-token names, scopes and expiry times before writing tokens; disable caching of token-management responses.
+- Require HTTPS for webhook destinations; reject user-info, fragments, non-public IPs, unsupported ports and malformed events.
+- Require a new webhook signing secret when the receiver changes; allow explicit secret rotation and show secrets only once at creation.
+- Stop returning webhook signing secrets on updates; reject insecure pre-upgrade webhook destinations at delivery time; prevent remote response bodies, query credentials and transport exception details from entering delivery history.
+- Hide internal database exception details and raw runtime errors in production API responses.
+- Add runnable security regression tests and mandatory CI security-hardening gate. [Operator migration and acceptance guide](docs/security-hardening-1.8.2.md).
+
 # 1.8.1 — Release Baseline & CI Stabilization
 
 - Synchronize the CMS, release metadata, PHP/TypeScript SDKs, Nuxt and deployed static admin UI to 1.8.1.

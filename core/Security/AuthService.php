@@ -130,8 +130,10 @@ final readonly class AuthService
         $user = isset($record['user_id']) && $record['user_id'] !== null ? $this->users->findById((string) $record['user_id']) : null;
         if ($user === null || ($user['status'] ?? '') !== 'active') { return null; }
         if ($cookie && $record['name'] !== 'admin-session') { return null; }
-        if ($record['name'] === 'admin-session' && $this->sessions !== null
-            && !$this->sessions->validate($record, $request, max(5, $this->config->int('security.sessions.idle_minutes', 720)))) { return null; }
+        // Never accept an opaque browser session as an ordinary API token if the
+        // backing idle-timeout, provider and revocation registry is unavailable.
+        if ($record['name'] === 'admin-session' && ($this->sessions === null
+            || !$this->sessions->validate($record, $request, max(5, $this->config->int('security.sessions.idle_minutes', 720))))) { return null; }
         $scopes = $record['scopes'];
         if (is_string($scopes)) {
             $decoded = json_decode($scopes, true);
@@ -168,12 +170,12 @@ final readonly class AuthService
     /** @param list<string> $scopes @param array<string,mixed> $claims */
     private function issueSession(string $userId, array $scopes, int $ttlDays, string $provider, Request $request, array $claims = []): array
     {
+        if ($this->sessions === null) throw new \RuntimeException('Session registry unavailable.');
+        $ttlDays = min(30, max(1, $ttlDays));
         $expiresAt = new \DateTimeImmutable('+' . $ttlDays . ' days', new \DateTimeZone('UTC'));
         $token = $this->tokens->create($userId, 'admin-session', $scopes, $expiresAt);
-        if ($this->sessions !== null) {
-            try { $this->sessions->register($token['id'], $userId, $provider, $request, $token['expires_at'], $claims); }
-            catch (\Throwable $e) { $this->tokens->revoke($token['id']); throw $e; }
-        }
+        try { $this->sessions->register($token['id'], $userId, $provider, $request, $token['expires_at'], $claims); }
+        catch (\Throwable $e) { $this->tokens->revoke($token['id']); throw $e; }
         return $token;
     }
 
