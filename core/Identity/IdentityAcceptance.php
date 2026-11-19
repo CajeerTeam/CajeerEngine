@@ -21,7 +21,11 @@ final readonly class IdentityAcceptance
             $checks[$name] = ['ok'=>$ok,'detail'=>$detail];
         };
         $version = trim((string)@file_get_contents($this->config->rootPath().'/VERSION'));
-        $check('version', $version === '1.6.0', 'Expected release 1.6.0');
+        $release = json_decode((string)@file_get_contents($this->config->rootPath().'/release.json'), true);
+        $expected = is_array($release) ? ($release['version'] ?? null) : null;
+        $check('version', is_string($expected) && $expected !== '' && $version === $expected
+            && preg_match('/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/D', $version) === 1,
+            'Installed VERSION and release.json must match');
         $driver = $this->database->driver();
         $check('database_driver', in_array($driver, ['pgsql','mysql','sqlite'],true), $driver);
         $migration = new IdentitySessionMigration($this->database, max(5,$this->config->int('security.sessions.idle_minutes',720)));
@@ -57,9 +61,10 @@ final readonly class IdentityAcceptance
                 $check('oidc_configuration',true,'Confidential client, HTTPS callback and keyring valid');
                 if ($probeIdp) {
                     try {
-                        $tx = $client->begin(); // Fetch and pin real discovery; no token or callback is issued.
-                        $url = parse_url($tx['url']);
-                        $check('oidc_discovery',is_array($url) && ($url['scheme']??null)==='https','Pinned Keycloak discovery/authorization endpoint');
+                        $provider = $client->probeProvider(); // Pinned discovery and real signing keys, no credentials or browser token.
+                        $check('oidc_discovery', $provider['issuer'] === $client->issuer()
+                            && $provider['usable_rs256_keys'] > 0 && $provider['introspection'] && $provider['logout'],
+                            'Pinned Keycloak endpoints, RS256 JWKS, introspection and logout');
                     } catch (\Throwable $e) { $check('oidc_discovery',false,$e->getMessage()); }
                 }
             } catch (\Throwable $e) {
@@ -68,8 +73,8 @@ final readonly class IdentityAcceptance
         }
         if ($probeSite) {
             try {
-                $this->verifyDeployedSite($oidc,$strict);
-                $check('deployed_site',true,'HTTPS served by 1.6.0 with matching Identity settings');
+                $this->verifyDeployedSite($oidc,$strict,$version);
+                $check('deployed_site',true,'HTTPS served by installed release with matching Identity settings');
             } catch (\Throwable $e) { $check('deployed_site',false,$e->getMessage()); }
         }
         $fail = array_keys(array_filter($checks,static fn(array $result):bool=>!$result['ok']));
@@ -77,7 +82,7 @@ final readonly class IdentityAcceptance
             'session_strict'=>$strict,'checks'=>$checks,'failed_checks'=>$fail,'sessions'=>$stats];
     }
     /** Check actual public HTTPS deployment instead of assuming updated PHP-FPM workers. */
-    private function verifyDeployedSite(bool $oidcEnabled, bool $strict): void
+    private function verifyDeployedSite(bool $oidcEnabled, bool $strict, string $expectedVersion): void
     {
         if (!function_exists('curl_init')) throw new \RuntimeException('PHP cURL required for live site probe.');
         $base=rtrim($this->config->string('app.url'),'/');
@@ -109,10 +114,10 @@ final readonly class IdentityAcceptance
             }
         } finally { curl_close($ch); }
         $decoded=json_decode($body,true);
-        if ($version!=='1.6.0' || !is_array($decoded) || !is_array($decoded['data']??null)
+        if ($version!==$expectedVersion || !is_array($decoded) || !is_array($decoded['data']??null)
             || ($decoded['data']['enabled']??null)!==$oidcEnabled
             || ($decoded['data']['session_strict']??null)!==$strict) {
-            throw new \RuntimeException('Running PHP workers differ from 1.6.0 Identity configuration; reload all workers.');
+            throw new \RuntimeException('Running PHP workers differ from the installed Identity release configuration; reload all workers.');
         }
     }
 }

@@ -113,6 +113,8 @@ jobs:
           python3 tools/certification-regression.py
       - name: SkiF4er ID signed JWT / PKCE regression
         run: php tools/oidc-regression.php
+      - name: SkiF4er ID production RS256, JWKS, access/ID token isolation and revoked introspection
+        run: php tools/skif4er-id-production-regression.php
       - name: SkiF4er ID SQL transaction regression
         run: python3 tools/oidc-sqlite-regression.py
       - name: SkiF4er ID real PHP PDO / sodium session regression

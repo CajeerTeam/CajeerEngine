@@ -19,13 +19,13 @@ $sign=static function(array $payload,array $header=['kid'=>'test-access','alg'=>
     return $text.'.'.$b64($signature);
 };
 $active=true; $transportFault=false; $introspectionSubject='linked-user'; $lastBody=''; $lastHeaders=[]; $introspectionAudience='cajeerengine-api';
-$transport=static function(string $method,string $url,?string $body,array $headers)use($metadata,$jwks,&$active,&$transportFault,&$introspectionSubject,&$lastBody,&$lastHeaders,&$introspectionAudience):array {
+$transport=static function(string $method,string $url,?string $body,array $headers)use($metadata,$jwks,&$active,&$transportFault,&$introspectionSubject,&$lastBody,&$lastHeaders,&$introspectionAudience,$claims):array {
     if(str_ends_with($url,'/.well-known/openid-configuration'))return ['status'=>200,'body'=>$metadata];
     if(str_ends_with($url,'/certs'))return ['status'=>200,'body'=>$jwks];
     if(str_ends_with($url,'/token/introspect')) {
         $lastBody=(string)$body;$lastHeaders=$headers;
         if($transportFault) return ['status'=>503,'body'=>''];
-        return ['status'=>200,'body'=>json_encode(['active'=>$active,'sub'=>$introspectionSubject,'aud'=>$introspectionAudience,'client_id'=>'partner-frontend','scope'=>'openid cajeer.api','exp'=>time()+120],JSON_THROW_ON_ERROR)];
+        return ['status'=>200,'body'=>json_encode(['active'=>$active,'sub'=>$introspectionSubject,'aud'=>$introspectionAudience,'client_id'=>'partner-frontend','scope'=>'openid cajeer.api','exp'=>$claims['exp']],JSON_THROW_ON_ERROR)];
     }
     throw new RuntimeException('Unexpected endpoint: '.$url);
 };

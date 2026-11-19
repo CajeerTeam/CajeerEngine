@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## SkiF4er ID Production 1.9.3
+
+Усилена реальная серверная авторизация: строгая привязка introspection к подписанному access JWT, защита ID-токенов от подмены OAuth bearer, проверка ключей JWKS и исправление production `identity:acceptance` для актуальных версий. См. [SkiF4er ID Production](docs/skif4er-id-production-1.9.3.md). Проверка реальных браузерных сессий и глобального SSO на staging остаётся обязательной.
+
 ## Migration Center Production 1.9.2
 
 Усилен реальный импорт DLE/WordPress: проверка ожидаемой ревизии каждого обновляемого материала перед записью и отказ от частично прочитанных метаданных WordPress. См. [инструкции Production Migration](docs/migration-center-production-1.9.2.md). Серверные интеграции и перенос реальных сайтов должны пройти staging-приёмку до публикации стабильного релиза.

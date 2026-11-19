@@ -62,7 +62,19 @@ final class OidcClient
     /** @return array<string,mixed> */
     public function validateIdToken(string $jwt, string $nonce): array
     {
+        // Distinguish ID tokens from bearer access tokens even if the latter
+        // share the same issuer, audience, signing key and happen to carry a nonce.
+        $parts = explode('.', $jwt);
+        if (count($parts) !== 3) throw new \RuntimeException('Malformed OIDC ID token.');
+        $header = $this->decodeJson(self::decodeBase64Url($parts[0]));
+        $headerType = strtolower((string)($header['typ'] ?? 'jwt'));
+        if (!in_array($headerType, ['jwt', 'id+jwt', 'application/id+jwt'], true)) {
+            throw new \RuntimeException('An access token cannot be used as an ID token.');
+        }
         $claims = $this->verifiedJwt($jwt);
+        if (isset($claims['typ']) && (!is_string($claims['typ']) || !in_array(strtolower($claims['typ']), ['id', 'id_token'], true))) {
+            throw new \RuntimeException('OIDC ID token type mismatch.');
+        }
         $now = time(); $aud = $claims['aud'] ?? null;
         $audiences = is_string($aud) ? [$aud] : (is_array($aud) ? $aud : []);
         if (($claims['iss'] ?? null) !== self::ISSUER || !in_array($this->clientId, $audiences, true)
@@ -143,13 +155,19 @@ final class OidcClient
         $current = $this->decodeJson($response['body']);
         $aud = $current['aud'] ?? null;
         $audiences = is_string($aud) ? [$aud] : (is_array($aud) && array_is_list($aud) ? $aud : []);
+        // A bare {"active":true} does not bind the introspection response to
+        // the signed access token being used. Require identity, client, scope
+        // and expiry in the Keycloak response (and verify optional claims).
         if (($current['active'] ?? false) !== true
-            || (isset($current['sub']) && $current['sub'] !== $claims['sub'])
+            || !is_string($current['sub'] ?? null) || !hash_equals((string)$claims['sub'], $current['sub'])
+            || !is_string($current['client_id'] ?? null)
+            || $current['client_id'] !== ($claims['azp'] ?? $claims['client_id'] ?? null)
+            || !is_string($current['scope'] ?? null)
+            || !in_array($scope, preg_split('/\s+/', trim($current['scope'])) ?: [], true)
+            || !is_int($current['exp'] ?? null) || $current['exp'] <= time()
+            || $current['exp'] !== $claims['exp']
             || (isset($current['iss']) && $current['iss'] !== self::ISSUER)
-            || (isset($current['aud']) && !in_array($audience, $audiences, true))
-            || (isset($current['scope']) && (!is_string($current['scope']) || !in_array($scope, preg_split('/\s+/', trim($current['scope'])) ?: [], true)))
-            || (isset($current['exp']) && (!is_int($current['exp']) || $current['exp'] <= time()))
-            || (isset($current['client_id']) && $current['client_id'] !== ($claims['azp'] ?? $claims['client_id'] ?? null))) {
+            || (isset($current['aud']) && !in_array($audience, $audiences, true))) {
             throw new \RuntimeException('Access token is inactive or mismatched.');
         }
     }
@@ -209,12 +227,45 @@ final class OidcClient
     public function endSessionUrl(string $postLogoutUrl): string
     {
         $parts = parse_url($postLogoutUrl);
-        if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https' || ($parts['host'] ?? null) !== (parse_url($this->callbackUrl, PHP_URL_HOST))
+        $callback = parse_url($this->callbackUrl);
+        if (!is_array($parts) || !is_array($callback) || ($parts['scheme'] ?? null) !== 'https'
+            || ($parts['host'] ?? null) !== ($callback['host'] ?? null)
+            || ($parts['port'] ?? 443) !== ($callback['port'] ?? 443)
             || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment']) || isset($parts['query'])
             || ($parts['path'] ?? '') !== '/auth/oidc/logout/complete') throw new \RuntimeException('Invalid post logout redirect URI.');
         $url = $this->configuration()['end_session_endpoint'] ?? null;
         if (!is_string($url)) throw new \RuntimeException('OIDC provider does not offer RP-initiated logout.');
         return $url.'?'.http_build_query(['client_id'=>$this->clientId, 'post_logout_redirect_uri'=>$postLogoutUrl], '', '&', PHP_QUERY_RFC3986);
+    }
+
+    /**
+     * Read-only production IdP acceptance probe. Uses the same pinned discovery
+     * and JWKS transport as token validation, and never requests a login code.
+     * @return array{issuer:string,usable_rs256_keys:int,introspection:bool,logout:bool}
+     */
+    public function probeProvider(): array
+    {
+        $configuration = $this->configuration();
+        $jwks = $this->decodeJson($this->requestOk('GET', $configuration['jwks_uri']));
+        $keys = $jwks['keys'] ?? null;
+        if (!is_array($keys) || !array_is_list($keys) || count($keys) > 128) {
+            throw new \RuntimeException('OIDC JWKS document invalid.');
+        }
+        $usable = 0;
+        $kids = [];
+        foreach ($keys as $key) {
+            if (!is_array($key) || !is_string($key['kid'] ?? null) || $key['kid'] === '' || strlen($key['kid']) > 256) continue;
+            if (($key['kty'] ?? null) !== 'RSA' || ($key['use'] ?? 'sig') !== 'sig' || ($key['alg'] ?? 'RS256') !== 'RS256') continue;
+            if (isset($kids[$key['kid']])) throw new \RuntimeException('Duplicate OIDC signing key ID.');
+            $kids[$key['kid']] = true;
+            try { $pem = self::rsaPem((string)($key['n'] ?? ''), (string)($key['e'] ?? ''));
+                if (openssl_pkey_get_public($pem) !== false) $usable++; }
+            catch (\RuntimeException) { /* Invalid keys are never trusted. */ }
+        }
+        if ($usable === 0) throw new \RuntimeException('No usable OIDC RS256 signing key.');
+        return ['issuer'=>self::ISSUER, 'usable_rs256_keys'=>$usable,
+            'introspection'=>isset($configuration['introspection_endpoint']),
+            'logout'=>isset($configuration['end_session_endpoint'])];
     }
 
     /** @return array{authorization_endpoint:string,token_endpoint:string,jwks_uri:string,end_session_endpoint?:string,introspection_endpoint?:string} */
@@ -278,7 +329,7 @@ final class OidcClient
             $content = '';
             curl_setopt_array($handle, [CURLOPT_FOLLOWLOCATION=>false, CURLOPT_CONNECTTIMEOUT=>5, CURLOPT_TIMEOUT=>10,
                 CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2, CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,
-                CURLOPT_HTTPHEADER=>$headers, CURLOPT_USERAGENT=>'CajeerEngine-OIDC/1.6.0', CURLOPT_MAXREDIRS=>0,
+                CURLOPT_HTTPHEADER=>$headers, CURLOPT_USERAGENT=>'CajeerEngine-OIDC', CURLOPT_MAXREDIRS=>0,
                 CURLOPT_PROXY=>'', CURLOPT_WRITEFUNCTION=>static function ($ch, string $chunk) use (&$content): int {
                     if (strlen($content) + strlen($chunk) > 262144) return 0;
                     $content .= $chunk;
@@ -318,7 +369,15 @@ final class OidcClient
     private static function rsaPem(string $n, string $e): string
     {
         $modulus = self::decodeBase64Url($n); $exponent = self::decodeBase64Url($e);
-        if (strlen($modulus) < 256 || strlen($modulus) > 1024 || strlen($exponent) < 1 || strlen($exponent) > 8) throw new \RuntimeException('Invalid OIDC RSA key size.');
+        // Reject weak keys and pathological exponents even when OpenSSL can
+        // parse their ASN.1. The modulus must have at least 2048 effective bits.
+        if (strlen($modulus) < 256 || strlen($modulus) > 1024 || (ord($modulus[0]) & 0x80) === 0
+            || strlen($exponent) < 1 || strlen($exponent) > 4 || ord($exponent[0]) === 0) {
+            throw new \RuntimeException('Invalid OIDC RSA key size.');
+        }
+        $publicExponent = 0;
+        foreach (str_split($exponent) as $byte) $publicExponent = ($publicExponent << 8) | ord($byte);
+        if ($publicExponent < 3 || ($publicExponent & 1) === 0) throw new \RuntimeException('Invalid OIDC RSA public exponent.');
         $positive = static fn (string $v): string => "\x02" . self::asn1((ord($v[0]) & 0x80) ? "\x00" . $v : $v);
         $rsa = "\x30" . self::asn1($positive($modulus) . $positive($exponent));
         $bitString = "\x03" . self::asn1("\x00".$rsa);

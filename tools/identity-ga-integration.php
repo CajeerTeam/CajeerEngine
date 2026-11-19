@@ -116,4 +116,11 @@ $reject(static fn()=>$store->completeLink($issuer,'other-subject',$uid,$localId,
 $pdo->prepare('UPDATE ce_users SET two_factor_enabled=1 WHERE id=?')->execute([$uid]);
 $reject(static fn()=>$auth->loginExternal($uid,['sub'=>$subject,'amr'=>[['nested'=>'bad']]],$req), 'malformed IdP AMR cannot bypass MFA');
 $ok($pdo->query('PRAGMA integrity_check')->fetchColumn()==='ok', 'database integrity after unlink, rollback and re-link');
-echo "Identity 1.6.0 GA PDO/SSO acceptance: $checks PASS\n";
+// Identity acceptance must follow the installed release, not reject every
+// post-1.6.0 deployment before checking the actual IdP or browser session.
+$identityAcceptance = new \CajeerEngine\Identity\IdentityAcceptance($cfg, $db);
+$identityReport = $identityAcceptance->run();
+$ok(($identityReport['checks']['version']['ok'] ?? false) === true
+    && ($identityReport['release'] ?? '') === trim(file_get_contents($root.'/VERSION')),
+    'production acceptance uses installed release rather than obsolete fixed 1.6.0');
+echo "Identity GA PDO/SSO acceptance: $checks PASS\n";

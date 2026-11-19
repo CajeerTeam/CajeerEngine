@@ -65,7 +65,7 @@ try {
     ceCheck($fixture, 'undocumented environment key', 'fail');
     file_put_contents($path, $original);
 
-    file_put_contents($path, str_replace('# CajeerEngine 1.9.2', '# CajeerEngine 1.8.7', $original));
+    file_put_contents($path, str_replace('# CajeerEngine ' . trim((string)file_get_contents($source . '/VERSION')), '# CajeerEngine 0.0.0', $original));
     ceCheck($fixture, 'stale document version', 'fail');
     file_put_contents($path, $original);
 

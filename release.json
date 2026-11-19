@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.9.2-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.9.2-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.9.3-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.9.3-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.9.2-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.9.3-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,6 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
+    "1.9.3 SkiF4er ID Production: remove obsolete 1.6.0 live acceptance gate, verify current installed release and pinned live Keycloak signing keys, reject ID/access token substitution and unbound introspection results, and enforce functional SSO protocol regressions. Live Keycloak E2E still requires staging credentials and deployment.",
     "1.9.2 Migration Center Production: enforce target revision compare-and-swap for every content and incremental sync update, refusing stale editor revisions even in checkpointed batches; reject truncated WordPress metadata and category relationships; honor Rank Math noindex from serialized metadata without deserialization; add real-path regression and production operator acceptance procedures. Full target staging/CI certification remains required.",
     "1.9.1 RC Acceptance Closure & External Analytics Production: repaired stable operational acceptance version gate, blocked inconsistent release channel/stability metadata, fixed Google Search Console PUT sitemap submission, invalidated report snapshots on any credential rotation, and added live-schema/transport and recovery regressions. External provider staging verification and signed dist acceptance are required before GA certification.",
     "Release Candidate 1.9.0-rc.1: isolate candidate updates from the stable channel, verify exact application payload parity across source and dist, bind certification evidence to real payload metadata and enforce candidate publication semantics. Production acceptance requires passing every required CI and staging deployment gate on the same release bytes.",
@@ -125,7 +126,8 @@
     "1.8.0": "AI Automation GA — hardened queue admission, RabbitMQ once-only delivery, privacy erasure, operator kill switch and bounded retention",
     "1.8.1": "Release Baseline & CI Stabilization — synchronized product versions, production API/SDK matching and comprehensive release gates",
     "1.8.6": "End-to-End Regression: real cross-module acceptance, atomic file-backed preview-token storage, mandatory SQLite, HTTP auth and queue/AI test gates.",
-    "1.9.0-rc.1": "Release candidate for staging/production acceptance; not GA, not LTS; immutable candidate source/dist certification is required before public prerelease publication."
+    "1.9.0-rc.1": "Release candidate for staging/production acceptance; not GA, not LTS; immutable candidate source/dist certification is required before public prerelease publication.",
+    "1.9.3": "SkiF4er ID Production — version-aware live identity acceptance, verified pinned JWKS readiness, strict ID and access token type/binding checks."
   },
   "stability": "stable",
   "roadmap": {
