@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.8.5",
+  "version": "1.8.6",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.8.5-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.8.5-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.8.6-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.8.6-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.8.5-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.8.6-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,6 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
+    "End-to-End Regression 1.8.6: eliminate lost file-backed CMS preview tokens with an inter-process lock and TTL pruning; expire tokens before usage writes; exercise full CMS draft/preview/publication/search/static export lifecycle and 16 concurrent preview writers, and make real HTTP middleware, migrated SQLite, queue, media, import/export and AI acceptance a mandatory CI gate.",
     "Performance & Load Testing 1.8.5: remove public search publication-row shared locks by using repeatable-read MVCC snapshots; serialize concurrent public render cache misses per path without hiding render errors; reduce PostgreSQL queue lease-recovery round trips during active work while preserving forced idle recovery; ship concurrent PHP and HTTPS staging load acceptance with measurable RPS/latency/error gates.",
     "Database & Compatibility 1.8.4: execute immutable MySQL migrations on both MySQL 8.4 and MariaDB 10.11 by translating unsupported ADD COLUMN IF NOT EXISTS into column-existence checks; split SQL scripts for portable PDO execution; reject mismatched migration dialects; detect missing and modified applied migrations; verify full PostgreSQL/MySQL/SQLite migrations in isolated CI databases.",
     "Runtime & Queue Resilience 1.8.4: isolate scheduler tasks after queue/backend failures, preserve completed effects on uncertain acknowledgement, surface transport outages as HTTP 503 and CLI failures, redact scheduler errors, and execute fault-injection regressions.",
@@ -116,7 +117,8 @@
     "1.7.8": "AI Background Automation — durable, budgeted, owner-scoped scheduled OpenAI generations",
     "1.7.9": "AI Automation Security & Acceptance — hardened delivery, concurrency, privacy and regression verification",
     "1.8.0": "AI Automation GA — hardened queue admission, RabbitMQ once-only delivery, privacy erasure, operator kill switch and bounded retention",
-    "1.8.1": "Release Baseline & CI Stabilization — synchronized product versions, production API/SDK matching and comprehensive release gates"
+    "1.8.1": "Release Baseline & CI Stabilization — synchronized product versions, production API/SDK matching and comprehensive release gates",
+    "1.8.6": "End-to-End Regression: real cross-module acceptance, atomic file-backed preview-token storage, mandatory SQLite, HTTP auth and queue/AI test gates."
   },
   "stability": "stable"
 }

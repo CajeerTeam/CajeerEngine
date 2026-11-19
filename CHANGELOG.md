@@ -1,3 +1,11 @@
+# 1.8.6 — End-to-End Regression
+
+- Fix file-backed CMS preview token lost updates: issue and usage writes now share a stable cross-process lock, with expired-token pruning and fail-closed handling. Expired database tokens no longer receive fresh usage timestamps.
+- Add executable CMS lifecycle integration covering draft isolation, token preview, publication, public route visibility, search updates, revision conflicts, unpublish, static export and concurrent preview requests. Test real file storage locally and PDO SQLite with fully applied migrations in CI.
+- Require cross-module acceptance in both pull-request and release CI: real Symfony HTTP middleware, auth/CSRF and integration API, SQL-backed routing/search/media/rendering/import, file queue/scheduler crash recovery, AI Chat and approved AI Actions. Each test uses real platform code, isolated state and a locally simulated external AI provider; no external production writes.
+- Keep API/SDK operation signatures unchanged and synchronize version across runtime, admin, SDK, OpenAPI and release artifacts. No SQL migration required.
+- See [End-to-end acceptance](docs/e2e-regression-1.8.6.md) for coverage and limitations.
+
 # 1.8.5 — Performance & Load Testing
 
 - Prevent public CMS searches from blocking concurrent publication writes: count/facets/page now share a repeatable-read database snapshot instead of a shared publication-row lock.

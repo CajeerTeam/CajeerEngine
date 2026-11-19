@@ -209,6 +209,10 @@ Review the [security deployment and acceptance notes](docs/security-hardening-1.
 
 Worker batches now report queue transport outages and uncertain acknowledgements without requeueing an already executed handler. Scheduler tasks are fault-isolated and failures propagate as nonzero CLI exits and HTTP 503 for affected operations. See [runtime and queue recovery guide](docs/runtime-queue-resilience-1.8.3.md).
 
+### End-to-End Regression (1.8.6)
+
+Run `bash tools/e2e-acceptance.sh` after `composer install` with PHP 8.4 and PDO SQLite. This runs real CMS preview, publication, search, static export, security HTTP middleware, database-backed media/import, queue failures and mocked-provider AI integrations. It is a required PR and release CI gate; no migration required. The file-mode CMS lifecycle, including 16 concurrent preview-token writers, can also run without Composer: `php tools/e2e-content-preview-regression.php`. See [E2E regression guide](docs/e2e-regression-1.8.6.md).
+
 ### Performance & Load Testing (1.8.5)
 
 Public CMS search uses an MVCC read snapshot without blocking publication writers; public HTML cache misses are deduplicated across PHP-FPM workers; PostgreSQL queue lease recovery is amortized under load. Real PHP concurrency tests and a safe HTTPS staging load runner with latency/RPS/error gates are included in CI. See [performance rollout, benchmarking and staging load test instructions](docs/performance-load-1.8.5.md).

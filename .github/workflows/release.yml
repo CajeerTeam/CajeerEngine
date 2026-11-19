@@ -84,6 +84,8 @@ jobs:
           php tools/database-compatibility-regression.php
           python3 tools/database-compatibility-sqlite-regression.py
           php tools/database-compatibility-integration.php
+      - name: Cross-module E2E acceptance (real middleware and migrated SQLite)
+        run: bash tools/e2e-acceptance.sh
       - name: Full PHPUnit suite (all platform modules)
         run: vendor/bin/phpunit --no-coverage
       - name: PHPStan core static analysis

@@ -60,10 +60,20 @@ final class PreviewTokenService
                 'created_at' => $this->nowForDatabase(),
             ]);
         } else {
-            $data = $this->file->readObject(['tokens' => []]);
-            $tokens = is_array($data['tokens'] ?? null) ? $data['tokens'] : [];
-            $tokens[] = $record;
-            $this->file->writeObject(['version' => 1, 'updated_at' => $this->now(), 'tokens' => $tokens]);
+            // A stable sidecar lock serializes read-modify-write across PHP workers.
+            // JsonFile writes by atomic rename, so locking the JSON inode is unsafe.
+            $this->withTokenLock(function () use ($record): void {
+                $data = $this->file->readObject(['tokens' => []]);
+                $tokens = is_array($data['tokens'] ?? null) ? $data['tokens'] : [];
+                $now = new \DateTimeImmutable();
+                $tokens = array_values(array_filter($tokens, static function (mixed $row) use ($now): bool {
+                    if (!is_array($row) || !is_string($row['expires_at'] ?? null)) return false;
+                    try { return new \DateTimeImmutable($row['expires_at']) > $now; }
+                    catch (\Throwable) { return false; }
+                }));
+                $tokens[] = $record;
+                $this->file->writeObject(['version' => 1, 'updated_at' => $this->now(), 'tokens' => $tokens]);
+            });
         }
 
         return [
@@ -88,7 +98,7 @@ final class PreviewTokenService
         } catch (\Throwable) {
             return null;
         }
-        if ($expires < new \DateTimeImmutable()) {
+        if ($expires <= new \DateTimeImmutable()) {
             return null;
         }
         return $record;
@@ -97,8 +107,8 @@ final class PreviewTokenService
     /** @return array<string,mixed>|null */
     private function resolveDatabase(string $hash): ?array
     {
-        $stmt = $this->pdo()->prepare('SELECT * FROM ce_cms_preview_tokens WHERE token_hash = :hash LIMIT 1');
-        $stmt->execute(['hash' => $hash]);
+        $stmt = $this->pdo()->prepare('SELECT * FROM ce_cms_preview_tokens WHERE token_hash = :hash AND expires_at > :now LIMIT 1');
+        $stmt->execute(['hash' => $hash, 'now' => $this->nowForDatabase()]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!is_array($row)) {
             return null;
@@ -118,19 +128,41 @@ final class PreviewTokenService
     /** @return array<string,mixed>|null */
     private function resolveFile(string $hash): ?array
     {
-        $data = $this->file->readObject(['tokens' => []]);
-        $tokens = is_array($data['tokens'] ?? null) ? $data['tokens'] : [];
-        foreach ($tokens as $index => $record) {
-            if (!is_array($record) || ($record['token_hash'] ?? null) !== $hash) {
-                continue;
+        return $this->withTokenLock(function () use ($hash): ?array {
+            $data = $this->file->readObject(['tokens' => []]);
+            $tokens = is_array($data['tokens'] ?? null) ? $data['tokens'] : [];
+            foreach ($tokens as $index => $record) {
+                if (!is_array($record) || !is_string($record['token_hash'] ?? null) ||
+                    !hash_equals($record['token_hash'], $hash)) continue;
+                try { $expires = new \DateTimeImmutable((string) ($record['expires_at'] ?? '')); }
+                catch (\Throwable) { return null; }
+                if ($expires <= new \DateTimeImmutable()) return null;
+                $tokens[$index]['used_at'] = $this->now();
+                $this->file->writeObject(['version' => 1, 'updated_at' => $this->now(), 'tokens' => $tokens]);
+                $record['storage'] = 'file';
+                unset($record['token_hash']);
+                return $record;
             }
-            $tokens[$index]['used_at'] = $this->now();
-            $this->file->writeObject(['version' => 1, 'updated_at' => $this->now(), 'tokens' => $tokens]);
-            $record['storage'] = 'file';
-            unset($record['token_hash']);
-            return $record;
+            return null;
+        });
+    }
+
+    /** @template T @param callable():T $callback @return T */
+    private function withTokenLock(callable $callback): mixed
+    {
+        $directory = \CajeerEngine\Update\OperationFiles::path($this->rootPath, 'storage/app/cms');
+        if (!is_dir($directory) && !@mkdir($directory, 0770, true) && !is_dir($directory)) {
+            throw new \RuntimeException('Cannot create preview-token directory');
         }
-        return null;
+        $path = \CajeerEngine\Update\OperationFiles::path($this->rootPath, 'storage/app/cms/preview-tokens.lock');
+        if (is_link($path)) throw new \RuntimeException('Invalid preview-token lock');
+        $lock = @fopen($path, 'c+b');
+        if ($lock === false) throw new \RuntimeException('Cannot open preview-token lock');
+        try {
+            if (!flock($lock, LOCK_EX)) throw new \RuntimeException('Cannot lock preview tokens');
+            try { return $callback(); }
+            finally { flock($lock, LOCK_UN); }
+        } finally { fclose($lock); }
     }
 
     private function useDatabase(): bool
