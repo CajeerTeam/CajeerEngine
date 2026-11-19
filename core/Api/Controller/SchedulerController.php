@@ -17,12 +17,15 @@ final readonly class SchedulerController
     /** @param array<string, mixed> $parameters */
     public function tasks(Request $request, array $parameters): JsonResponse
     {
-        return new JsonResponse(['data' => $this->runner->tasks(), 'meta' => ['total' => count($this->runner->tasks())]]);
+        $tasks = $this->runner->tasks();
+        return new JsonResponse(['data' => $tasks, 'meta' => ['total' => count($tasks)]]);
     }
 
     /** @param array<string, mixed> $parameters */
     public function run(Request $request, array $parameters): JsonResponse
     {
-        return new JsonResponse(['data' => $this->runner->run()]);
+        $result = $this->runner->run();
+        return new JsonResponse(['data' => $result], ($result['ok'] ?? false) ? 200 : 503,
+            ($result['ok'] ?? false) ? [] : ['Retry-After' => '5', 'Cache-Control' => 'no-store']);
     }
 }

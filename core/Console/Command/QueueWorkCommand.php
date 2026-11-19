@@ -36,11 +36,13 @@ final class QueueWorkCommand extends BaseCommand
         $result = $worker->work((string) $input->getOption('queue'), (int) $input->getOption('limit'));
         if ((bool) $input->getOption('json')) {
             $output->writeln(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            return self::SUCCESS;
+            return ($result['ok'] ?? false) ? self::SUCCESS : self::FAILURE;
         }
         $output->writeln('[OK] Обработано задач: ' . (int) ($result['processed'] ?? 0));
         $output->writeln('[OK] Ошибок: ' . (int) ($result['failed'] ?? 0));
-        return ((int) ($result['failed'] ?? 0)) > 0 ? self::FAILURE : self::SUCCESS;
+        $output->writeln('[OK] Неподтверждённых резервирований: ' . (int) ($result['lost_reservations'] ?? 0));
+        if ($result['backend_unavailable'] ?? false) $output->writeln('[ERROR] Queue backend unavailable');
+        return ($result['ok'] ?? false) ? self::SUCCESS : self::FAILURE;
     }
 
     private function worker(): QueueWorker

@@ -33,6 +33,8 @@ jobs:
           php tools/ci-check.php --strict
           php bin/cajeer api:lint --strict --json
           php tools/build-release.php --dry-run --all --json > /dev/null
+      - name: Runtime and queue fault-injection acceptance
+        run: php tools/runtime-queue-resilience-regression.php
       - name: Security hardening acceptance
         run: php tools/security-hardening-regression.php
       - name: Full unit and integration test suite

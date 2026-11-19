@@ -33,12 +33,12 @@ final class SchedulerRunCommand extends BaseCommand
         $result = $this->runner()->run();
         if ((bool) $input->getOption('json')) {
             $output->writeln(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            return self::SUCCESS;
+            return ($result['ok'] ?? false) ? self::SUCCESS : self::FAILURE;
         }
         foreach ($result['tasks'] ?? [] as $name => $data) {
             $output->writeln('[OK] ' . $name . ': ' . json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         }
-        return self::SUCCESS;
+        return ($result['ok'] ?? false) ? self::SUCCESS : self::FAILURE;
     }
 
     private function runner(): SchedulerRunner

@@ -189,7 +189,7 @@ Manage privacy policy at `/admin/#/privacy`. Public pages display a consent bann
 
 Owner-scoped scheduled and manual OpenAI prompts run on the existing Scheduler and QueueWorker, with saved conversations, pause/resume, history and AI budget enforcement. [Configuration and operations](docs/ai-background-automation-1.7.8.md).
 
-### Release baseline & CI stabilization (1.8.2)
+### Release baseline & CI stabilization (1.8.1)
 
 The current release synchronizes CMS, Nuxt/static admin and SDK versions, restores the seven AI Automation API operations in OpenAPI and generated SDKs, and makes real PHP lint, the complete PHPUnit suite, PHPStan and admin builds mandatory release gates. See [release baseline 1.8.1](docs/release-baseline-1.8.1.md) for exact commands and the distinction between local audit and production acceptance.
 
@@ -204,3 +204,7 @@ The background automation delivery loop now serializes per-owner quotas, reconci
 ## 1.8.2 security hardening
 
 Review the [security deployment and acceptance notes](docs/security-hardening-1.8.2.md) before upgrading existing webhooks or session deployments.
+
+### Runtime & Queue Resilience (1.8.3)
+
+Worker batches now report queue transport outages and uncertain acknowledgements without requeueing an already executed handler. Scheduler tasks are fault-isolated and failures propagate as nonzero CLI exits and HTTP 503 for affected operations. See [runtime and queue recovery guide](docs/runtime-queue-resilience-1.8.3.md).

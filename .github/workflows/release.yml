@@ -292,6 +292,8 @@ jobs:
       - run: php tools/search-regression.php --database
       - run: php tools/performance-regression.php
       - run: php tools/queue-regression.php
+      - name: Runtime and queue fault-injection acceptance
+        run: php tools/runtime-queue-resilience-regression.php
       - run: php tools/observability-regression.php
       - run: php tools/observability-regression.php --database
       - run: php tools/queue-regression.php --redis

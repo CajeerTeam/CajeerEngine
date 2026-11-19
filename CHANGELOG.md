@@ -1,3 +1,12 @@
+# 1.8.3 — Runtime & Queue Resilience
+
+- Isolate scheduler task execution and state inspection: a failed queue cleanup or corrupt task ledger cannot prevent other due tasks from running.
+- Surface queue reservation failures, acknowledgement uncertainty and diagnostic outages as structured worker failures. Do not deliberately call `fail()` after the handler has already succeeded.
+- Return HTTP 503 + Retry-After for unavailable queue operations and scheduler runs; make CLI commands fail in both human and JSON modes when jobs or scheduling fail.
+- Redact handler/transport exception details from worker results and scheduled task state.
+- Repair the pre-existing queue regression fixture to use the HTTPS webhook requirement introduced in 1.8.2. Add real file-queue fault injection to both PR CI and release CI.
+- No new database migrations. Install only with drained, compatible 1.8.2 workers; see `docs/runtime-queue-resilience-1.8.3.md`.
+
 # 1.8.2 — Security Hardening
 
 - Prevent cross-user API-token revocation with an atomic owner-constrained UPDATE; browser sessions cannot be revoked through the API-token endpoint; missing session registries fail closed and new session TTLs are capped at 30 days.
