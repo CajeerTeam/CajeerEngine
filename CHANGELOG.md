@@ -1,3 +1,12 @@
+# 1.8.7 — Deployment & Recovery Acceptance
+
+- Persist operator update/backup request state **before** side effects (`running`, `completed`, `failed`). Interrupted requests are never retried without reconciliation; failures retain a durable terminal status without including sensitive exception text.
+- Make signed local release planning independent of remote catalog availability, so operators can prepare verified recovery updates during an upstream outage.
+- Bound backup, restore and verification subprocess runtime with `BACKUP_COMMAND_TIMEOUT_SECONDS` (default 3600, configurable 1–86400). Terminate timed-out subprocesses; use `flock --no-fork` when holding the child recovery lease.
+- Verify the restored live SQLite database integrity (or database readiness for PostgreSQL/MySQL) and the recovered `.env` digest before reporting successful restore.
+- Add executable SQLite recovery, secret-key rejection, process-timeout and operator-request replay acceptance to PR/release CI, along with existing source/dist and cold-recovery gates.
+- Deployment and rollback procedure: [Deployment & Recovery 1.8.7](docs/deployment-recovery-1.8.7.md).
+
 # 1.8.6 — End-to-End Regression
 
 - Fix file-backed CMS preview token lost updates: issue and usage writes now share a stable cross-process lock, with expired-token pruning and fail-closed handling. Expired database tokens no longer receive fresh usage timestamps.

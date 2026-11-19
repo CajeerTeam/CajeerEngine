@@ -37,6 +37,10 @@ jobs:
         run: |
           php tools/database-compatibility-regression.php
           python3 tools/database-compatibility-sqlite-regression.py
+      - name: Deployment and disaster recovery acceptance (actual SQLite)
+        run: |
+          php tools/deployment-recovery-acceptance.php
+          php tools/disaster-recovery-regression.php
       - name: Runtime and queue fault-injection acceptance
         run: php tools/runtime-queue-resilience-regression.php
       - name: Security hardening acceptance

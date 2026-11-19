@@ -199,6 +199,8 @@ final class BackupManager
         if ($env!==null) F::write(F::path($this->root,'.env'),$env,$m['env_permissions']['mode'],$m['env_permissions']['uid'],$m['env_permissions']['gid']);
         else F::remove(F::path($this->root,'.env'));
         foreach ($m['files'] as $relative=>$info) if (!hash_equals($info['sha256'],F::hash(F::path($this->root,$relative)))) throw new \RuntimeException('Restored file verification failed');
+        if ($env!==null && (!is_file($this->root.'/.env') || !hash_equals(hash('sha256',$env),F::hash($this->root.'/.env')))) throw new \RuntimeException('Restored environment verification failed');
+        $this->db->verifyRestored();
         return ['ok'=>true,'id'=>$id,'version'=>$m['version'],'restored_files'=>array_keys($m['files']),'maintenance'=>true];
     }
     public function directory(string $id): string

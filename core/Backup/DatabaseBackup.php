@@ -88,6 +88,19 @@ final class DatabaseBackup
             self::run(['pg_restore','--exit-on-error','--clean','--if-exists','--create','--no-password','--dbname=postgres',$file],$this->pgEnv());
         } else $this->mysql(['mysql','--binary-mode'],null,$file);
     }
+    /** Verify the live target after a destructive restore, before clearing the restore journal. */
+    public function verifyRestored(): void
+    {
+        if ($this->driver==='sqlite') {
+            $this->verify($this->sqlitePath());
+            return;
+        }
+        if ($this->driver==='pgsql') {
+            self::run(['psql','--no-password','--no-psqlrc','--set=ON_ERROR_STOP=1','--dbname='.$this->name(),'--command=SELECT 1'],$this->pgEnv());
+            return;
+        }
+        $this->mysql(['mysql','--batch','--skip-column-names','--database='.$this->name(),'--execute=SELECT 1'],null,null);
+    }
     /** Restore the dump without touching the configured database. No application code is executed. */
     public function drill(string $file,string $workspace): array
     {
@@ -195,15 +208,45 @@ PYTHON;
         try { array_splice($args,1,0,['--defaults-file='.$file]); self::run($args,[],$out,$in); }
         finally { F::remove($file); }
     }
-    public static function run(array $args, array $environment=[], ?string $output=null, ?string $input=null): void
+    public static function run(array $args, array $environment=[], ?string $output=null, ?string $input=null, ?int $timeoutSeconds=null): void
     {
         if (!function_exists('proc_open')) throw new \RuntimeException('proc_open required');
+        $configured=getenv('BACKUP_COMMAND_TIMEOUT_SECONDS');
+        if ($timeoutSeconds===null) {
+            if ($configured!==false && (!ctype_digit($configured)|| (int)$configured<1 || (int)$configured>86400)) throw new \RuntimeException('Invalid BACKUP_COMMAND_TIMEOUT_SECONDS (1..86400)');
+            $timeoutSeconds=$configured===false?3600:(int)$configured;
+        }
+        if ($timeoutSeconds<1||$timeoutSeconds>86400) throw new \RuntimeException('Invalid database command timeout');
+        $name=basename((string)($args[0]??'command'));
         if (self::$processLock!==null) $args=array_merge(['flock','--exclusive','--nonblock',self::$processLock],$args);
         $err=tmpfile(); if ($err===false) throw new \RuntimeException('Cannot create process log');
         $stdout=$output!==null?['file',$output,'wb']:['file','/dev/null','w'];
+        // exec mode replaces flock with the command, so a timed-out database
+        // process cannot survive as an orphan and keep the child lease.
+        if (self::$processLock!==null) array_splice($args,1,0,['--no-fork']);
         $proc=proc_open($args,[0=>['file',$input??'/dev/null','rb'],1=>$stdout,2=>$err],$pipes,null,array_merge(getenv(),$environment),['bypass_shell'=>true]);
         if (!is_resource($proc)) { fclose($err); throw new \RuntimeException('Cannot start database/validation command'); }
-        $exit=proc_close($proc); rewind($err); $detail=trim((string)stream_get_contents($err,4096)); fclose($err);
-        if ($exit!==0) throw new \RuntimeException(basename((string)$args[0]).' failed (exit '.$exit.'): '.$detail);
+        $start=microtime(true); $timedOut=false; $exit=null;
+        try {
+            while (true) {
+                $status=proc_get_status($proc);
+                if (!$status['running']) { $exit=$status['exitcode']; break; }
+                if (microtime(true)-$start>=$timeoutSeconds) {
+                    $timedOut=true;
+                    proc_terminate($proc);
+                    $until=microtime(true)+2;
+                    do { usleep(50000); $status=proc_get_status($proc); } while ($status['running']&&microtime(true)<$until);
+                    if ($status['running']) proc_terminate($proc,9);
+                    break;
+                }
+                usleep(100000);
+            }
+        } finally {
+            $closed=proc_close($proc);
+            rewind($err); $detail=trim((string)stream_get_contents($err,4096)); fclose($err);
+        }
+        if ($timedOut) throw new \RuntimeException($name.' timed out after '.$timeoutSeconds.' seconds; check the operation journal before retrying');
+        $exit=$exit===-1?$closed:$exit;
+        if ($exit!==0) throw new \RuntimeException($name.' failed (exit '.$exit.'): '.$detail);
     }
 }

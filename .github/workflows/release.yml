@@ -305,6 +305,8 @@ jobs:
       - run: php tools/github-release-regression.php
       - run: python3 tools/github-publish-regression.py
       - run: php tools/release-regression.php
+      - name: Deployment recovery replay, timeout and isolated restore acceptance
+        run: php tools/deployment-recovery-acceptance.php
       - run: php tools/update-regression.php
       - run: php tools/disaster-recovery-regression.php
       - run: php tools/import-regression.php

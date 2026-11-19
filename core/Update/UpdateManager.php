@@ -22,7 +22,10 @@ final class UpdateManager
     }
     public function plan(array $options=[]): array
     {
-        $package=$this->option($options,'package'); $check=$this->check();
+        $package=$this->option($options,'package');
+        // A local, signed dist must remain installable during a GitHub/GitFlic outage.
+        // Resolving remote catalogs here used to make update:prepare fail offline.
+        $check=$package===null?$this->check():['latest'=>null,'update_available'=>false];
         $plan=['ok'=>true,'current_version'=>$this->currentVersion(),'target_version'=>$this->option($options,'version')??($check['latest']['version']??null),'package'=>$package,'mode'=>'dist','backup_before_update'=>true,'code_snapshot_before_update'=>true,'maintenance_mode_during_apply'=>true,'migrations_after_apply'=>true,'post_update_doctor'=>true,'production_apply_enabled'=>$this->trustConfigured(),'update_available'=>$check['update_available']??false,'checked_at'=>gmdate(DATE_ATOM)];
         if ($package!==null && PHP_SAPI==='cli') {
             $verified=$this->verifyPackage($this->resolvePackage($package),$this->option($options,'sha256'),$this->option($options,'signature'));
@@ -219,7 +222,14 @@ final class UpdateManager
         $guard=OperationLock::childGuard($guardDir.'/'.$id.'.lock');
         try {
         $path=$this->requestDir().'/request-'.$id.'.json'; $r=OperationFiles::read($path);
-        if (($r['id']??null)!==$id||($r['state']??null)!=='pending') throw new \RuntimeException('Request is not pending');
+        if (($r['id']??null)!==$id||($r['state']??null)!=='pending') throw new \RuntimeException('Request is not pending; inspect update:status and recover any active operation');
+        // The durable state transition precedes every side effect. An interrupted
+        // operator request is never replayed blindly: reconcile its update journal
+        // or backup set before creating a new request.
+        if (!in_array($r['action']??null,['apply','rollback','backup'],true)) throw new \RuntimeException('Unknown request');
+        $r['state']='running'; $r['started_at']=gmdate(DATE_ATOM);
+        OperationFiles::json($path,$r,0640);
+        try {
         // Operator explicitly selects ID, not a privileged daemon consuming arbitrary web requests.
         if ($r['action']==='apply') {
             if (!preg_match('/^[a-f0-9]{32}$/D',(string)($r['stage']??''))) throw new \RuntimeException('Invalid staged ID');
@@ -229,7 +239,14 @@ final class UpdateManager
             $result=$this->rollback(null,true,$r['transaction']);
         } elseif ($r['action']==='backup') $result=(new BackupManager($this->rootPath,$this->config))->create();
         else throw new \RuntimeException('Unknown request');
-        $r['state']=$result['ok']?'completed':'failed'; OperationFiles::json($path,$r,0640); return $result;
+        $r['state']=($result['ok']??false)?'completed':'failed'; $r['finished_at']=gmdate(DATE_ATOM);
+        OperationFiles::json($path,$r,0640); return $result;
+        } catch (\Throwable $e) {
+            $r['state']='failed'; $r['finished_at']=gmdate(DATE_ATOM);
+            $r['failure']='Operator operation failed; inspect the update/backup journal before retrying';
+            OperationFiles::json($path,$r,0640);
+            throw $e;
+        }
         } finally { OperationLock::release($guard); }
     }
     private function stage(string $dir,array $manifest): array

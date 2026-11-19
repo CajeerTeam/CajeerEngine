@@ -220,3 +220,9 @@ Public CMS search uses an MVCC read snapshot without blocking publication writer
 ### Database & Compatibility (1.8.4)
 
 MySQL 8.4 and MariaDB 10.11 now apply the original versioned SQL migrations through a dialect-compatible executor (the historic migration files and their SHA-256 checksums remain unchanged). Migration integrity is verified by `php bin/cajeer migrate:status`, and isolated full-database checks are available in release CI. See [database compatibility and upgrade instructions](docs/database-compatibility-1.8.4.md).
+
+### Deployment & Recovery Acceptance (1.8.7)
+
+The production updater persists operator-request state **before** starting an operation and refuses replay of completed, failed or interrupted requests. Local signed releases may be planned while release catalogs are offline. Database backup/restore subprocesses have a bounded deadline (default 3600 seconds, set `BACKUP_COMMAND_TIMEOUT_SECONDS`), and restored databases and environment are verified before a restore succeeds.
+
+Run `php tools/deployment-recovery-acceptance.php` for a real SQLite/secretbox/offsite recovery and failure-injection acceptance; run `php tools/disaster-recovery-regression.php` and `php tools/update-regression.php` for existing comprehensive scenarios. Production dist acceptance requires the complete release CI workflow, including `tools/update-dist-smoke.sh` and `tools/disaster-recovery-dist-smoke.sh`. See [deployment and recovery guide](docs/deployment-recovery-1.8.7.md).
