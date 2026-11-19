@@ -1,4 +1,4 @@
-# CajeerEngine 1.9.1 — Backups, Recovery & DR
+# CajeerEngine 1.9.2 — Backups, Recovery & DR
 
 ## Что входит в копию
 

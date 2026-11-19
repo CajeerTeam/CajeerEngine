@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Reproduce 0024 upgrade, atomic sync checkpoint and rollback on a real SQLite database."""
+"""Reproduce current-schema delta sync checkpoint and rollback on a real SQLite database."""
 from pathlib import Path
 import sqlite3
 import tempfile
 root=Path(__file__).resolve().parents[1]
 migrations=sorted((root/'migrations/sqlite').glob('*.sql'))
-assert migrations[-1].name=='0025_migration_redirect_evidence.sql'
+assert any(f.name=='0025_migration_redirect_evidence.sql' for f in migrations), 'Required migration 0025 missing'
 with tempfile.TemporaryDirectory(prefix='ce-cutover-') as temp:
     path=Path(temp)/'site.sqlite';db=sqlite3.connect(path);db.execute('PRAGMA foreign_keys=ON')
     for f in migrations:db.executescript(f.read_text())
     assert db.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
-    print('PASS full SQLite upgrade through 0025')
+    print('PASS full SQLite upgrade including 0025 and later migrations')
     project='a'*32
     with db:
         db.execute('INSERT INTO ce_migration_validation VALUES(?,?,?,?,?,?)',(project,'b'*64,'c'*64,0,'{"changes":1}','2026-11-17'))

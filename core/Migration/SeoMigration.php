@@ -91,8 +91,20 @@ final readonly class SeoMigration
         foreach(['title'=>&$title,'description'=>&$description] as &$v){$v=preg_replace('/%%title%%/u',(string)($f['title']??''),$v)??'';if(preg_match('/%%[^%]+%%|%[a-z_]+%/iu',$v))$v='';$v=trim(strip_tags($v));}unset($v);
         if(strlen($title)>300)$title='';if(strlen($description)>2000)$description='';
         $noindex=$wp&&in_array((string)($f['meta:_yoast_wpseo_meta-robots-noindex']??''),['1','true'],true);
-        if($wp&&in_array((string)($f['meta:rank_math_robots']??''),['noindex'],true))$noindex=true;
+        // Rank Math stores robots as a PHP-serialized list in wp_postmeta, while
+        // REST may expose a native list. Never unserialize untrusted plugin data.
+        if($wp&&self::rankMathNoindex($f['meta:rank_math_robots']??null))$noindex=true;
         return ['title'=>$title,'description'=>$description,'canonical'=>$targetPath!==''?$base.$targetPath:'','noindex'=>$noindex];
+    }
+
+    private static function rankMathNoindex(mixed $robots):bool
+    {
+        if(is_array($robots))return in_array('noindex',$robots,true);
+        if(!is_string($robots)||$robots===''||strlen($robots)>4096)return false;
+        if($robots==='noindex')return true;
+        // A conservative token check on serialized arrays. We do not instantiate PHP objects
+        // or evaluate any arbitrary source metadata; malformed data cannot execute code.
+        return preg_match('/(?:^|[;{])s:7:"noindex";/', $robots)===1;
     }
 
     private static function hashData(array $data):string{return hash('sha256',json_encode($data,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));}

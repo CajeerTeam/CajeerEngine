@@ -158,14 +158,19 @@ final class ContentEntryRepository
     }
 
     /** Only the migration executor calls this; no HTTP payload can set historical metadata. */
-    public function importDleEntry(string $typeHandle,array $payload,?string $targetId,?string $authorId,?string $sourceDate):array
+    public function importDleEntry(string $typeHandle,array $payload,?string $targetId,?string $authorId,?string $sourceDate,?int $expectedRevision=null):array
     {
-        return $this->importMigrationEntry($typeHandle,$payload,$targetId,$authorId,$sourceDate);
+        return $this->importMigrationEntry($typeHandle,$payload,$targetId,$authorId,$sourceDate,$expectedRevision);
     }
 
-    public function importMigrationEntry(string $typeHandle,array $payload,?string $targetId,?string $authorId,?string $sourceDate):array
+    public function importMigrationEntry(string $typeHandle,array $payload,?string $targetId,?string $authorId,?string $sourceDate,?int $expectedRevision=null):array
     {
         if (!$this->useDatabase() || !$this->pdo()->inTransaction()) throw new \LogicException('Content import requires a database transaction.');
+        if($targetId!==null){
+            if($expectedRevision===null||$expectedRevision<1)throw new RevisionConflict('Migration update requires the approved target revision.');
+            // updateRaw performs CAS while the route writer owns its database transaction.
+            $payload['expected_revision']=$expectedRevision;
+        }
         $entry=$targetId===null?$this->create($typeHandle,$payload):$this->update($typeHandle,$targetId,$payload,'migration_import');
         if($entry===null||$entry['slug']!==$payload['slug'])throw new RevisionConflict('Migration target changed during import.');
         $params=['id'=>$entry['id']];$sets=[];

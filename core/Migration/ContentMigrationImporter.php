@@ -55,7 +55,7 @@ readonly class ContentMigrationImporter
                     if(!hash_equals($a['payload_sha256'],MigrationPlanner::fingerprint($payload)))throw new RevisionConflict('Payload differs from approved plan.');
                     $date=$wp?WordPressContent::date($r['fields']['meta:wp_date_gmt']??''):self::date($r['fields']['date']);
                     $author=$identities['map'][$r['author']]??$a['author_id'];
-                    $entry=$this->entries->importMigrationEntry($rule['target'],$payload,$a['action']==='update'?$a['target_id']:null,$author,$date);
+                    $entry=$this->entries->importMigrationEntry($rule['target'],$payload,$a['action']==='update'?$a['target_id']:null,$author,$date,$a['action']==='update'?($a['expected_revision']??null):null);
                     $row['target_id']=$entry['id'];$row['slug']=$entry['slug'];$row['author_id']=$author;$row['revision']=$entry['revision'];
                     if($r['fields']['date']!==''&&$date===null)$result['warnings'][]='Missing or invalid historical UTC date for '.$key.'; target timestamp retained.';
                 }
@@ -101,7 +101,7 @@ readonly class ContentMigrationImporter
                     if(!hash_equals($a['payload_sha256'],MigrationPlanner::fingerprint($payload)))throw new RevisionConflict('Approved payload changed for '.$key.'.');
                     $date=$source==='dle-db'?self::date($r['fields']['date']):WordPressContent::date((string)($r['fields']['meta:wp_date_gmt']??''));
                     $author=$identities['map'][$r['author']]??$a['author_id'];
-                    $entry=$this->entries->importMigrationEntry($rule['target'],$payload,$a['action']==='update'?$a['target_id']:null,$author,$date);
+                    $entry=$this->entries->importMigrationEntry($rule['target'],$payload,$a['action']==='update'?$a['target_id']:null,$author,$date,$a['action']==='update'?($a['expected_revision']??null):null);
                     $row['target_id']=$entry['id'];$row['slug']=$entry['slug'];$row['author_id']=$author;$row['revision']=$entry['revision'];
                 }
                 $insert->execute(['project'=>$id,'ordinal'=>$i,'type'=>$a['source_type'],'source'=>$a['source_id'],'target'=>$row['target_id'],'result'=>json_encode($row,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);

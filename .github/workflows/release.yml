@@ -247,6 +247,8 @@ jobs:
           MIGRATION_TEST_MYSQL_PASSWORD: migration-fixture
         run: php tools/migration-discovery-regression.php --require-xml --require-mysql
       - run: php tools/migration-planning-regression.php --require-xml
+      - name: Migration Center production safety and lossless import regression
+        run: php tools/migration-production-regression.php
       - name: DLE migration actual MariaDB source and SQLite target
         env:
           MIGRATION_TEST_MYSQL: '1'

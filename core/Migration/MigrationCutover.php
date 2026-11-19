@@ -329,7 +329,7 @@ final readonly class MigrationCutover
                         if(!$existing||(int)$existing['revision']!==(int)$action['expected_revision'])throw new RevisionConflict('Editor changed target since validation.');
                     }elseif($this->entries->find($rule['target'],$payload['slug'])!==null)throw new RevisionConflict('Target slug now exists.');
                     $date=$p['source']==='dle-db'?ContentMigrationImporter::date((string)($source['fields']['date']??'')):WordPressContent::date((string)($source['fields']['meta:wp_date_gmt']??''));
-                    $entry=$this->entries->importMigrationEntry($rule['target'],$payload,$target,$action['author_id'],$date);
+                    $entry=$this->entries->importMigrationEntry($rule['target'],$payload,$target,$action['author_id'],$date,$target!==null?(int)$action['expected_revision']:null);
                     $pdo->prepare('DELETE FROM ce_migration_sync_items WHERE project_id=:id AND source_type=:type AND source_id=:source')->execute(['id'=>$project,'type'=>$action['source_type'],'source'=>$action['source_id']]);
                     $q=$pdo->prepare('INSERT INTO ce_migration_sync_items(project_id,source_type,source_id,source_sha256,target_id,revision,updated_at) VALUES(:id,:type,:source,:hash,:target,:rev,:at)');
                     $q->execute(['id'=>$project,'type'=>$action['source_type'],'source'=>$action['source_id'],'hash'=>$action['payload_sha256'],'target'=>$entry['id'],'rev'=>$entry['revision'],'at'=>gmdate(DATE_ATOM)]);

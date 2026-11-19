@@ -71,8 +71,8 @@ final class BaselineAcceptanceTest extends TestCase
         $root = sys_get_temp_dir() . '/ce-stability-' . bin2hex(random_bytes(6));
         self::assertTrue(mkdir($root, 0700));
         try {
-            file_put_contents($root . '/VERSION', "1.9.1\n");
-            file_put_contents($root . '/release.json', json_encode(['version'=>'1.9.1','channel'=>'stable','stability'=>'rc'], JSON_THROW_ON_ERROR));
+            file_put_contents($root . '/VERSION', "1.9.2\n");
+            file_put_contents($root . '/release.json', json_encode(['version'=>'1.9.2','channel'=>'stable','stability'=>'rc'], JSON_THROW_ON_ERROR));
             $results = (new VersionVerifier($root))->verify();
             $byName = [];
             foreach ($results as $check) $byName[$check->name] = $check->status;

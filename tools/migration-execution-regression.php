@@ -44,4 +44,18 @@ try{
     $receipt=$writer->receipt($id,'dle-db');
     ok($three['completed']&&$receipt['counts']['create']===3&&count($receipt['records'])===3,'last batch commits compatible full content receipt');
     ok((int)$db->connection()->query('SELECT COUNT(*) FROM ce_migration_execution_items')->fetchColumn()===3,'durable per-record journal has exactly three unique entries');
+    // A later checkpoint must never overwrite a content edit made since the approved dry-run.
+    $changed=$inv;$changed['records'][0]['fields']['body']='Source wants to overwrite this entry';
+    $updateMapping=$mapping;$updateMapping['conflict']='update';
+    $updatePlan=$planner->plan($changed,$updateMapping);
+    ok($updatePlan['approvable']&&$updatePlan['counts']['update']===3&&is_int($updatePlan['records'][0]['expected_revision']),'approved update records concrete target revisions');
+    $updateId=str_repeat('b',32);
+    $db->connection()->prepare('INSERT INTO ce_migration_execution(project_id,source,plan_sha256,source_sha256,backup_id,total,cursor_index,state,started_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)')->execute([$updateId,'dle-db',$updatePlan['sha256'],$updatePlan['source_sha256'],'verified-fixture-backup',3,0,'running','2026-11-17','2026-11-17']);
+    $updateProject=['id'=>$updateId,'source'=>'dle-db','status'=>'approved','mapping'=>$updateMapping,'plan'=>$updatePlan+['approved_at'=>gmdate(DATE_ATOM)]];
+    $target=$entries->findById('articles',(string)$receipt['records'][0]['target_id']);
+    $edited=$entries->update('articles',$target['id'],['title'=>$target['title'],'slug'=>$target['slug'],'locale'=>$target['locale'],'status'=>$target['status'],'data'=>['body'=>'Editor wins'],'expected_revision'=>(int)$target['revision']]);
+    ok($edited['data']['body']==='Editor wins','editor change committed after migration approval');
+    deny(fn()=>$writer->executeBatch($updateProject,$changed,0,1),'batch import rejects stale approved revision');
+    ok((int)$db->connection()->query("SELECT cursor_index FROM ce_migration_execution WHERE project_id='".$updateId."'")->fetchColumn()===0,'stale update does not advance checkpoint');
+    ok($entries->findById('articles',$target['id'])['data']['body']==='Editor wins','stale batch does not overwrite editor content');
 }finally{if($lease!==null)OperationLock::release($lease);RecoveryBundle::cleanup($work);}

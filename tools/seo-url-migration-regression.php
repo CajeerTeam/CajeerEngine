@@ -16,6 +16,14 @@ try{
     $wp=['id'=>'55','type'=>'post','origin'=>'wordpress','fields'=>['title'=>'Test Article','slug'=>'тест-статья','date'=>'2025-06-04 11:00:00','meta:wp_date_gmt'=>'2025-06-04 11:00:00','meta:_yoast_wpseo_title'=>'%%title%% — Website','meta:_yoast_wpseo_metadesc'=>'A description','meta:_yoast_wpseo_meta-robots-noindex'=>'1']];
     $old=SeoMigration::expand('/%year%/%monthnum%/%postname%/',$wp);checkSeo($old==='/2025/06/'.rawurlencode('тест-статья'),'WordPress date and encoded UTF-8 permalink');
     $meta=SeoMigration::metadata($wp,'/articles/test','https://new.example.com');
+    foreach (['noindex', ['index','noindex'], 'a:1:{i:0;s:7:"noindex";}'] as $robots) {
+        $rank=$wp;unset($rank['fields']['meta:_yoast_wpseo_meta-robots-noindex']);
+        $rank['fields']['meta:rank_math_robots']=$robots;
+        checkSeo(SeoMigration::metadata($rank,'/articles/test','https://new.example.com')['noindex']===true,'Rank Math noindex remains protected across REST and serialized DB metadata');
+    }
+    $rank=$wp;unset($rank['fields']['meta:_yoast_wpseo_meta-robots-noindex']);
+    $rank['fields']['meta:rank_math_robots']='a:1:{i:0;s:5:"index";}';
+    checkSeo(SeoMigration::metadata($rank,'/articles/test','https://new.example.com')['noindex']===false,'Rank Math index directive does not force noindex');
     checkSeo($meta['title']==='Test Article — Website'&&$meta['description']==='A description'&&$meta['noindex']===true&&$meta['canonical']==='https://new.example.com/articles/test','SEO plugin title/description/noindex/canonical mapped');
     $dle=['id'=>'123','type'=>'post','origin'=>'dle','fields'=>['slug'=>'hello','date'=>'2025-06-04 11:00:00','title'=>'Hello','meta:dle_seo_title'=>'DLE Title','meta:dle_seo_description'=>'DLE Description']];
     checkSeo(SeoMigration::expand('/news/%id%-%slug%.html',$dle)==='/news/123-hello.html','DLE legacy URL expansion');
