@@ -20,7 +20,7 @@ On an offline or protected release host, generate an Ed25519 signing key pair (d
 
 ```bash
 php bin/cajeer release:keygen --secret-key=/secure/release.secret --public-key=/secure/release.pub
-php bin/cajeer release:sign --package=/release/cajeerengine-1.8.7-dist.zip --secret-key=/secure/release.secret
+php bin/cajeer release:sign --package=/release/cajeerengine-1.8.8-dist.zip --secret-key=/secure/release.secret
 ```
 
 Publish the ZIP, `.sha256`, `.sig`, and manifest. The signature covers the exact ZIP SHA256 using a domain-separated message. The manifest inside the archive is authenticated by that signature. Install the public key out of band, verify its fingerprint (`key_id`), and protect it against web writes. Sign only after release verification; `RELEASE_SIGNING_KEY_FILE` optionally enables signing in `tools/release-pipeline.sh`. No trusted publisher key or secret is shipped in the project. Key rotation requires distributing a new trusted public key through a separate trusted channel.
@@ -110,7 +110,7 @@ php tools/update-regression.php          # Ed25519, ZIP, actual SQLite, failure-
 php tools/security-regression.php
 php tools/release-regression.php
 php bin/cajeer api:lint --strict --json
-bash tools/update-dist-smoke.sh /release/cajeerengine-1.8.7-dist.zip
+bash tools/update-dist-smoke.sh /release/cajeerengine-1.8.8-dist.zip
 ```
 
 The last test needs actual Composer dependencies and PDO. It installs a real dist in a disposable directory, adds a test migration to a signed newer dist, tests commit/rollback and a failing migration. The CI PostgreSQL round-trip uses `tools/backup-db-regression.php` with a specifically named disposable database. Do not set the release gate to PASS if these tests cannot execute. Use a staging copy of each actual production profile and verify HTTP/FPM, restore time and off-host backups before live deployment.

@@ -8,6 +8,12 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## Операционная эксплуатация 1.8.8
+
+Актуальные процедуры для single-node Linux/Nginx/PHP 8.4/PostgreSQL: [операционный справочник](docs/operations-handbook-1.8.8.md), [обновление и rollback](docs/operations-deployment-1.8.8.md), [инциденты](docs/operations-incidents-1.8.8.md), [резервные копии и восстановление](docs/operations-recovery-1.8.8.md), [мониторинг и очереди](docs/operations-monitoring-1.8.8.md), [безопасность и секреты](docs/operations-security-1.8.8.md), [проверка готовности](docs/operations-acceptance-1.8.8.md).
+
+Перед каждым релизом выполняйте `php tools/operations-docs-check.php` и `php tools/operations-docs-regression.php`: эти проверки автоматически выявляют отсутствующие runbooks, ссылки, недействительные CLI-команды и неизвестные переменные окружения. Документы не являются подтверждением успешной production-приёмки: актуальный staging/CI результат обязателен.
+
 ## AI Assistant ChatGPT GA (1.7.0)
 
 OpenAI Chat, Content Editor, SEO Assistant, Translation Studio, CMS Diagnostics, Knowledge Base, RAG and Support Center are integrated with existing CMS rights, revision history and token budgets. This release hardens concurrent Support ticket updates and prevents RAG history retention while a generation is in progress.

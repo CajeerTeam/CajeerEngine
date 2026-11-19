@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.8.7",
+  "version": "1.8.8",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.8.7-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.8.7-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.8.8-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.8.8-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.8.7-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.8.8-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,6 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
+    "Documentation & Operational Readiness 1.8.8: comprehensive deployment, operations, security, incident and recovery runbooks with an executable documentation contract verifier in CI; corrected runtime environment examples and release versions.",
     "Deployment & Recovery Acceptance 1.8.7: durable one-time operator requests (running/completed/failed) to prevent replay after abrupt failure; offline local signed-package planning; bounded database/validator subprocesses with original error context preserved; verified database and encrypted-environment restoration before a restore journal is cleared; real SQLite encrypted backup and recovery acceptance added to PR/release CI.",
     "End-to-End Regression 1.8.6: eliminate lost file-backed CMS preview tokens with an inter-process lock and TTL pruning; expire tokens before usage writes; exercise full CMS draft/preview/publication/search/static export lifecycle and 16 concurrent preview writers, and make real HTTP middleware, migrated SQLite, queue, media, import/export and AI acceptance a mandatory CI gate.",
     "Performance & Load Testing 1.8.5: remove public search publication-row shared locks by using repeatable-read MVCC snapshots; serialize concurrent public render cache misses per path without hiding render errors; reduce PostgreSQL queue lease-recovery round trips during active work while preserving forced idle recovery; ship concurrent PHP and HTTPS staging load acceptance with measurable RPS/latency/error gates.",

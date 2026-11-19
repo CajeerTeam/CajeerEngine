@@ -1,3 +1,10 @@
+# 1.8.8 — Documentation & Operational Readiness
+
+- Verified operational handbook covering installation, signed updates, backup/restore drills, monitoring, incident response, secrets and on-call acceptance.
+- Executable runbook documentation contract checks (Markdown links, CLI command names, env configuration keys, mandatory sections) integrated into release and PR gates.
+- Corrected version drift in `.env.example`, deployment example commands and published release metadata. No database migrations.
+- See [Operations Handbook 1.8.8](docs/operations-handbook-1.8.8.md) and [Operational Acceptance](docs/operations-acceptance-1.8.8.md).
+
 # 1.8.7 — Deployment & Recovery Acceptance
 
 - Persist operator update/backup request state **before** side effects (`running`, `completed`, `failed`). Interrupted requests are never retried without reconciliation; failures retain a durable terminal status without including sensitive exception text.

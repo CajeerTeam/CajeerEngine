@@ -33,6 +33,10 @@ jobs:
           php tools/ci-check.php --strict
           php bin/cajeer api:lint --strict --json
           php tools/build-release.php --dry-run --all --json > /dev/null
+      - name: Operational documentation contract and negative regressions
+        run: |
+          php tools/operations-docs-check.php
+          php tools/operations-docs-regression.php
       - name: Database dialect and migration compatibility regression
         run: |
           php tools/database-compatibility-regression.php

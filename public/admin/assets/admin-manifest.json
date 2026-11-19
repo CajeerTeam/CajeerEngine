@@ -1,6 +1,6 @@
 {
   "name": "CajeerEngine Admin UI",
-  "version": "1.8.7",
+  "version": "1.8.8",
   "mode": "production-static-spa",
   "base_path": "/admin/",
   "api_base": "/api/v1",
@@ -15,7 +15,7 @@
       "path": "/admin/assets/admin-app.js",
       "exists": true,
       "size": 304822,
-      "sha256": "a96344558a31047f7c94356c227a37833cf775e4c9bf6b6688139262f8c751f8"
+      "sha256": "0e8c66319c5719a79a8e4bf8c5f68c1e159969bf6235f8730e4243d56f12e7e8"
     },
     "assets/admin-app.css": {
       "path": "/admin/assets/admin-app.css",

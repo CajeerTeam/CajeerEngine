@@ -62,7 +62,7 @@ final readonly class DocsVerifier
             ? CheckResult::pass('docs', 'changelog.1.4.8', 'CHANGELOG содержит запись 1.4.8.')
             : CheckResult::fail('docs', 'changelog.1.4.8', 'CHANGELOG не содержит запись 1.4.8.');
 
-        return $checks;
+        return array_merge($checks, (new OperationsDocsVerifier($this->rootPath))->verify());
     }
 
     private function read(string $file): string

@@ -77,6 +77,10 @@ jobs:
           php tools/generate-api-sdk.php --check
           php tools/ci-check.php --strict
           php bin/cajeer api:lint --strict --json
+      - name: Operational documentation contract and negative regressions
+        run: |
+          php tools/operations-docs-check.php
+          php tools/operations-docs-regression.php
       - name: Database compatibility and full migration acceptance
         env:
           DB_COMPAT_FIXTURE: "1"
