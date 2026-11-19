@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.8.4",
+  "version": "1.8.5",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.8.4-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.8.4-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.8.5-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.8.5-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.8.4-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.8.5-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,6 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
+    "Performance & Load Testing 1.8.5: remove public search publication-row shared locks by using repeatable-read MVCC snapshots; serialize concurrent public render cache misses per path without hiding render errors; reduce PostgreSQL queue lease-recovery round trips during active work while preserving forced idle recovery; ship concurrent PHP and HTTPS staging load acceptance with measurable RPS/latency/error gates.",
     "Database & Compatibility 1.8.4: execute immutable MySQL migrations on both MySQL 8.4 and MariaDB 10.11 by translating unsupported ADD COLUMN IF NOT EXISTS into column-existence checks; split SQL scripts for portable PDO execution; reject mismatched migration dialects; detect missing and modified applied migrations; verify full PostgreSQL/MySQL/SQLite migrations in isolated CI databases.",
     "Runtime & Queue Resilience 1.8.4: isolate scheduler tasks after queue/backend failures, preserve completed effects on uncertain acknowledgement, surface transport outages as HTTP 503 and CLI failures, redact scheduler errors, and execute fault-injection regressions.",
     "Security Hardening 1.8.2: owner-constrained API token revocation; strict token issuance validation; HTTPS-only webhook destinations with signing secret rotation on receiver change; no webhook signing secrets in list/update or receiver responses in logs; production error redaction and database diagnostic privacy; executable security regressions.",

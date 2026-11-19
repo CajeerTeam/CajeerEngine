@@ -1,3 +1,11 @@
+# 1.8.5 — Performance & Load Testing
+
+- Prevent public CMS searches from blocking concurrent publication writes: count/facets/page now share a repeatable-read database snapshot instead of a shared publication-row lock.
+- Avoid public-page cache stampedes with per-route locks and post-lock revalidation, while preserving content-addressed invalidation, output limits and exception propagation.
+- Reduce PostgreSQL queue recovery scans during active work from every reservation to bounded periodic checks, without losing idle recovery or failure reporting.
+- Add executable 12-process cache contention, PostgreSQL queue SQL query-count, real PHP PDO SQLite search snapshot and local HTTPS load harness regressions; enforce in PR/release CI.
+- Add HTTPS-only read-only staging load runner with concurrency, warmup, route-level p50/p95/p99 latency, RPS, HTTP/transport error counts and fail-closed SLO thresholds. Document how to run staging certification. No migrations or API changes.
+
 # 1.8.4 — Database & Compatibility
 
 - Apply the **unchanged published migration SQL** on MySQL 8.4 and MariaDB 10.11: the migration executor resolves legacy `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` using `information_schema`, skips existing columns and executes individual statements without enabling PDO multi-statements. Previously applied migration checksums remain valid.

@@ -38,11 +38,12 @@ final class CmsSearchEngine implements SearchEngineInterface
     private function databasePage(array $tokens,?string $type,?string $locale,int $limit,int $offset,array $meta): array
     {
         $this->routes->ensureSearch();
-        return $this->db->transaction(function(PDO $pdo)use($tokens,$type,$locale,$limit,$offset,$meta){
+        // Search projections and publication state are committed atomically by RouteIndex.
+        // A repeatable-read snapshot keeps counts, facets and results from the same
+        // generation without holding a shared lock on the writer serialization row.
+        // In particular, a slow search must not stall content publishing on PG/MySQL.
+        return $this->db->readSnapshot(function(PDO $pdo)use($tokens,$type,$locale,$limit,$offset,$meta){
             $driver=$pdo->getAttribute(PDO::ATTR_DRIVER_NAME);$pg=$driver==='pgsql';
-            // Shared lock freezes publication generation across result/count/facet queries.
-            if($driver==='pgsql'||$driver==='mysql')$pdo->query('SELECT generation FROM ce_public_route_state WHERE id=1 '.($pg?'FOR SHARE':'LOCK IN SHARE MODE'))->fetchColumn();
-            else $pdo->query('SELECT generation FROM ce_public_route_state WHERE id=1')->fetchColumn();
             $where=[];$params=[];$rank=[];$prefix='';$from='ce_cms_search s';
             if($pg){
                 $prefix="WITH query AS (SELECT plainto_tsquery('russian', :ru) || plainto_tsquery('english', :en) || plainto_tsquery('simple', :simple) AS term) ";

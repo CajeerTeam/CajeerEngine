@@ -14,7 +14,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, pdo_sqlite, pdo_pgsql, pdo_mysql, sodium, zip, dom, xml, xmlreader, xmlwriter, curl, gd
+          extensions: mbstring, pdo_sqlite, pdo_pgsql, pdo_mysql, sodium, zip, dom, xml, xmlreader, xmlwriter, curl, gd, pcntl
           tools: composer:v2
       - uses: actions/setup-node@v7
         with:
@@ -41,6 +41,12 @@ jobs:
         run: php tools/runtime-queue-resilience-regression.php
       - name: Security hardening acceptance
         run: php tools/security-hardening-regression.php
+      - name: Concurrent performance and SQL search acceptance
+        run: |
+          php tools/performance-load-regression.php
+          php tools/queue-throughput-regression.php
+          php tools/performance-search-integration.php
+          python3 tools/staging-load-regression.py
       - name: Full unit and integration test suite
         run: vendor/bin/phpunit --no-coverage
       - name: Static analysis

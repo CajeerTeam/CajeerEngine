@@ -317,6 +317,12 @@ jobs:
       - run: php tools/search-regression.php
       - run: php tools/search-regression.php --database
       - run: php tools/performance-regression.php
+      - name: Performance & load acceptance (concurrent PHP and local HTTPS)
+        run: |
+          php tools/performance-load-regression.php
+          php tools/queue-throughput-regression.php
+          php tools/performance-search-integration.php
+          python3 tools/staging-load-regression.py
       - run: php tools/queue-regression.php
       - name: Runtime and queue fault-injection acceptance
         run: php tools/runtime-queue-resilience-regression.php

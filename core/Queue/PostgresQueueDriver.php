@@ -4,9 +4,12 @@ namespace CajeerEngine\Queue;
 
 use PDO;
 
-final readonly class PostgresQueueDriver implements LeaseQueueDriverInterface
+final class PostgresQueueDriver implements LeaseQueueDriverInterface
 {
-    public function __construct(private PDO $pdo,private int $leaseSeconds=300) {}
+    /** Recovery is periodic during active work, but forced when the ready queue is empty. */
+    private array $lastRecoveryNs = [];
+    private array $popsSinceRecovery = [];
+    public function __construct(private readonly PDO $pdo,private readonly int $leaseSeconds=300) {}
     public function push(string $job,array $payload=[],?string $queue=null): string
     {
         $q=QueueOptions::queue($queue);$id=QueueOptions::id($q,$job,$payload);
@@ -14,9 +17,35 @@ final readonly class PostgresQueueDriver implements LeaseQueueDriverInterface
     }
     public function pop(?string $queue=null): ?QueuedJob
     {
-        $q=QueueOptions::queue($queue);$this->recover($q);
-        $row=$this->run("WITH candidate AS (SELECT id FROM ce_jobs WHERE queue=:q AND status='pending' AND available_at<=clock_timestamp() ORDER BY available_at,created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE ce_jobs j SET status='reserved',reserved_at=clock_timestamp(),attempts=j.attempts+1,reservation_token=:token,lease_until=clock_timestamp()+CAST(:lease AS integer)*interval '1 second',updated_at=clock_timestamp() FROM candidate c WHERE j.id=c.id RETURNING j.*",['q'=>$q,'token'=>QueueOptions::token(),'lease'=>QueueOptions::lease($this->leaseSeconds)])->fetch(PDO::FETCH_ASSOC);
-        return $row?$this->job($row):null;
+        $q = QueueOptions::queue($queue);
+        $now = hrtime(true);
+        $pops = ($this->popsSinceRecovery[$q] ?? 0) + 1;
+        // The old implementation scanned for expired leases before *every* pop.
+        // Under a deep backlog that doubles the database round trips per job.
+        // Limit recovery checks to at most 1 second or 32 active reservations.
+        $checked = !isset($this->lastRecoveryNs[$q]) || $now - $this->lastRecoveryNs[$q] >= 1_000_000_000 || $pops >= 32;
+        if ($checked) $this->recoverReady($q);
+        else $this->popsSinceRecovery[$q] = $pops;
+        $row = $this->reserve($q);
+        if (!$row && !$checked) {
+            // On an empty ready queue, inspect expired reservations immediately;
+            // otherwise a worker exiting after one empty pop could strand work.
+            if ($this->recoverReady($q) > 0) $row = $this->reserve($q);
+        }
+        return $row ? $this->job($row) : null;
+    }
+    private function recoverReady(string $queue): int
+    {
+        $recovered = $this->recover($queue);
+        // Record the timestamp only after a successful DB call: outages must
+        // never cause recovery to be skipped on the next attempt.
+        $this->lastRecoveryNs[$queue] = hrtime(true);
+        $this->popsSinceRecovery[$queue] = 0;
+        return $recovered;
+    }
+    private function reserve(string $queue): array|false
+    {
+        return $this->run("WITH candidate AS (SELECT id FROM ce_jobs WHERE queue=:q AND status='pending' AND available_at<=clock_timestamp() ORDER BY available_at,created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED) UPDATE ce_jobs j SET status='reserved',reserved_at=clock_timestamp(),attempts=j.attempts+1,reservation_token=:token,lease_until=clock_timestamp()+CAST(:lease AS integer)*interval '1 second',updated_at=clock_timestamp() FROM candidate c WHERE j.id=c.id RETURNING j.*",['q'=>$queue,'token'=>QueueOptions::token(),'lease'=>QueueOptions::lease($this->leaseSeconds)])->fetch(PDO::FETCH_ASSOC);
     }
     public function heartbeat(QueuedJob $job): bool {return $this->ownedUpdate($job,"lease_until=clock_timestamp()+CAST(:lease AS integer)*interval '1 second',updated_at=clock_timestamp()",['lease'=>QueueOptions::lease($this->leaseSeconds)])===1;}
     public function complete(QueuedJob $job): void {if($this->ownedUpdate($job,"status='processed',processed_at=clock_timestamp(),updated_at=clock_timestamp(),reserved_at=NULL,reservation_token=NULL,lease_until=NULL")!==1)throw new \RuntimeException('Queue reservation lost');}

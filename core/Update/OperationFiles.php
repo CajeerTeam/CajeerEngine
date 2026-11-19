@@ -20,7 +20,7 @@ final class OperationFiles
 
     public static function dir(string $path, int $mode = 0700): void
     {
-        if (is_link($path) || (!is_dir($path) && !mkdir($path, $mode, true) && !is_dir($path))) throw new \RuntimeException('Cannot create directory');
+        if (is_link($path) || (!is_dir($path) && !@mkdir($path, $mode, true) && !is_dir($path))) throw new \RuntimeException('Cannot create directory');
     }
 
     public static function write(string $path, string $data, int $mode = 0600, ?int $uid = null, ?int $gid = null): void
