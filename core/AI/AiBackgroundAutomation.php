@@ -8,6 +8,7 @@ use CajeerEngine\Database\DatabaseManager;
 use CajeerEngine\Database\Repository\RoleRepository;
 use CajeerEngine\Queue\JobContext;
 use CajeerEngine\Queue\ManagedQueueDriverInterface;
+use CajeerEngine\Queue\QueueOptions;
 use CajeerEngine\Support\Uuid;
 use PDO;
 
@@ -42,6 +43,8 @@ final readonly class AiBackgroundAutomation
         [$title, $prompt, $minutes, $enabled] = self::validate($body);
         $id = Uuid::v4(); $now = time();
         $this->db->transaction(function (PDO $pdo) use ($userId, $title, $prompt, $minutes, $enabled, $id, $now): void {
+            if (!$this->lockActiveOwner($pdo, $userId)) throw new \DomainException('Account is no longer active.');
+            if (!$this->canRun($userId)) throw new \DomainException('Automation privileges have been revoked.');
             $stmt = $pdo->prepare('SELECT COUNT(*) FROM ce_ai_automations WHERE user_id = ? AND deleted_at IS NULL');
             $stmt->execute([$userId]);
             if ((int)$stmt->fetchColumn() >= 20) throw new \DomainException('Maximum 20 AI automations per administrator.');
@@ -56,6 +59,7 @@ final readonly class AiBackgroundAutomation
         self::allowed($body, ['title','prompt','interval_minutes','enabled','revision']);
         if (!isset($body['revision']) || !is_int($body['revision'])) throw new \InvalidArgumentException('Current automation revision is required.');
         return $this->db->transaction(function (PDO $pdo) use ($userId,$id,$body): array {
+            if (!$this->canRun($userId)) throw new \DomainException('Automation privileges have been revoked.');
             $row = $this->lockOwned($pdo, $userId, $id);
             if ((int)$row['revision'] !== $body['revision']) throw new \DomainException('Automation was updated elsewhere. Refresh before editing.');
             $current = self::normalise($row);
@@ -96,6 +100,7 @@ final readonly class AiBackgroundAutomation
     {
         $id=Uuid::v4();
         $this->db->transaction(function (PDO $pdo) use ($userId,$automationId,$id): void {
+            if (!$this->lockActiveOwner($pdo, $userId)) throw new \DomainException('Account is no longer active.');
             $row=$this->lockOwned($pdo,$userId,$automationId);
             if (!$this->canRun($userId)) throw new \DomainException('Automation privileges have been revoked.');
             $check=$pdo->prepare("SELECT COUNT(*) FROM ce_ai_automation_runs WHERE automation_id = ? AND status IN ('queued','running')");
@@ -108,26 +113,45 @@ final readonly class AiBackgroundAutomation
             $pdo->prepare('INSERT INTO ce_ai_automation_runs (id, automation_id, user_id, prompt_snapshot, scheduled_for, status, queued_at) VALUES (?, ?, ?, ?, NULL, ?, ?)')
                 ->execute([$id,$automationId,$userId,$row['prompt'],'queued',time()]);
         });
-        $this->enqueue($id);
-        return ['id'=>$id,'status'=>'queued'];
+        // A committed run must remain recoverable if Redis, PostgreSQL or the file
+        // queue becomes unavailable between the insert and the transport push.
+        // The scheduler re-offers it with exactly the same idempotency key.
+        $enqueued = false;
+        try { $this->enqueue($id); $enqueued = true; }
+        catch (\Throwable) { /* The scheduler will safely re-offer the committed run. */ }
+        if ($enqueued) {
+            try { $this->markOffered($id); }
+            catch (\Throwable) { /* Transport succeeded; the re-offer is idempotent. */ }
+        }
+        return ['id'=>$id,'status'=>'queued','enqueued'=>$enqueued];
     }
 
-    /** Called under the existing per-slot scheduler lock. Concurrent hosts also use CAS. */
+    /** Schedule a bounded batch, reconcile dead transports, fairly re-offer unclaimed runs. */
     public function dispatch(int $batch = 50): array
     {
         $now=time(); $claimed=0;
-        // A lost PHP worker must never trigger an automatic *second* billable request.
-        $this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET status = 'failed', finished_at = ?, error = 'Execution interrupted; no automatic replay' WHERE status = 'running' AND started_at < ?")
-            ->execute([$now,$now-1800]);
-        $stmt=$this->db->connection()->prepare('SELECT a.id FROM ce_ai_automations a INNER JOIN ce_users u ON u.id = a.user_id AND u.status = ? WHERE a.enabled = 1 AND a.deleted_at IS NULL AND a.next_run_at <= ? ORDER BY a.next_run_at ASC LIMIT '.max(1,min(100,$batch)));
-        $stmt->execute(['active',$now]);
-        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $id) {
-            $created = $this->db->transaction(function (PDO $pdo) use ($id,$now): bool {
+        // Neither an interrupted paid request nor a run stranded in a dead queue
+        // is replayed. A late delivery sees a terminal status and does nothing.
+        $interrupted=$this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET status = 'failed', finished_at = ?, error = 'Execution interrupted; provider may have charged' WHERE status = 'running' AND started_at < ?");
+        $interrupted->execute([$now,$now-1800]);
+        $expired=$this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET status = 'failed', finished_at = ?, error = 'Queue delivery deadline exceeded; no automatic replay' WHERE status = 'queued' AND queued_at < ?");
+        $expired->execute([$now,$now-86400]);
+        $failedJobs=$this->reconcileFailedJobs();
+        // Do not filter inactive users before loading the row: deactivated owners
+        // must have recurring schedules disabled instead of silently accumulating slots.
+        $stmt=$this->db->connection()->prepare('SELECT id, user_id FROM ce_ai_automations WHERE enabled = 1 AND deleted_at IS NULL AND next_run_at <= ? ORDER BY next_run_at ASC LIMIT '.max(1,min(100,$batch)));
+        $stmt->execute([$now]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $candidate) {
+            $id=(string)$candidate['id']; $owner=(string)$candidate['user_id'];
+            $created = $this->db->transaction(function (PDO $pdo) use ($id,$owner,$now): bool {
+                // All manual and scheduled capacity decisions serialize on the owner
+                // row. This is essential on multi-worker PostgreSQL/MySQL deployments.
+                $active=$this->lockActiveOwner($pdo, $owner);
                 $row=$pdo->prepare('SELECT id, user_id, prompt, next_run_at, interval_minutes, enabled FROM ce_ai_automations WHERE id = ? AND deleted_at IS NULL');
                 $row->execute([$id]); $item=$row->fetch(PDO::FETCH_ASSOC);
-                if (!is_array($item) || !(int)$item['enabled'] || (int)$item['next_run_at']>$now) return false;
-                if (!$this->canRun((string)$item['user_id'])) {
-                    $pdo->prepare('UPDATE ce_ai_automations SET enabled = 0, revision = revision + 1, updated_at = ? WHERE id = ?')->execute([$now,$id]);
+                if (!is_array($item) || (string)$item['user_id']!==$owner || !(int)$item['enabled'] || (int)$item['next_run_at']>$now) return false;
+                if (!$active || !$this->canRun($owner)) {
+                    $pdo->prepare('UPDATE ce_ai_automations SET enabled = 0, revision = revision + 1, updated_at = ? WHERE id = ? AND enabled = 1')->execute([$now,$id]);
                     $pdo->prepare("UPDATE ce_ai_automation_runs SET status = 'canceled', finished_at = ? WHERE automation_id = ? AND status = 'queued'")->execute([$now,$id]);
                     return false;
                 }
@@ -140,33 +164,66 @@ final readonly class AiBackgroundAutomation
                 $busy->execute([$id]);
                 if ((int)$busy->fetchColumn() > 0) return false;
                 $count=$pdo->prepare('SELECT COUNT(*) FROM ce_ai_automation_runs WHERE user_id = ? AND queued_at >= ?');
-                $count->execute([$item['user_id'],$now-86400]);
+                $count->execute([$owner,$now-86400]);
                 if ((int)$count->fetchColumn() >= 100) return false;
                 $pdo->prepare('INSERT INTO ce_ai_automation_runs (id, automation_id, user_id, prompt_snapshot, scheduled_for, status, queued_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                    ->execute([Uuid::v4(),$id,$item['user_id'],$item['prompt'],$slot,'queued',$now]);
+                    ->execute([Uuid::v4(),$id,$owner,$item['prompt'],$slot,'queued',$now]);
                 return true;
             });
             if ($created) ++$claimed;
         }
-        // A DB commit followed by queue transport failure leaves a queued row;
-        // re-offer the same stable job key on every scheduler tick (no duplicates).
-        $pending=$this->db->connection()->query("SELECT id FROM ce_ai_automation_runs WHERE status = 'queued' ORDER BY queued_at ASC LIMIT 100")->fetchAll(PDO::FETCH_COLUMN);
+        // Round-robin-ish fairness even if the oldest 100 jobs never leave 'queued'.
+        // last_offer_at is updated on success AND failure, so later jobs get a turn.
+        $pending=$this->db->connection()->query("SELECT id FROM ce_ai_automation_runs WHERE status = 'queued' ORDER BY COALESCE(last_offer_at,0) ASC, queued_at ASC, id ASC LIMIT 100")->fetchAll(PDO::FETCH_COLUMN);
         $enqueued=0; $errors=0;
         foreach ($pending as $runId) {
             try { $this->enqueue((string)$runId); ++$enqueued; }
             catch (\Throwable) { ++$errors; }
+            finally { $this->markOffered((string)$runId); }
         }
-        return ['ok'=>$errors===0,'created'=>$claimed,'offered'=>$enqueued,'enqueue_errors'=>$errors];
+        // Past completed prompts are no longer needed: retain run metadata without
+        // leaving a long-lived copy of sensitive user content in execution history.
+        $prune=$this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET prompt_snapshot = '[expired]' WHERE status IN ('succeeded','failed','canceled') AND finished_at < ? AND prompt_snapshot <> '[expired]'");
+        $prune->execute([$now-30*86400]);
+        return ['ok'=>$errors===0,'created'=>$claimed,'offered'=>$enqueued,'enqueue_errors'=>$errors,
+            'dead_queue_jobs'=>$failedJobs,'interrupted'=>$interrupted->rowCount(),'expired_queued'=>$expired->rowCount(),'redacted'=>$prune->rowCount()];
+    }
+
+    /** Reconcile a queue item that has exhausted its sole permitted delivery. */
+    private function reconcileFailedJobs(): int
+    {
+        $count=0;
+        foreach ($this->queue->failed() as $job) {
+            if (!is_array($job) || ($job['name']??null)!=='ai.automation.execute') continue;
+            $payload=$job['payload']??null;
+            if (is_string($payload)) $payload=json_decode($payload,true);
+            if (!is_array($payload) || !is_string($payload['run_id']??null)) continue;
+            $runId=$payload['run_id'];
+            if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iD',$runId)) continue;
+            // Do not trust job payload alone: its id must be the deterministic key
+            // for this precise run (prevents another queue client spoofing failures).
+            if (($job['id']??'')!==QueueOptions::id('default','ai.automation.execute',[
+                'run_id'=>$runId,'_idempotency_key'=>'ai.automation.'.$runId,'_max_attempts'=>1,
+            ])) continue;
+            $stmt=$this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET status = 'failed', finished_at = ?, error = 'Queue delivery exhausted; no automatic replay' WHERE id = ? AND status = 'queued'");
+            $stmt->execute([time(),$runId]); $count+=$stmt->rowCount();
+        }
+        return $count;
+    }
+
+    private function markOffered(string $runId): void
+    {
+        $this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET last_offer_at = ? WHERE id = ? AND status = 'queued'")->execute([time(),$runId]);
     }
 
     public function execute(string $runId, JobContext $context): void
     {
         $item=$this->db->transaction(function(PDO $pdo)use($runId): ?array {
-            $stmt=$pdo->prepare('SELECT r.id, r.automation_id, r.user_id, r.prompt_snapshot, r.status, a.enabled, a.deleted_at, u.status AS user_status FROM ce_ai_automation_runs r JOIN ce_ai_automations a ON a.id = r.automation_id JOIN ce_users u ON u.id = r.user_id WHERE r.id = ?');
+            $stmt=$pdo->prepare('SELECT r.id, r.automation_id, r.user_id, r.prompt_snapshot, r.status, r.scheduled_for, a.user_id AS automation_owner, a.enabled, a.deleted_at, u.status AS user_status FROM ce_ai_automation_runs r JOIN ce_ai_automations a ON a.id = r.automation_id JOIN ce_users u ON u.id = r.user_id WHERE r.id = ?');
             $stmt->execute([$runId]); $row=$stmt->fetch(PDO::FETCH_ASSOC);
             if (!is_array($row) || $row['status']!=='queued') return null;
             // Queued executions are canceled when owner is deactivated or automation deleted.
-            if ($row['deleted_at']!==null || $row['user_status']!=='active' || !$this->canRun((string)$row['user_id'])) {
+            if ($row['deleted_at']!==null || $row['automation_owner']!==$row['user_id'] || $row['user_status']!=='active' || ($row['scheduled_for']!==null && !(int)$row['enabled']) || !$this->canRun((string)$row['user_id'])) {
                 $pdo->prepare("UPDATE ce_ai_automation_runs SET status = 'canceled', finished_at = ? WHERE id = ? AND status = 'queued'")->execute([time(),$runId]);
                 return null;
             }
@@ -177,26 +234,48 @@ final readonly class AiBackgroundAutomation
         if ($item===null) return;
         try {
             $context->heartbeat();
+            // Permissions may have been revoked since the atomic queue claim. Check
+            // once more immediately before entering the billable AI transaction.
+            if (!$this->canRun((string)$item['user_id'])) {
+                $this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET status='canceled', finished_at=? WHERE id=? AND status='running'")
+                    ->execute([time(),$runId]);
+                return;
+            }
             // No write tools or implicit privileges: automation is an ordinary owner-funded
             // AI conversation, charged through the existing token and dollar hard caps.
             $result=$this->chat->send((string)$item['user_id'], null, (string)$item['prompt_snapshot'], null, false, [], null, false, 'background_automation');
-            $context->heartbeat();
             $conversation=(string)($result['conversation_id']??$result['id']??'');
             if ($conversation==='') throw new \RuntimeException('AI run did not return a conversation.');
-            $this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET status = 'succeeded', conversation_id = ?, finished_at = ?, error = NULL WHERE id = ? AND status = 'running'")
-                ->execute([$conversation,time(),$runId]);
+            // Record the committed conversation before checking the queue lease again:
+            // a lost ACK must not turn a successful paid generation into an orphan.
+            $saved=$this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET status = 'succeeded', conversation_id = ?, finished_at = ?, error = NULL WHERE id = ? AND (status = 'running' OR (status = 'failed' AND error = 'Execution interrupted; provider may have charged'))");
+            $saved->execute([$conversation,time(),$runId]);
+            if ($saved->rowCount()!==1) throw new \RuntimeException('AI result cannot be linked to its run.');
         } catch (\Throwable $e) {
             $this->db->connection()->prepare("UPDATE ce_ai_automation_runs SET status = 'failed', finished_at = ?, error = ? WHERE id = ? AND status = 'running'")
                 ->execute([time(),self::safeError($e),$runId]);
-            // One provider attempt maximum: no unsafe retry after an unknown outcome.
-            throw $e;
+            // Never put a provider exception (which can include sensitive input)
+            // into queue failed-job storage or worker API responses.
+            throw new \RuntimeException('AI automation execution failed; see protected run status.');
         }
     }
 
     private function canRun(string $userId): bool
     {
+        $active=$this->db->connection()->prepare('SELECT status FROM ce_users WHERE id = ?');
+        $active->execute([$userId]);
+        if ($active->fetchColumn() !== 'active') return false;
         $permissions=(new RoleRepository($this->db))->permissionsForUser($userId);
         return in_array('*',$permissions,true) || (in_array('content:read',$permissions,true) && in_array('content:write',$permissions,true));
+    }
+
+    /** Lock the owner across quota/capacity checks on server DBs. Caller is in a transaction. */
+    private function lockActiveOwner(PDO $pdo, string $userId): bool
+    {
+        $sql='SELECT status FROM ce_users WHERE id = ?';
+        if (in_array($this->db->driver(),['mysql','pgsql'],true)) $sql.=' FOR UPDATE';
+        $stmt=$pdo->prepare($sql); $stmt->execute([$userId]);
+        return $stmt->fetchColumn()==='active';
     }
 
     private function enqueue(string $id): void

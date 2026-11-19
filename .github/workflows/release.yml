@@ -86,6 +86,10 @@ jobs:
         run: php tools/identity-session-acceptance-integration.php --require-db
       - name: Identity 1.6.0 GA production SSO, self-link, transaction rollback, revocation (real PDO)
         run: php tools/identity-ga-integration.php --require-db
+      - name: AI Automation 1.7.9 real PHP owner/queue/provider acceptance
+        run: vendor/bin/phpunit --filter AiBackgroundAutomationTest --no-coverage
+      - name: AI Automation 1.7.9 migration and SQL reliability acceptance
+        run: python3 tools/ai-automation-security-sqlite-regression.py
       - name: AI cost price, limits and reconciliation regression
         run: php tools/ai-cost-regression.php
       - name: AI budget real PDO acceptance

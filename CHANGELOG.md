@@ -1,3 +1,13 @@
+# 1.7.9 — AI Automation Security & Acceptance
+
+- Serialize automation count and 24-hour execution quotas per owner across concurrent hosts using row-level database locks.
+- Reconcile dead-letter queue jobs, expire undelivered runs after 24 hours without invoking OpenAI, and preserve at-most-once provider execution.
+- Distribute queue re-offers fairly using persisted `last_offer_at`, including across transport outages.
+- Preserve committed manual runs when queue insertion fails and surface `enqueued: false` to the operator; scheduler can restore delivery.
+- Enforce active-account and permissions checks at dispatch and queue claim; reject scheduled deliveries paused before execution.
+- Redact downstream provider exceptions in queue status, and clear completed prompt snapshots after 30 days.
+- Expand PHP acceptance coverage for revocation, transport failures, queue exhaustion, stale runs and privacy boundaries.
+
 # 1.7.8 — AI Background Automation
 
 - Owner-isolated scheduled and one-off OpenAI prompts with real queue workers and persistent per-run history.

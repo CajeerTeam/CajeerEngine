@@ -188,3 +188,7 @@ Manage privacy policy at `/admin/#/privacy`. Public pages display a consent bann
 ### AI Background Automation (1.7.8)
 
 Owner-scoped scheduled and manual OpenAI prompts run on the existing Scheduler and QueueWorker, with saved conversations, pause/resume, history and AI budget enforcement. [Configuration and operations](docs/ai-background-automation-1.7.8.md).
+
+### AI Automation Security & Acceptance (1.7.9)
+
+The background automation delivery loop now serializes per-owner quotas, reconciles dead-letter jobs without repeating a provider call, fairly re-offers queued work, rejects inactive owners and retains only 30 days of completed prompt snapshots. Apply migration `0042_ai_automation_delivery_acceptance.sql` and review [security and recovery procedures](docs/ai-automation-security-acceptance-1.7.9.md).
