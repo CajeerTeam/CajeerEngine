@@ -74,6 +74,7 @@ jobs:
         run: |
           php tools/oidc-regression.php
           php tools/oidc-api-regression.php
+          php tools/oidc-api-integration.php --require-db
           php tools/oidc-global-logout-regression.php
           php tools/skif4er-id-production-regression.php
       - name: Concurrent performance and SQL search acceptance
