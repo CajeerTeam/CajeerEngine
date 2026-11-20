@@ -89,8 +89,10 @@ jobs:
           php tools/performance-scalability-regression.php
           python3 tools/performance-scalability-sqlite-regression.py
           python3 tools/staging-load-regression.py
-      - name: Migration Center production safety and lossless import regression
-        run: php tools/migration-production-regression.php
+      - name: Migration Center production safety, lossless import and HTTP session acceptance
+        run: |
+          php tools/migration-production-regression.php
+          php tools/migration-http-regression.php
       - name: AI Assistant production SSE, function dispatch and privacy regression
         run: php tools/ai-assistant-production-regression.php
       - name: AI Content Editor real PDO and file CMS acceptance
