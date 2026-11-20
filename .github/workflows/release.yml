@@ -77,6 +77,8 @@ jobs:
           php tools/generate-api-sdk.php --check
           php tools/ci-check.php --strict
           php bin/cajeer api:lint --strict --json
+      - name: Production 2.0 release and support privacy regressions
+        run: php tools/production-release-regression.php --require-zip
       - name: Operational documentation contract and negative regressions
         run: |
           php tools/operations-docs-check.php

@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## Production Release 2.0.0
+
+CajeerEngine 2.0.0 включает CMS Core, External Analytics, Migration Center, SkiF4er ID и AI Assistant. При подготовке релизных ZIP source/dist индекс теперь публикуется только при наличии обоих артефактов; служебные support-архивы не включают персональные данные логов и значения `.env`. Рабочие инструкции: [2.0 production release](docs/production-release-2.0.0.md). Перед объявлением установки сертифицированной требуются подписанный dist, успешный полный CI и staging-приёмка конкретного артефакта.
+
 ## Production GA Qualification 1.9.9
 
 Восстановление из offsite backup теперь публикует файлы только после проверки всего аутентифицированного зашифрованного потока. Сертификация source/dist отклоняет отсутствие любого runtime-модуля в dist и несогласованные метаданные релиза. Исполняемые проверки: `php tools/ga-qualification-regression.php`, `python3 tools/certification-regression.py`, `php tools/disaster-recovery-regression.php`. Полная готовность 2.0 RC дополнительно требует успешного релизного CI, работающего staging и внешних интеграций. Инструкция: [Production GA Qualification](docs/production-ga-qualification-1.9.9.md).

@@ -7,7 +7,6 @@ namespace CajeerEngine\Stable;
 use CajeerEngine\Admin\AdminAssetPublisher;
 use CajeerEngine\Database\DatabaseManager;
 use CajeerEngine\Database\MigrationRunner;
-use CajeerEngine\Observability\SystemReport;
 use CajeerEngine\Rc\ReleaseCandidateAuditor;
 use CajeerEngine\Release\ReleaseBuilder;
 use CajeerEngine\Runtime\ConfigRepository;
@@ -157,28 +156,105 @@ final readonly class StableReleaseService
     /** @param array<string, mixed> $options @return array<string, mixed> */
     public function supportBundle(array $options = []): array
     {
-        $includeLogs = (bool) ($options['include_logs'] ?? true);
-        $target = $this->rootPath . '/storage/app/support/cajeerengine-support-' . date('Ymd-His') . '.zip';
-        if (!class_exists(\ZipArchive::class)) { return ['ok' => false, 'error' => 'PHP ZipArchive extension не установлен.', 'target' => $target]; }
-        if (!is_dir(dirname($target))) { mkdir(dirname($target), 0775, true); }
+        // Support bundles are routinely exported outside the installation. Never
+        // include raw audit/runtime events, environment values or credentials.
+        $includeLogs = (bool) ($options['include_logs'] ?? false);
+        $directory = $this->rootPath . '/storage/app/support';
+        if (!class_exists(\ZipArchive::class)) {
+            return ['ok' => false, 'error' => 'PHP ZipArchive extension не установлен.'];
+        }
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
+            throw new \RuntimeException('Не удалось создать каталог поддержки');
+        }
+        $target = $directory . '/cajeerengine-support-' . gmdate('Ymd-His') . '-' . bin2hex(random_bytes(6)) . '.zip';
+        $temporary = $directory . '/.support-' . bin2hex(random_bytes(12)) . '.tmp';
         $zip = new \ZipArchive();
-        if ($zip->open($target, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) { throw new \RuntimeException('Не удалось создать support bundle: ' . $target); }
-        $zip->addFromString('system-report.json', $this->json((new SystemReport($this->rootPath))->toArray()));
-        $zip->addFromString('stable-status.json', $this->json($this->status()));
-        $zip->addFromString('rc-readiness.json', $this->json((new ReleaseCandidateAuditor($this->rootPath))->summaryOnly()));
-        $zip->addFromString('env-redacted.txt', $this->redactedEnv());
-        foreach (['VERSION', 'release.json', 'composer.json', 'api/openapi.yaml', 'admin/package.json', 'packages/ts-sdk/package.json'] as $file) {
-            $path = $this->rootPath . '/' . $file;
-            if (is_file($path)) { $zip->addFile($path, 'project/' . $file); }
-        }
-        if ($includeLogs) {
-            foreach (['storage/logs/runtime.jsonl', 'storage/logs/audit.jsonl'] as $file) {
-                $path = $this->rootPath . '/' . $file;
-                if (is_file($path)) { $zip->addFile($path, 'logs/' . basename($file)); }
+        try {
+            if ($zip->open($temporary, \ZipArchive::CREATE | \ZipArchive::EXCL) !== true) {
+                throw new \RuntimeException('Не удалось создать приватный support bundle');
             }
+            @chmod($temporary, 0600);
+            // Report only bounded, allowlisted operational data. Full SystemReport
+            // includes local paths and provider diagnostics and must stay private.
+            $status = $this->status();
+            $safeStatus = [
+                'version' => (string) ($status['version'] ?? ''),
+                'production_admission' => $status['production_admission'] ?? null,
+                'checks' => $status['checks'] ?? [],
+                'release' => $status['release'] ?? [],
+                'generated_at' => $status['generated_at'] ?? null,
+            ];
+            $zip->addFromString('stable-status.json', $this->json($safeStatus));
+            $zip->addFromString('env-redacted.txt', $this->redactedEnv());
+            $zip->addFromString('README.txt', "Support bundle contains status booleans and configuration KEY NAMES only. Raw logs, request payloads and credentials are never included.\n");
+            foreach (['VERSION', 'composer.json', 'admin/package.json', 'packages/ts-sdk/package.json'] as $file) {
+                $path = $this->rootPath . '/' . $file;
+                if (is_file($path) && !is_link($path)) {
+                    $zip->addFile($path, 'project/' . $file);
+                }
+            }
+            if ($includeLogs) {
+                foreach (['runtime', 'audit'] as $name) {
+                    $summary = $this->safeLogSummary($this->rootPath . '/storage/logs/' . $name . '.jsonl');
+                    $zip->addFromString('logs/' . $name . '-summary.json', $this->json($summary));
+                }
+            }
+            if (!$zip->close()) {
+                throw new \RuntimeException('Не удалось завершить support bundle');
+            }
+            @chmod($temporary, 0600);
+            if (!rename($temporary, $target)) {
+                throw new \RuntimeException('Не удалось опубликовать support bundle');
+            }
+            @chmod($target, 0600);
+        } finally {
+            // ZipArchive::close is idempotent only after a successful close.
+            unset($zip);
+            if (is_file($temporary)) @unlink($temporary);
         }
-        $zip->close();
-        return ['ok' => true, 'target' => $target, 'size' => filesize($target) ?: 0, 'sha256' => hash_file('sha256', $target) ?: '', 'include_logs' => $includeLogs, 'created_at' => $this->now()];
+        return [
+            'ok' => true, 'target' => $target,
+            'size' => filesize($target) ?: 0,
+            'sha256' => hash_file('sha256', $target) ?: '',
+            'include_logs' => $includeLogs,
+            'log_format' => 'aggregate-counts-only',
+            'created_at' => $this->now(),
+        ];
+    }
+
+    /** @return array{entries: int, invalid: int, levels: array<string, int>, truncated: bool} */
+    private function safeLogSummary(string $path): array
+    {
+        $result = ['entries' => 0, 'invalid' => 0, 'levels' => array_fill_keys(['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency', 'other'], 0), 'truncated' => false];
+        if (!is_file($path) || is_link($path)) return $result;
+        $handle = @fopen($path, 'rb');
+        if ($handle === false) return $result;
+        try {
+            while (!feof($handle) && $result['entries'] + $result['invalid'] < 10000) {
+                $line = fgets($handle, 8192);
+                if ($line === false) break;
+                if (!str_ends_with($line, "\n") && !feof($handle)) {
+                    // Never parse or persist a partial oversized JSON event.
+                    while (!feof($handle)) {
+                        $chunk = fgets($handle, 8192);
+                        if ($chunk === false || str_ends_with($chunk, "\n")) break;
+                    }
+                    $result['invalid']++;
+                    continue;
+                }
+                $entry = json_decode($line, true);
+                if (!is_array($entry)) { $result['invalid']++; continue; }
+                $rawLevel = $entry['level'] ?? $entry['severity'] ?? 'other';
+                $level = is_string($rawLevel) ? strtolower($rawLevel) : 'other';
+                if (!array_key_exists($level, $result['levels'])) $level = 'other';
+                $result['levels'][$level]++;
+                $result['entries']++;
+            }
+            $result['truncated'] = !feof($handle);
+        } finally {
+            fclose($handle);
+        }
+        return $result;
     }
 
     /** @return array<string, mixed> */
@@ -241,13 +317,20 @@ final readonly class StableReleaseService
     private function redactedEnv(): string
     {
         $path = $this->rootPath . '/.env';
-        if (!is_file($path)) { return "# .env отсутствует\n"; }
+        if (!is_file($path) || is_link($path)) return "# .env unavailable\n";
         $lines = preg_split('/\R/', (string) file_get_contents($path)) ?: [];
-        $out = [];
+        $names = [];
         foreach ($lines as $line) {
-            if (preg_match('/^([A-Z0-9_]*(KEY|SECRET|PASSWORD|TOKEN|DSN)[A-Z0-9_]*)=/i', $line, $m)) { $out[] = $m[1] . '=***redacted***'; } else { $out[] = $line; }
+            // Do not include comments, values or unrecognised input: even a
+            // non-secret setting may contain personal data or internal URLs.
+            if (preg_match('/^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=/i', $line, $matches)) {
+                $names[$matches[1]] = true;
+            }
         }
-        return implode(PHP_EOL, $out) . PHP_EOL;
+        $keys = array_keys($names);
+        sort($keys, SORT_STRING);
+        return "# Configuration key names only; all values redacted\n"
+            . implode('', array_map(static fn (string $key): string => $key . '=***redacted***' . "\n", $keys));
     }
 
     /** @return array<string, mixed> */

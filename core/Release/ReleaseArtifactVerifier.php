@@ -84,6 +84,9 @@ final class ReleaseArtifactVerifier
         if (version_compare($version, '1.5.3', '>=')) $required = array_merge($required, ['core/Database/Repository/UserSessionRepository.php','docs/unified-session-management.md','migrations/sqlite/0028_unified_sessions.sql','migrations/pgsql/0028_unified_sessions.sql','migrations/mysql/0028_unified_sessions.sql']);
         if (version_compare($version, '1.5.4', '>=')) $required = array_merge($required, ['core/Identity/OidcClient.php','core/Identity/OidcLogin.php','docs/skif4er-sso-global-logout.md','migrations/sqlite/0029_oidc_global_logout.sql','migrations/pgsql/0029_oidc_global_logout.sql','migrations/mysql/0029_oidc_global_logout.sql']);
         if (version_compare($version, '1.5.5', '>=')) $required = array_merge($required, ['core/Identity/OidcApiAuthenticator.php','docs/oidc-api-authentication.md']);
+        if ($mode === 'source' && version_compare($version, '2.0.0', '>=')) {
+            $required = array_merge($required, ['tools/production-release-regression.php', 'docs/production-release-2.0.0.md']);
+        }
         if ($mode === 'source' && version_compare($version, '1.9.9', '>=')) {
             $required = array_merge($required, ['tools/ga-qualification-regression.php', 'docs/production-ga-qualification-1.9.9.md']);
         }

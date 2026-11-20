@@ -35,6 +35,7 @@ php tools/oidc-api-integration.php --require-db
 php tools/integration-http-regression.php
 php tools/ai-ga-acceptance-regression.php --require-db
 php tools/ga-qualification-regression.php
+php tools/production-release-regression.php --require-zip
 python3 tools/certification-regression.py
 php tools/ai-actions-integration.php --require-db
 php tools/ai-seo-content-insights-regression.php

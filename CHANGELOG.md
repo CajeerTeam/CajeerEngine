@@ -1,3 +1,11 @@
+# 2.0.0 — Production Release
+
+- В рабочем ReleaseBuilder исключена публикация индекса релиза при отсутствии dist: частичная source-сборка не представляется как сертифицированный source/dist комплект.
+- Support bundles не содержат сырые runtime/audit-логи, сообщения запросов и значения конфигурации: вместо них доступны ограниченные сводные счётчики и перечень имён переменных окружения с полностью скрытыми значениями.
+- Support ZIP создаются с приватными правами доступа и уникальными именами; отключено включение логов по умолчанию.
+- Синхронизированы CMS, OpenAPI, SDK, Admin UI и release-метаданные до 2.0.0. Миграции БД не менялись.
+- Исполняемые негативные регрессии встроены в release CI. Настоящая GA-сертификация требует официального подписанного dist, полного CI и реальной production/staging-приёмки.
+
 # 1.9.9 — Production GA Qualification
 
 - Disaster recovery offsite import now authenticates the **entire** encrypted stream before making any restored file visible at its requested destination. Failed or truncated recovery bundles cannot leave partially extracted files in the target directory. Existing nonempty targets are refused.

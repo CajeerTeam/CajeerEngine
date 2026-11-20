@@ -83,7 +83,18 @@ final readonly class ReleaseBuilder
             unset($zip);
             (new ReleaseArtifactVerifier())->verify($temp, $mode, $plan['version']);
             $sha256 = hash_file('sha256', $temp);
-            if ($sha256 === false || !rename($temp, $target)) throw new \RuntimeException('Cannot publish release archive');
+            if ($sha256 === false) throw new \RuntimeException('Cannot hash release archive');
+            // Published versions are immutable. An identical deterministic
+            // rebuild is harmless, but never replace a different ZIP under
+            // the same version and filename (even before signing).
+            if (is_file($target)) {
+                $existing = hash_file('sha256', $target);
+                if ($existing === false || !hash_equals($existing, $sha256)) {
+                    throw new \RuntimeException('Refusing to overwrite different release bytes for the same version');
+                }
+            } elseif (!rename($temp, $target)) {
+                throw new \RuntimeException('Cannot publish release archive');
+            }
             $this->atomicWrite((string) $plan['checksum_target'], $sha256 . '  ' . basename($target) . PHP_EOL);
             $this->atomicWrite((string) $plan['manifest_target'], $this->json($manifest + ['artifact_sha256' => $sha256]));
         } finally {
@@ -112,10 +123,14 @@ final readonly class ReleaseBuilder
         } catch (\Throwable $e) {
             $distError = $e->getMessage();
         }
-        $artifacts = array_values(array_filter([$source, $dist], static fn (mixed $item): bool => is_array($item)));
-        $index = $this->writeArtifactIndex($artifacts, $dryRun, $targetDir);
+        // An artifacts index is the publication boundary for a complete release.
+        // Never publish a source-only index after a failed dist build: downstream
+        // publication and certification require both modes and their checksums.
+        $complete = $distError === null && is_array($dist);
+        $artifacts = $complete ? [$source, $dist] : [];
+        $index = $complete ? $this->writeArtifactIndex($artifacts, $dryRun, $targetDir) : null;
         return [
-            'ok' => $distError === null,
+            'ok' => $complete,
             'version' => $this->version(),
             'dry_run' => $dryRun,
             'source' => $source,
@@ -268,6 +283,9 @@ final readonly class ReleaseBuilder
         if ($mode === 'source' && version_compare($this->version(), '1.8.8', '>=')) $required[] = 'tools/operations-docs-regression.php';
         if ($mode === 'source' && version_compare($this->version(), '1.9.7', '>=')) {
             $required = array_merge($required, ['tools/compatibility-upgrade-regression.php', 'tools/sdk-client-compatibility-regression.mjs', 'docs/compatibility-upgrade-1.9.7.md']);
+        }
+        if ($mode === 'source' && version_compare($this->version(), '2.0.0', '>=')) {
+            $required = array_merge($required, ['tools/production-release-regression.php', 'docs/production-release-2.0.0.md']);
         }
         if ($mode === 'source' && version_compare($this->version(), '1.9.8', '>=')) {
             $required = array_merge($required, ['tools/database-recovery-integrity-regression.php', 'tools/e2e-acceptance.sh', 'docs/full-platform-e2e-recovery-1.9.8.md']);
