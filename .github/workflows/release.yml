@@ -3,6 +3,10 @@ on:
   workflow_dispatch:
   push:
     tags: ['v*']
+    branches: [main]
+    # Editing this file in main is an explicit release request.
+    # Tag pushes continue to work; GitHub does not apply path filters to tag pushes.
+    paths: ['.github/release-request.json']
 permissions:
   contents: read
 jobs:
@@ -64,6 +68,26 @@ jobs:
         with:
           node-version: '22'
           package-manager-cache: false
+      - name: Validate repository release request
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REPOSITORY,,}" == cajeerteam/cajeerengine ]]
+          php -r '
+            $request = json_decode(file_get_contents(".github/release-request.json"), true, 512, JSON_THROW_ON_ERROR);
+            $version = trim(file_get_contents("VERSION"));
+            $metadata = json_decode(file_get_contents("release.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (!is_array($request)
+                || ($request["version"] ?? null) !== $version
+                || ($request["publish"] ?? null) !== true
+                || ($metadata["version"] ?? null) !== $version
+                || ($metadata["stability"] ?? null) !== "stable"
+                || ($metadata["channel"] ?? null) !== "stable"
+                || preg_match("/^[0-9]+\\.[0-9]+\\.[0-9]+$/D", $version) !== 1) {
+                fwrite(STDERR, "Invalid stable release request or mismatched repository version\n");
+                exit(1);
+            }
+          '
       - name: Install locked PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
       - name: Verify source, admin, SDK and API versions; real PHP lint
@@ -471,7 +495,7 @@ jobs:
 
   publish:
     needs: release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     environment: release
     permissions:
@@ -514,6 +538,26 @@ jobs:
             php bin/cajeer release:verify --"$mode" --strict --artifact="$RELEASE_DIR/$name" --json
             php bin/cajeer release:sign --package="$RELEASE_DIR/$name" --secret-key="$key"
           done
+      - name: Create immutable tag for verified on-demand release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REPOSITORY,,}" == cajeerteam/cajeerengine ]]
+          version=$(cat VERSION)
+          tag="v$version"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists; refusing to replace it" >&2
+            exit 1
+          fi
+          tag_sha=$(gh api --method POST "repos/$GITHUB_REPOSITORY/git/tags" \
+            -f "tag=$tag" \
+            -f "message=CajeerEngine $version verified release" \
+            -f "object=$GITHUB_SHA" \
+            -f "type=commit" --jq .sha)
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f "ref=refs/tags/$tag" -f "sha=$tag_sha" >/dev/null
       - name: Publish signed GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
