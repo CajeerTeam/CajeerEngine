@@ -73,12 +73,22 @@ final class DatabaseManager
             elseif($savepoint!==null) $pdo->exec('RELEASE SAVEPOINT '.$savepoint);
             $outcome='success';return $result;
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) {
-                if (!$started) {$pdo->exec('ROLLBACK TO SAVEPOINT '.$savepoint);$pdo->exec('RELEASE SAVEPOINT '.$savepoint);}
-                else $pdo->rollBack();
-            }
+            self::rollbackTransaction($pdo, $savepoint);
             throw $e;
         }finally{\CajeerEngine\Observability\TraceScope::leave($previousTrace);$duration=(hrtime(true)-$start)/1e9;(new \CajeerEngine\Observability\Metrics($this->config->rootPath()))->buffered('database','transaction',$outcome,$duration);(new \CajeerEngine\Observability\TraceExporter($this->config->rootPath()))->record($trace,'database','transaction',$wall,$duration,$outcome==='success');}
+    }
+
+    private static function rollbackTransaction(PDO $pdo, ?string $savepoint): void
+    {
+        if (!$pdo->inTransaction()) {
+            return;
+        }
+        if ($savepoint === null) {
+            $pdo->rollBack();
+            return;
+        }
+        $pdo->exec('ROLLBACK TO SAVEPOINT ' . $savepoint);
+        $pdo->exec('RELEASE SAVEPOINT ' . $savepoint);
     }
 
     /** Consistent count + page without taking a publication writer lock. */

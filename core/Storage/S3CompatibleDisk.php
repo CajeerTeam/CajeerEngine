@@ -160,16 +160,10 @@ final readonly class S3CompatibleDisk implements StorageDiskInterface
         ]);
 
         $result = @file_get_contents($url, false, $context);
-        /** @var list<string> $responseHeaders */
-        $responseHeaders = [];
-        // PHP's HTTP stream wrapper creates this scoped variable only after headers arrive.
-        // Inspect the scope without assuming that a failed connection produced headers.
-        foreach (get_defined_vars() as $variable => $value) {
-            if ($variable === 'http_response_header' && is_array($value)) {
-                $responseHeaders = $value;
-                break;
-            }
-        }
+        // The HTTP stream wrapper sets this variable in the caller's scope.
+        // Refer to it directly: get_defined_vars() may omit unused implicit variables.
+        /** @var list<string>|null $http_response_header */
+        $responseHeaders = $http_response_header ?? [];
         $status = $this->statusCode($responseHeaders);
         if ($result === false) {
             throw new \RuntimeException('S3 request failed без HTTP-ответа: ' . $method . ' ' . $url);
