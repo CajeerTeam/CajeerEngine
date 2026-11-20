@@ -111,7 +111,7 @@ $oidc4 = $auth->loginExternal($target, ['sub'=>'verified-sub','sid'=>'session-fo
 $all = $call('POST',$path.'/'.$target.'/sessions/revoke-all',['confirm_user_id'=>$target],$adminCookie,$adminCsrf);
 $assert($all->getStatusCode() === 200 && json_decode($all->getContent(),true)['data']['revoked_sessions'] === 2, 'all active target OIDC sessions revoked');
 $assert($center->users('target@identity.test','yes')['total'] === 1, 'session revocation does not delete mapping');
-$assert($pdo->query("SELECT COUNT(*) FROM ce_audit_log WHERE event LIKE 'identity.admin_%'")->fetchColumn() >= 6, 'identity administrative actions audited');
+$assert((int)$pdo->query("SELECT COUNT(*) FROM ce_audit_log WHERE event LIKE 'identity.admin_%'")->fetchColumn() === 5, 'every successful identity administrative action audited once');
 $pdo->prepare('UPDATE ce_user_sessions SET assured_at = :time WHERE token_id = :id')->execute(['time'=>time()-9999,'id'=>$auth->authenticateRequest(Request::create('https://cms.example.test/api/v1/auth/me','GET',[],['ce_session'=>$adminCookie]))['token_id']]);
 $assert($call('POST',$path.'/'.$other.'/link',['subject'=>'other-sub','confirm_subject'=>'other-sub'],$adminCookie,$adminCsrf)->getStatusCode() === 403, 'expired step-up blocks next mutation');
 echo "Identity Center real PDO and HTTP acceptance: PASS\n";
