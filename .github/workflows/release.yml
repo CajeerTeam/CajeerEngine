@@ -342,6 +342,8 @@ jobs:
           php tools/performance-load-regression.php
           php tools/queue-throughput-regression.php
           php tools/performance-search-integration.php
+          php tools/performance-scalability-regression.php
+          python3 tools/performance-scalability-sqlite-regression.py
           python3 tools/staging-load-regression.py
       - run: php tools/queue-regression.php
       - name: Runtime and queue fault-injection acceptance

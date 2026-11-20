@@ -74,6 +74,14 @@ try{
     $a=$entries->page('pages',[],5,0);$b=$entries->page('pages',[],5,5);check($a['meta']['total']===12&&count($a['data'])===5&&count($b['data'])===5,'bounded pages with correct total');check(!array_intersect(array_column($a['data'],'id'),array_column($b['data'],'id')),'deterministic paging without duplicates');
     check($entries->page('pages',['q'=>'Benchmark 1'],5)['meta']['total']===3,'filtered pagination total');check($entries->page('pages',['q'=>'%'],5)['meta']['total']===0,'literal wildcard not expanded');reject(fn()=>$entries->page('pages',[],201),'oversize page rejected',InvalidArgumentException::class);
     $e=$rows[0];$e=$entries->update('pages',$e['id'],['title'=>'Incremental comet','expected_revision'=>1,'data'=>['body'=>'uniqueprojection']]);
+    // Facets and total must still agree when the requested page is past EOF.
+    // This is an integration test of the grouped SQL on real PDO SQLite/PG,
+    // and also guards the file-backed query against presentation regression.
+    $facetProbe = $search->page('token1', null, 5, 1000);
+    check($facetProbe['data'] === [] && $facetProbe['meta']['total'] >= 1
+        && array_sum($facetProbe['meta']['facets']['type']) === $facetProbe['meta']['total']
+        && array_sum($facetProbe['meta']['facets']['locale']) === $facetProbe['meta']['total'],
+        'facets and total retained on an empty pagination window');
     check($e['revision']===2&&$search->page('uniqueprojection')['meta']['total']===1,'editor update immediately refreshes search');check($routes->forEntry($e['id'])['title']==='Incremental comet','route metadata updated');check($search->page('token1')['meta']['total']>=1,'unrelated search documents survive update');
     reject(fn()=>$entries->update('pages',$e['id'],['title'=>'lost','expected_revision'=>1]),'stale revision rejected',RevisionConflict::class);check($entries->findById('pages',$e['id'])['title']==='Incremental comet','stale revision cannot overwrite');
     $entries->update('pages',$e['id'],['data'=>['body'=>'uniqueprojection','seo_noindex'=>true]]);check($search->page('uniqueprojection')['meta']['total']===0,'noindex removes search document on neutral update');

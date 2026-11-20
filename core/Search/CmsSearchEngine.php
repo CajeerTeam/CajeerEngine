@@ -56,8 +56,19 @@ final class CmsSearchEngine implements SearchEngineInterface
             if($locale!==null&&$locale!==''){$where[]='s.locale=:locale';$params['locale']=$locale;}
             $base=' FROM '.$from.' WHERE '.implode(' AND ',$where);
             $run=static function(string $sql,array $bindings)use($pdo){$stmt=$pdo->prepare($sql);foreach($bindings as $k=>$v)$stmt->bindValue(':'.$k,$v,is_int($v)?PDO::PARAM_INT:PDO::PARAM_STR);$stmt->execute();return $stmt;};
-            $meta['total']=(int)$run($prefix.'SELECT COUNT(*)'.$base,$params)->fetchColumn();
-            foreach(['type'=>'content_type','locale'=>'locale'] as $key=>$column){$rows=$run($prefix.'SELECT s.'.$column.', COUNT(*)'.$base.' GROUP BY s.'.$column.' ORDER BY s.'.$column,$params)->fetchAll(PDO::FETCH_NUM);foreach($rows as [$value,$count])$meta['facets'][$key][$value]=(int)$count;}
+            // One grouped scan replaces three full matching-row scans (count,
+            // content types and locales). It runs in the same MVCC snapshot as
+            // the result page, including when OFFSET is beyond the last row.
+            $groups = $run($prefix.'SELECT s.content_type, s.locale, COUNT(*) AS matches'.$base
+                .' GROUP BY s.content_type, s.locale', $params)->fetchAll(PDO::FETCH_NUM);
+            foreach ($groups as [$contentType, $documentLocale, $count]) {
+                $n = (int)$count;
+                $meta['total'] += $n;
+                $meta['facets']['type'][$contentType] = ($meta['facets']['type'][$contentType] ?? 0) + $n;
+                $meta['facets']['locale'][$documentLocale] = ($meta['facets']['locale'][$documentLocale] ?? 0) + $n;
+            }
+            ksort($meta['facets']['type']);
+            ksort($meta['facets']['locale']);
             $bindings=$params+['lim'=>$limit,'off'=>$offset];if(!$pg)foreach($tokens as $i=>$token)$bindings['r'.$i]='%'.$token.'%';
             $rows=$run($prefix.'SELECT s.payload, '.$score.' AS score'.$base.' ORDER BY score DESC, s.document_id ASC LIMIT :lim OFFSET :off',$bindings)->fetchAll(PDO::FETCH_ASSOC);
             return ['data'=>array_map(static fn($row)=>SearchDocument::result(json_decode($row['payload'],true,flags:JSON_THROW_ON_ERROR),(float)$row['score']),$rows),'meta'=>$meta];

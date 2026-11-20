@@ -72,6 +72,8 @@ jobs:
           php tools/performance-load-regression.php
           php tools/queue-throughput-regression.php
           php tools/performance-search-integration.php
+          php tools/performance-scalability-regression.php
+          python3 tools/performance-scalability-sqlite-regression.py
           python3 tools/staging-load-regression.py
       - name: Migration Center production safety and lossless import regression
         run: php tools/migration-production-regression.php

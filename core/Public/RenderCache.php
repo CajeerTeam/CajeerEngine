@@ -26,6 +26,9 @@ final readonly class RenderCache
         $file = $dir . '/' . hash('sha256', $path) . '.json';
         $cached = self::read($file, $key);
         if ($cached !== null) return $cached;
+        // HTML above the cache size cap is intentionally never cached. A
+        // short-lived hint avoids serializing every such render behind a lock.
+        if (self::oversized($file, $key)) return $render();
 
         // Per-path advisory lock, held only for cache misses. A second FPM worker
         // rechecks the cache after the first finishes instead of rendering the
@@ -43,12 +46,22 @@ final readonly class RenderCache
             if (!flock($lock, LOCK_EX)) return $render();
             $cached = self::read($file, $key);
             if ($cached !== null) return $cached;
+            if (self::oversized($file, $key)) {
+                // A peer discovered an uncacheable oversized render while we
+                // waited. Drop the advisory lock BEFORE rendering this request.
+                flock($lock, LOCK_UN);
+                fclose($lock);
+                $lock = null;
+                return $render();
+            }
             // Do not catch render() exceptions: an application error must not be
             // hidden or cause the callback to run a second time.
             return self::renderAndStore($file, $key, $ttl, $render);
         } finally {
-            flock($lock, LOCK_UN);
-            fclose($lock);
+            if (is_resource($lock)) {
+                flock($lock, LOCK_UN);
+                fclose($lock);
+            }
         }
     }
 
@@ -67,15 +80,33 @@ final readonly class RenderCache
         return is_string($html) && strlen($html) <= self::MAX_HTML_BYTES ? $html : null;
     }
 
+    /** Hint only. Never serve HTML from an oversize marker. */
+    private static function oversized(string $file, string $key): bool
+    {
+        if (is_link($file) || !is_file($file)) return false;
+        clearstatcache(true, $file);
+        $size = @filesize($file);
+        if (!is_int($size) || $size < 2 || $size > 512) return false;
+        $raw = @file_get_contents($file);
+        if (!is_string($raw)) return false;
+        $record = json_decode($raw, true);
+        return is_array($record) && ($record['key'] ?? null) === $key
+            && ($record['oversize'] ?? false) === true && ($record['expires'] ?? 0) > time();
+    }
+
     private static function renderAndStore(string $file, string $key, int $ttl, callable $render): string
     {
         $html = $render();
-        if (strlen($html) <= self::MAX_HTML_BYTES) {
-            try {
+        try {
+            if (strlen($html) <= self::MAX_HTML_BYTES) {
                 \CajeerEngine\Update\OperationFiles::write($file, json_encode(['key' => $key, 'expires' => time() + $ttl, 'html' => $html], JSON_THROW_ON_ERROR), 0640);
-            } catch (\Throwable) {
-                // Cache failure cannot take the site offline.
+            } else {
+                // The hint is small, short-lived and content-keyed. It never
+                // serves stale HTML; subsequent requests render independently.
+                \CajeerEngine\Update\OperationFiles::write($file, json_encode(['key' => $key, 'expires' => time() + min(60, $ttl), 'oversize' => true], JSON_THROW_ON_ERROR), 0640);
             }
+        } catch (\Throwable) {
+            // Cache failure cannot take the site offline.
         }
         return $html;
     }

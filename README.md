@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## Performance & Scalability 1.9.6
+
+Оптимизированы рабочие SQL-пути поиска CMS (общая агрегация total/facets), RAG Knowledge Chat (один bounded запрос вместо отдельного запроса на термин) отсутствие последовательной блокировки для некешируемых больших страниц и пакетная запись метрик QueueWorker. Проверка: `php tools/performance-scalability-regression.php`, `python3 tools/performance-scalability-sqlite-regression.py`, `php tools/performance-regression.php --database` (с `pdo_sqlite`). Требования и ограничения: [Performance & Scalability](docs/performance-scalability-1.9.6.md). Подтверждение реальных p95/p99/RPS требует staging с production-профилем нагрузки.
+
 ## Security & Privacy Hardening 1.9.5
 
 Исправлено атомарное расходование резервных кодов 2FA, унифицированы ответы входа и минимизированы персональные данные в audit log. Защищены production-ошибки БД, вводимые JSON-данные и runtime-логи. Реализация и команды приёмки: [Security & Privacy Hardening](docs/security-privacy-production-1.9.5.md). Для допуска необходимы успешный полный CI, проверка СУБД и отдельный penetration test.

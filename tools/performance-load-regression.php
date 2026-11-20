@@ -71,6 +71,24 @@ try {
     catch (LogicException $e) { ensure($e->getMessage() === 'render failed', 'Render exception changed'); }
     ensure($errors === 1, 'Failing render executed more than once');
     ensure($cache->render('/error', [], $render) === '<h1>Rendered 6</h1>', 'A failed render poisoned the cache');
+    // Oversized outputs are never cached, and subsequent requests must not
+    // serialize through the page lock or return a previous oversized body.
+    putenv('PUBLIC_RENDER_CACHE_TTL=60');
+    $large = str_repeat('L', 2 * 1024 * 1024 + 10);
+    $largeCalls = 0;
+    $largeRender = static function () use (&$largeCalls, $large): string { ++$largeCalls; return $large; };
+    ensure($cache->render('/oversized', ['locale'=>'en'], $largeRender) === $large, 'Oversized first response preserved');
+    $marker = $root.'/storage/cache/public/'.hash('sha256', '/oversized').'.json';
+    $markerData = json_decode((string)file_get_contents($marker), true, flags: JSON_THROW_ON_ERROR);
+    ensure(($markerData['oversize'] ?? false) === true && !isset($markerData['html']), 'Only a small marker is retained, not oversized HTML');
+    ensure($cache->render('/oversized', ['locale'=>'en'], $largeRender) === $large && $largeCalls === 2,
+        'Oversize hint does not cache HTML or suppress rendering');
+    // A changed template invalidates even a fresh oversized marker.
+    file_put_contents($root.'/templates/home.cjr', 'third template');
+    ensure($cache->render('/oversized', ['locale'=>'en'], static fn() => 'small') === 'small',
+        'Oversize marker invalidates on template edit');
+    ensure($cache->render('/oversized', ['locale'=>'en'], static fn() => 'wrong') === 'small',
+        'Small result becomes cacheable after oversized template changes');
     putenv('PUBLIC_RENDER_CACHE_TTL=0');
     $cache->render('/home', ['locale' => 'en'], $render);
     ensure(trim(file_get_contents($counter)) === '7', 'TTL zero did not disable cache');
@@ -78,7 +96,7 @@ try {
         'wall_seconds_for_initial_concurrent_miss' => round($elapsed, 3),
         'throughput_requests_per_second' => round($children / max($elapsed, 0.000001), 3),
         'template_invalidation' => true, 'context_invalidation' => true,
-        'expiration' => true, 'exception_propagation' => true, 'disabled_cache' => true];
+        'expiration' => true, 'exception_propagation' => true, 'disabled_cache' => true, 'oversize_bypass' => true];
     echo json_encode($result, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;
 } finally {
     putenv('PUBLIC_RENDER_CACHE_TTL');

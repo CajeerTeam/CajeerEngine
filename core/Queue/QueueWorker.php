@@ -149,7 +149,10 @@ final class QueueWorker
                 } finally {
                     \CajeerEngine\Observability\TraceScope::leave($previousTrace);
                     $duration = (hrtime(true) - $started) / 1e9;
-                    $metrics->observe('job', $job->name, $outcome, $duration);
+                    // Aggregate per-batch metrics to avoid one locked JSON rewrite
+                    // per completed job. Flush in the outer finally even on
+                    // interrupted/failed batches, without affecting job ACKs.
+                    $metrics->buffered('job', $job->name, $outcome, $duration);
                     (new \CajeerEngine\Observability\TraceExporter($root))->record($trace, 'job', $job->name, $wall, $duration, $outcome === 'success');
                     (new \CajeerEngine\Runtime\RuntimeLogger($root))->info('Background job finished', $trace->fields() + ['job_id' => $job->id, 'status' => $outcome, 'duration_ms' => round($duration * 1000, 3)]);
                     \CajeerEngine\Observability\OperationsMonitor::marker($root, 'worker', 'running');
@@ -157,6 +160,7 @@ final class QueueWorker
                 if ($backendUnavailable) break;
             }
         } finally {
+            $metrics->flush();
             if ($signals) {
                 pcntl_alarm(0);
                 foreach ($old as $signal => $handler) pcntl_signal($signal, $handler);

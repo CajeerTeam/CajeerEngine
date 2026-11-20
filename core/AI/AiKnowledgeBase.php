@@ -410,27 +410,34 @@ final readonly class AiKnowledgeBase
         $terms = array_slice(array_keys(self::terms($query)), 0, 14);
         if ($terms === []) return [];
         $pdo = $this->db->connection();
-        $sql = 'SELECT t.term, t.document_id, t.chunk_no, t.frequency, d.title, d.locale, d.visibility, d.revision, d.source_kind, d.source_type, d.source_id, d.source_revision, c.content'
-            .' FROM ce_kb_terms t JOIN ce_kb_documents d ON d.id = t.document_id'
-            .' JOIN ce_kb_chunks c ON c.document_id = t.document_id AND c.chunk_no = t.chunk_no'
-            .' WHERE t.term = ? AND d.status = ? AND d.indexed_revision = d.revision';
-        if ($visibility === 'public') $sql .= ' AND d.visibility = ?';
-        if ($locale !== '') $sql .= ' AND d.locale = ?';
-        $sql .= ' ORDER BY d.updated_at DESC LIMIT 350';
-        $stmt = $pdo->prepare($sql);
-        $candidates = [];
-        foreach ($terms as $term) {
-            $params = [$term, 'published'];
-            if ($visibility === 'public') $params[] = 'public';
-            if ($locale !== '') $params[] = $locale;
-            $stmt->execute($params);
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                $key = $row['document_id'].':'.$row['chunk_no'];
-                if (!isset($candidates[$key])) $candidates[$key] = ['row' => $row, 'score' => 0, 'matches' => 0];
-                $candidates[$key]['score'] += min(12, (int)$row['frequency']);
-                $candidates[$key]['matches']++;
-            }
+        // One round trip, retaining the existing 350-row limit PER TERM.
+        // A global LIMIT (or a window over all matching chunks) can either
+        // drop uncommon terms or scan millions of rows before discarding them.
+        // Each indexed term receives its own bounded, ordered subquery; only
+        // the bounded result is joined to chunk bodies and scored in PHP.
+        $selects = []; $params = [];
+        foreach ($terms as $i => $term) {
+            $sql = 'SELECT t.term, t.document_id, t.chunk_no, t.frequency, d.title, d.locale, d.visibility, d.revision, d.source_kind, d.source_type, d.source_id, d.source_revision'
+                .' FROM ce_kb_terms t JOIN ce_kb_documents d ON d.id = t.document_id'
+                .' WHERE t.term = ? AND d.status = ? AND d.indexed_revision = d.revision';
+            $params[] = $term; $params[] = 'published';
+            if ($visibility === 'public') { $sql .= ' AND d.visibility = ?'; $params[] = 'public'; }
+            if ($locale !== '') { $sql .= ' AND d.locale = ?'; $params[] = $locale; }
+            // Each derived table has its own LIMIT, portable to PostgreSQL,
+            // MySQL/MariaDB and SQLite without rewriting published migrations.
+            $selects[] = 'SELECT * FROM ('.$sql.' ORDER BY d.updated_at DESC, t.document_id, t.chunk_no LIMIT 350) AS term_'.$i;
         }
+        $stmt = $pdo->prepare('SELECT ranked.*, c.content FROM ('.implode(' UNION ALL ', $selects)
+            .') AS ranked JOIN ce_kb_chunks c ON c.document_id = ranked.document_id AND c.chunk_no = ranked.chunk_no');
+        $stmt->execute($params);
+        $candidates = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $key = $row['document_id'].':'.$row['chunk_no'];
+            if (!isset($candidates[$key])) $candidates[$key] = ['row' => $row, 'score' => 0, 'matches' => 0];
+            $candidates[$key]['score'] += min(12, (int)$row['frequency']);
+            $candidates[$key]['matches']++;
+        }
+        $stmt->closeCursor();
         uasort($candidates, static fn (array $a, array $b): int => ($b['matches'] * 4 + $b['score']) <=> ($a['matches'] * 4 + $a['score']));
         $out = []; $perDoc = []; $checked = [];
         foreach ($candidates as $item) {
