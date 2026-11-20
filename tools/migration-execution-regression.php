@@ -15,6 +15,17 @@ try{MigrationExecution::validateId('not-id');throw new RuntimeException('Invalid
 $rows=[];for($i=1;$i<=501;$i++)$rows[]=PlanningSource::record('post',['id'=>$i,'title'=>'Article '.$i,'slug'=>'article-'.$i]);
 $inventory=PlanningSource::inventory($rows,[]);ok(count($inventory['records'])===501,'more than 500 records accepted without truncation');
 try{PlanningSource::inventory(array_fill(0,5001,$rows[0]),[]);throw new RuntimeException('Planning limit bypass');}catch(RuntimeException $e){if($e->getMessage()==='Planning limit bypass')throw $e;echo "PASS over-limit inventory rejected\n";}
+// An approved plan normalizes omitted transforms to 'copy'. The stored project may
+// still contain the original, unnormalized mapping when execution resumes.
+$copyRecord=PlanningSource::record('post',['id'=>'copy','title'=>'Unchanged source','slug'=>'unchanged-source','body'=>'Original body','status'=>'publish']);
+$copyInventory=PlanningSource::inventory([$copyRecord],[]);
+$copyType=['handle'=>'articles','fields'=>[['handle'=>'body','type'=>'text','required'=>true]]];
+$copyMapping=['types'=>['post'=>['target'=>'articles','fields'=>['data:body'=>['from'=>'body']]]],'statuses'=>['publish'=>'published'],'users'=>[],'locale'=>'ru','conflict'=>'fail'];
+$copyPlan=MigrationPlanner::build($copyInventory,$copyMapping,['articles'=>$copyType],[],[],static fn($email)=>null);
+$copyPayload=MigrationPlanner::payload($copyRecord,$copyMapping['types']['post'],$copyType,'ru','published');
+$normalizedRule=MigrationPlanner::mapping($copyMapping)['types']['post'];
+$normalizedPayload=MigrationPlanner::payload($copyRecord,$normalizedRule,$copyType,'ru','published');
+ok($copyPlan['approvable']&&$copyPayload===$normalizedPayload&&$copyPayload['data']['body']==='Original body'&&hash_equals($copyPlan['records'][0]['payload_sha256'],MigrationPlanner::fingerprint($copyPayload)),'legacy mapping without transform matches approved payload SHA before batch writes');
 if(!in_array('sqlite',PDO::getAvailableDrivers(),true)||!class_exists(DOMDocument::class)){
     if(in_array('--require-db',$argv,true))throw new RuntimeException('pdo_sqlite and DOM required for checkpoint integration');
     echo "SKIP PHP batch SQL integration: PDO SQLite/DOM unavailable\n";exit(0);
