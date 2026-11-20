@@ -19,7 +19,7 @@ with sync_playwright() as p:
         if(path==='/auth/oidc/status')data={enabled:true,provider:'SkiF4er ID'};
         else if(path==='/auth/me')data={user_id:'user-id',csrf_token:'csrf',scopes:['content:read'],cookie:true,session:true};
         else if(path==='/identity/account')data={enabled:true,linked:linked,provisioned:false,created_at:null};
-        else if(path==='/identity/unlink') { linked=false;data={unlinked:true}; }
+        else if(path==='/identity/unlink') { linked=false;data={unlinked:true,session_revoked:false}; }
         else if(path==='/identity/link/start')data={authorization_url:'https://id.skif4er.ru/realms/skif4er/protocol/openid-connect/auth'};
         return new Response(JSON.stringify({data}),{status:200});
       };
@@ -37,7 +37,7 @@ with sync_playwright() as p:
     page.locator('[data-identity-form] [name="two_factor_code"]').fill('123456')
     page.once('dialog',lambda d:d.accept())
     page.locator('[data-identity-form] [type="submit"]').click()
-    page.get_by_text('Внешний аккаунт отвязан.').wait_for()
+    page.get_by_text('Внешний аккаунт отвязан; все SSO-сессии завершены.').wait_for()
     assert page.evaluate('calls.some(c=>c.path==="/identity/unlink" && c.method==="POST" && c.body.password==="LocalStrongPassword123" && c.body.two_factor_code==="123456")')
     assert not errors, errors
     print('PASS unlink reauthentication, POST, refresh and no JS errors')
