@@ -22,17 +22,31 @@ $cfg->set('database.default','sqlite');
 $cfg->set('database.connections.sqlite.database', ':memory:');
 $db=new DatabaseManager($cfg);
 $pdo=$db->connection();
-$pdo->exec(file_get_contents(dirname(__DIR__).'/migrations/sqlite/0026_skif4er_oidc.sql'));
-$pdo->exec(file_get_contents(dirname(__DIR__).'/migrations/sqlite/0027_oidc_account_linking.sql'));
-$pdo->exec('CREATE TABLE ce_users(id TEXT PRIMARY KEY,email TEXT,name TEXT,status TEXT,two_factor_enabled INTEGER,last_login_at TEXT, disabled_at TEXT,created_at TEXT,updated_at TEXT)');
-$pdo->exec('CREATE TABLE ce_roles (id TEXT PRIMARY KEY,handle TEXT)');
-$pdo->exec('CREATE TABLE ce_user_roles (user_id TEXT,role_id TEXT)');
+// Exercise OIDC against the same user/role schema used in production. A
+// hand-written minimal ce_roles fixture can silently drift from RoleRepository.
+$root = dirname(__DIR__);
+foreach (['0001_initial_schema.sql', '0026_skif4er_oidc.sql', '0027_oidc_account_linking.sql'] as $migration) {
+    $sql = file_get_contents($root.'/migrations/sqlite/'.$migration);
+    if (!is_string($sql) || $sql === '') throw new RuntimeException('Missing SQLite migration: '.$migration);
+    $pdo->exec($sql);
+}
 $uuid='12345678-1234-1234-1234-123456789abc';
-$pdo->prepare('INSERT INTO ce_users VALUES (:id,:email,:name,:status,0,NULL,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)')
-    ->execute(['id'=>$uuid,'email'=>'person@example.test','name'=>'Person','status'=>'active']);
+$pdo->prepare('INSERT INTO ce_users (id,email,name,password_hash,status) VALUES (:id,:email,:name,:password_hash,:status)')
+    ->execute(['id'=>$uuid,'email'=>'person@example.test','name'=>'Person',
+        'password_hash'=>password_hash(bin2hex(random_bytes(16)), PASSWORD_ARGON2ID),'status'=>'active']);
+$roleId='87654321-4321-4321-8321-cba987654321';
+$pdo->prepare('INSERT INTO ce_roles (id,handle,name,permissions) VALUES (:id,:handle,:name,:permissions)')
+    ->execute(['id'=>$roleId,'handle'=>'viewer','name'=>'Viewer','permissions'=>'["content:read"]']);
+$pdo->prepare('INSERT INTO ce_user_roles (user_id,role_id) VALUES (:user_id,:role_id)')
+    ->execute(['user_id'=>$uuid,'role_id'=>$roleId]);
 $store=new OidcStore($db,new SecretVault('base64:'.base64_encode(random_bytes(32))));
 $issuer='https://id.skif4er.ru/realms/skif4er';
 $users=new UserRepository($db,new RoleRepository($db),new PasswordHasher($cfg));
+$linkedUser = $users->findById($uuid);
+if (!is_array($linkedUser) || $linkedUser['roles'] !== ['viewer'] || $linkedUser['permissions'] !== ['content:read']) {
+    throw new RuntimeException('OIDC fixture does not expose real RBAC role permissions');
+}
+echo "PASS production SQLite roles and permissions loaded\n";
 $store->link($issuer,'trusted-sub',$uuid,$users);
 $store->link($issuer,'trusted-sub',$uuid,$users);
 if($store->linkedUser($issuer,'trusted-sub')!==$uuid)throw new RuntimeException('OIDC link not persisted');
