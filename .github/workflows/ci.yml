@@ -49,10 +49,11 @@ jobs:
           python3 tools/certification-regression.py
           python3 tools/github-publish-regression.py
           php tools/release-regression.php
-      - name: External analytics production regression (Search Console sitemap and credential privacy)
+      - name: External analytics and tracking HTTP regressions
         run: |
           php tools/search-webmaster-regression.php --require-db
           php tools/analytics-hub-regression.php --require-db
+          php tools/tracking-http-regression.php
       - name: Extension compatibility and update preflight regression
         run: |
           php tools/compatibility-upgrade-regression.php
