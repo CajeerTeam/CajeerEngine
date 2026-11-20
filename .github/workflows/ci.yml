@@ -65,6 +65,8 @@ jobs:
           php tools/ga-qualification-regression.php
       - name: Runtime and queue fault-injection acceptance
         run: php tools/runtime-queue-resilience-regression.php
+      - name: RabbitMQ protocol fake transport acceptance
+        run: php -n tools/ai-automation-rabbitmq-regression.php
       - name: Security hardening acceptance
         run: |
           php tools/security-hardening-regression.php
