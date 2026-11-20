@@ -68,11 +68,12 @@ jobs:
         run: php tools/runtime-queue-resilience-regression.php
       - name: RabbitMQ protocol fake transport acceptance
         run: php -n tools/ai-automation-rabbitmq-regression.php
-      - name: Security hardening acceptance
+      - name: Security hardening and interactive step-up authentication
         run: |
           php tools/security-hardening-regression.php
           php tools/security-privacy-production-regression.php
           php tools/security-privacy-production-integration.php --require-db
+          php tools/assurance-integration.php --require-db
       - name: SkiF4er ID production OIDC protocol and introspection acceptance
         run: |
           php tools/oidc-regression.php
