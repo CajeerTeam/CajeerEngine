@@ -59,6 +59,7 @@ jobs:
           php tools/deployment-recovery-acceptance.php
           php tools/disaster-recovery-regression.php
           php tools/database-recovery-integrity-regression.php
+          php tools/ga-qualification-regression.php
       - name: Runtime and queue fault-injection acceptance
         run: php tools/runtime-queue-resilience-regression.php
       - name: Security hardening acceptance

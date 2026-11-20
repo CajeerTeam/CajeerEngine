@@ -19,15 +19,17 @@ e=importlib.util.module_from_spec(spec); spec.loader.exec_module(e)
 a=e.a
 
 
-def fixture(directory, version, commit):
+def fixture(directory, version, commit, source_extra=None, seal=True):
     index={'format':'cajeerengine.release-artifacts.v1','version':version,'artifacts':[]}
     for mode in ('source','dist'):
         name=f'cajeerengine-{version}-{mode}.zip'
         channel = 'rc' if '-rc' in version else 'beta' if '-beta' in version else 'dev' if '-' in version else 'stable'
         files={'VERSION':(version+'\n').encode(),
-               'release.json':json.dumps({'version':version,'channel':channel}).encode(),
+               'release.json':json.dumps({'version':version,'channel':channel,'stability':channel}).encode(),
                'api/openapi.yaml':json.dumps({'info':{'version':version}}).encode(),
                'public/admin/assets/admin-manifest.json':json.dumps({'version':version,'ready':True}).encode()}
+        if mode == 'source' and source_extra:
+            files.update(source_extra)
         manifest={'format':'cajeerengine.release-manifest.v5','project':'cajeerengine',
                   'version':version,'mode':mode,'artifact':name,'files':sorted(files),
                   'checksums':{k:hashlib.sha256(v).hexdigest() for k,v in files.items()}}
@@ -47,7 +49,7 @@ def fixture(directory, version, commit):
                     'routes':{r:{'requests':100,'errors':0,'p95_ms':30} for r in a.ROUTES}}}
     a.write_report(directory/'production-acceptance.json',report)
     a.write_report(directory/'dependency-audit.json',{'advisories':[],'abandoned':[]})
-    e.seal(directory,version,commit)
+    if seal: e.seal(directory,version,commit)
     return report
 
 
@@ -121,6 +123,30 @@ class EvidenceTests(unittest.TestCase):
             index_path.write_text(json.dumps(index))
             with self.assertRaisesRegex(ValueError, 'Source/dist application payload mismatch'):
                 e.verify_artifacts(d,v)
+
+    def test_reject_dist_missing_runtime_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp); v = '1.9.9'
+            fixture(d, v, 'a'*40, source_extra={'core/Backup/RecoveryBundle.php': b'<?php // production code'}, seal=False)
+            with self.assertRaisesRegex(ValueError, 'Dist missing production payload'):
+                e.verify_artifacts(d, v)
+
+    def test_reject_stable_channel_with_forged_stability(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp); v = '1.9.9'; fixture(d, v, 'a'*40)
+            path = d/f'cajeerengine-{v}-source.zip'
+            with zipfile.ZipFile(path) as z:
+                items = {n:z.read(n) for n in z.namelist()}
+            release_name = 'cajeerengine/release.json'
+            release = json.loads(items[release_name]); release['stability'] = 'rc'
+            items[release_name] = json.dumps(release).encode()
+            manifest_name = 'cajeerengine/release-manifest.json'
+            manifest = json.loads(items[manifest_name]); manifest['checksums']['release.json'] = hashlib.sha256(items[release_name]).hexdigest()
+            items[manifest_name] = json.dumps(manifest).encode()
+            with zipfile.ZipFile(path,'w') as z:
+                for name, body in items.items(): z.writestr(name, body)
+            with self.assertRaisesRegex(ValueError, 'channel/version mismatch'):
+                e.verify_zip(d, v, 'source')
 
     def test_reject_rc_with_stable_channel(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.9.8",
+  "version": "1.9.9",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.9.8-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.9.8-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.9.9-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.9.9-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.9.8-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.9.9-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,6 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
+    "1.9.9 Production GA Qualification: decrypt offsite recovery archives into an isolated workspace and publish only after the authenticated final frame, rejecting partial/corrupt inputs without modifying the destination; prevent certification of distributions missing runtime files present in source, and require matching release stability metadata. Exercise negative acceptance and build gates in PR/release CI. Full production-host, dependency and soak acceptance still required before 2.0 RC.",
     "1.9.8 Full Platform E2E & Recovery: fail closed on SQLite foreign key violations even when integrity_check succeeds (PDO and Python recovery paths), verify restored SQLite byte-for-byte against the authenticated snapshot after recovery, and enforce complete isolated CMS, identity, analytics, migration, queue, AI and disaster-recovery acceptance from the release CI. Real production host and external services still require separate acceptance.",
     "1.9.7 Compatibility & Upgrade: unify strict Engine API and extension dependency range validation (caret, tilde, comparisons and zero-major boundaries); verify installed enabled extension manifests against signed target Engine API before destructive upgrade; reject spoofed stable/RC release catalogs and invalid extension constraints; fix native Node ESM SDK import of generated operations and validate HTTPS-only remote endpoints; execute regression suite in PR and release CI. Source/SDK API operations remain backward compatible.",
     "1.9.6 Performance & Scalability: aggregate CMS search result-count/type/locale facets in one MVCC SQL scan; consolidate bounded RAG retrieval of up to 14 terms into one indexed SQL round trip while keeping separate per-term caps and publication checks; skip stampede locks for previously identified oversized public pages via short-lived invalidating markers; batch queue-worker observability metrics to reduce lock contention without losing completed batch totals. Include actual SQLite query and regression coverage in CI; staging throughput and p95/p99 remain external acceptance gates.",
@@ -135,7 +136,8 @@
     "1.9.3": "SkiF4er ID Production — version-aware live identity acceptance, verified pinned JWKS readiness, strict ID and access token type/binding checks.",
     "1.9.6": "Performance & Scalability — fewer CMS search/RAG SQL trips, no large-render lock convoy, batched queue metrics.",
     "1.9.7": "Compatibility & Upgrade — Engine API and extension dependency checks, signed update preflight, strict release-channel isolation and native Node ESM SDK compatibility and executable regression gates.",
-    "1.9.8": "Full Platform E2E & Recovery — real SQLite referential and snapshot consistency verification, mandatory cross-module SQL integration and encrypted offsite recovery drills."
+    "1.9.8": "Full Platform E2E & Recovery — real SQLite referential and snapshot consistency verification, mandatory cross-module SQL integration and encrypted offsite recovery drills.",
+    "1.9.9": "Production GA Qualification — atomic recovery extraction, runtime source/dist parity, release metadata validation."
   },
   "stability": "stable",
   "roadmap": {

@@ -1,4 +1,4 @@
-# CajeerEngine 1.9.8 — Security Operations & Secret Rotation
+# CajeerEngine 1.9.9 — Security Operations & Secret Rotation
 
 ## Границы доверия
 

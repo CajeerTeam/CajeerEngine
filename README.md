@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## Production GA Qualification 1.9.9
+
+Восстановление из offsite backup теперь публикует файлы только после проверки всего аутентифицированного зашифрованного потока. Сертификация source/dist отклоняет отсутствие любого runtime-модуля в dist и несогласованные метаданные релиза. Исполняемые проверки: `php tools/ga-qualification-regression.php`, `python3 tools/certification-regression.py`, `php tools/disaster-recovery-regression.php`. Полная готовность 2.0 RC дополнительно требует успешного релизного CI, работающего staging и внешних интеграций. Инструкция: [Production GA Qualification](docs/production-ga-qualification-1.9.9.md).
+
 ## Full Platform E2E & Recovery 1.9.8
 
 Сквозная приёмка `bash tools/e2e-acceptance.sh` охватывает реальные SQLite-репозитории CMS, HTTP, SkiF4er ID, внешнюю аналитику с тестовым транспортом, Migration Center, очереди, AI и восстановление зашифрованной резервной копии. `php tools/database-recovery-integrity-regression.php` также проверяет отказ при повреждении внешних ключей SQLite и точное восстановление базы, файлов, медиа и очереди. Релиз не объявляется готовым, если отсутствуют обязательные зависимости или тест не пройден. Подробности: [Full Platform E2E & Recovery](docs/full-platform-e2e-recovery-1.9.8.md).

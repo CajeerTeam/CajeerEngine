@@ -1,3 +1,11 @@
+# 1.9.9 — Production GA Qualification
+
+- Disaster recovery offsite import now authenticates the **entire** encrypted stream before making any restored file visible at its requested destination. Failed or truncated recovery bundles cannot leave partially extracted files in the target directory. Existing nonempty targets are refused.
+- Release certification now rejects a production dist omitting runtime files present in the corresponding source archive, even when both archives have individually consistent inventories and hashes.
+- Certification cross-checks `stability` as well as `channel` against the actual SemVer release identity; RCs may not masquerade as stable.
+- Executable recovery fault-injection and release certification negative tests are mandatory in pull-request and release workflows. The release package includes the tests necessary to reproduce qualification.
+- This is the **qualification code** milestone: official 2.0 RC requires a complete green CI, approved dependency inventory, exact-byte signed dist, external integration exercises and a measured staging soak-test. No offline pass is a production certificate.
+
 # 1.9.8 — Full Platform E2E & Recovery
 
 - SQLite recovery now checks both `PRAGMA integrity_check` and `PRAGMA foreign_key_check` before accepting a database backup or restored database; the PDO and Python fallback paths enforce the same conditions.

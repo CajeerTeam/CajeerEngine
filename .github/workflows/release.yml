@@ -328,6 +328,8 @@ jobs:
       - run: php tools/update-regression.php
       - run: php tools/disaster-recovery-regression.php
       - run: php tools/database-recovery-integrity-regression.php
+      - name: Production GA authenticated recovery atomicity acceptance
+        run: php tools/ga-qualification-regression.php
       - run: php tools/import-regression.php
       - name: Extension compatibility and signed update preflight
         run: php tools/compatibility-upgrade-regression.php

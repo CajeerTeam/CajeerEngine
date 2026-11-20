@@ -88,7 +88,8 @@ def verify_zip(directory, version, mode):
         release = json.loads(archive.read('cajeerengine/release.json'))
         expected_channel = ('rc' if '-rc' in version else 'beta' if '-beta' in version
                             else 'dev' if '-' in version else 'stable')
-        check(release.get('version') == version and release.get('channel') == expected_channel,
+        check(release.get('version') == version and release.get('channel') == expected_channel
+              and release.get('stability') == expected_channel,
               f'{name}: embedded channel/version mismatch')
         api = json.loads(archive.read('cajeerengine/api/openapi.yaml'))
         check(api.get('info', {}).get('version') == version,
@@ -112,6 +113,17 @@ def verify_artifacts(directory, version):
     shared = source_files.keys() & dist_files.keys()
     check({'VERSION', 'release.json', 'api/openapi.yaml'} <= shared,
           'Source and dist have no common release identity')
+    # A distribution with a removed runtime file may still be internally
+    # self-consistent and share all its remaining file hashes with source.
+    # Treat this as a failed release, not a valid reduced distribution.
+    runtime_prefixes = ('core/', 'config/', 'migrations/', 'api/',
+                        'resources/', 'templates/', 'installer/', 'public/')
+    runtime_roots = {'VERSION', 'release.json', 'composer.json', 'composer.lock',
+                     '.env.example', 'install.php', 'upgrade.php', 'bin/cajeer'}
+    required_runtime = {p for p in source_files if p.startswith(runtime_prefixes) or p in runtime_roots}
+    missing_runtime = required_runtime - dist_files.keys()
+    check(not missing_runtime,
+          'Dist missing production payload: ' + ', '.join(sorted(missing_runtime)[:8]))
     for file in sorted(shared):
         check(source_files[file] == dist_files[file],
               f'Source/dist application payload mismatch: {file}')

@@ -44,7 +44,39 @@ final class RecoveryBundle
         } finally { if (isset($state)) sodium_memzero($state); if (is_resource($out)) fclose($out); if (is_file($tmp)) unlink($tmp); }
     }
 
-    public static function extract(string $source,string $directory,string $key): void
+    /**
+     * Extract into a private sibling directory and publish only after the FINAL
+     * authenticated frame and all required entries have been validated. Callers
+     * must supply an absent or empty directory; an invalid bundle never leaves
+     * partially decrypted files in the requested destination.
+     */
+    public static function extract(string $source, string $directory, string $key): void
+    {
+        if (is_link($directory) || (file_exists($directory) && !is_dir($directory))) {
+            throw new \RuntimeException('Invalid recovery destination');
+        }
+        if (is_dir($directory) && (new \FilesystemIterator($directory))->valid()) {
+            throw new \RuntimeException('Recovery destination must be empty');
+        }
+        $parent = dirname($directory);
+        F::dir($parent);
+        $temporary = $parent . '/.dr-extract-' . bin2hex(random_bytes(16));
+        F::dir($temporary);
+        try {
+            self::extractInto($source, $temporary, $key);
+            // POSIX rename replaces an existing empty directory atomically. Do
+            // not delete that directory first: an error must leave it intact.
+            if (is_link($directory) || (is_dir($directory) && (new \FilesystemIterator($directory))->valid())
+                || !rename($temporary, $directory)) {
+                throw new \RuntimeException('Cannot publish verified recovery snapshot');
+            }
+            F::syncDir($parent);
+        } finally {
+            if (is_dir($temporary)) self::cleanup($temporary);
+        }
+    }
+
+    private static function extractInto(string $source,string $directory,string $key): void
     {
         $in=fopen($source,'rb'); if (!$in) throw new \RuntimeException('Cannot open recovery bundle');
         try {
@@ -58,7 +90,7 @@ final class RecoveryBundle
                 if ($final) { if ($meta!==''||fread($in,1)!=='') throw new \RuntimeException('Invalid bundle terminator'); break; }
                 $entry=json_decode($meta,true,16,JSON_THROW_ON_ERROR);
                 $name=$entry['path']??null; $size=$entry['size']??null;
-                if (!is_string($name)||strlen($name)>4096||!is_int($size)||$size<0||isset($seen[$name])||count($seen)>=1000000||(!in_array($name,['manifest.json','manifest.mac','database.dump','environment.enc'],true)&&!str_starts_with($name,'files/'))) throw new \RuntimeException('Invalid bundle entry');
+                if (!is_string($name)||strlen($name)>4096||!is_int($size)||$size<0||isset($seen[$name])||count($seen)>=1000000||str_ends_with($name, '/')||(!in_array($name,['manifest.json','manifest.mac','database.dump','environment.enc'],true)&&!str_starts_with($name,'files/'))) throw new \RuntimeException('Invalid bundle entry');
                 $seen[$name]=true;
                 $path=F::path($directory,$name); F::dir(dirname($path));
                 $out=fopen($path,'xb'); if (!$out) throw new \RuntimeException('Cannot extract recovery file');
