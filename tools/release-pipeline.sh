@@ -41,8 +41,11 @@ php tools/ai-actions-integration.php --require-db
 php tools/ai-seo-content-insights-regression.php
 php tools/ai-seo-content-insights-integration.php --require-db
 python3 tools/ai-actions-sqlite-regression.py
-python3 tools/ai-actions-browser.py
-python3 tools/ai-seo-content-insights-browser.py
+# Require the same tested Playwright environment used by the release job.
+browser_python=${RELEASE_BROWSER_PYTHON:-python3}
+"$browser_python" -c 'from playwright.sync_api import sync_playwright'
+"$browser_python" tools/ai-actions-browser.py
+"$browser_python" tools/ai-seo-content-insights-browser.py
 python3 tools/ai-ga-sqlite-regression.py
 php tools/consent-regression.php
 php tools/tracking-regression.php
