@@ -12,6 +12,7 @@ use CajeerEngine\Database\Repository\ApiTokenRepository;
 use CajeerEngine\Database\Repository\AuditLogRepository;
 use CajeerEngine\Database\Repository\RoleRepository;
 use CajeerEngine\Database\Repository\UserRepository;
+use CajeerEngine\Database\Repository\UserSessionRepository;
 use CajeerEngine\Http\Middleware\ApiContractMiddleware;
 use CajeerEngine\Http\Middleware\AuthenticationMiddleware;
 use CajeerEngine\Http\Middleware\ErrorHandlerMiddleware;
@@ -43,8 +44,13 @@ try {
     $admin=$tokens->create($uid,'test',['*'])['plain_token'];
     $read=$tokens->create($uid,'reader',['integrations:read'])['plain_token'];
     $write=$tokens->create($uid,'writer',['integrations:read','integrations:write'])['plain_token'];
-    $session=$tokens->create($uid,'admin-session',['*'])['plain_token'];
-    $auth=new AuthService($config,$users,$tokens,new AuditLogRepository($db),$passwords,new TwoFactorTotp());
+    // A browser cookie is valid only when its opaque token also has an active,
+    // revocable device-session record. Do not bypass that production safeguard.
+    $sessionToken=$tokens->create($uid,'admin-session',['*']);
+    $session=$sessionToken['plain_token'];
+    $sessions=new UserSessionRepository($db);
+    $sessions->register($sessionToken['id'],$uid,'local',Request::create('/api/v1/integrations','POST'),$sessionToken['expires_at']);
+    $auth=new AuthService($config,$users,$tokens,new AuditLogRepository($db),$passwords,new TwoFactorTotp(),$sessions);
     $center=new IntegrationCenter(new IntegrationStore($work),ProviderRegistry::defaults(),new SecretVault('base64:'.base64_encode(random_bytes(32))),$config);
     $controller=new IntegrationController($center,new AuditLogger($work));$router=new Router();
     foreach(RouteRegistry::api() as [$method,$path,$name,$service,$action,$scopes]) if($service==='integrations') $router->add([$method],$path,$name,[$controller,$action],$scopes);
@@ -59,7 +65,10 @@ try {
     assertHttp($call('GET','/integrations',$read)->getStatusCode()===200,'read token accepted');
     assertHttp($call('POST','/integrations',$read,$input)->getStatusCode()===403,'read token cannot create');
     assertHttp($call('POST','/integrations',$write,$input)->getStatusCode()===403,'write token cannot create credentials');
-    assertHttp($call('POST','/integrations',null,$input,$session)->getStatusCode()===403,'cookie mutation requires CSRF');
+    $withoutCsrf=$call('POST','/integrations',null,$input,$session);
+    assertHttp($withoutCsrf->getStatusCode()===403
+        && (json_decode((string)$withoutCsrf->getContent(),true)['error']['code'] ?? null)==='csrf_failed',
+        'authenticated cookie mutation requires CSRF');
     $created=$call('POST','/integrations',null,$input,$session,AuthService::csrfToken($session));
     assertHttp($created->getStatusCode()===201 && !str_contains((string)$created->getContent(),'credential-for-test'),'cookie plus CSRF creates safely');
     $item=json_decode((string)$created->getContent(),true,512,JSON_THROW_ON_ERROR)['data'];$path='/integrations/'.$item['id'];
@@ -70,5 +79,8 @@ try {
     assertHttp($call('PUT',$path.'/secret',$admin,['revision'=>2,'secret'=>'new-secret'])->getStatusCode()===200,'credential rotation authorized');
     assertHttp($call('DELETE',$path,$admin,['revision'=>3])->getStatusCode()===204,'delete returns 204');
     assertHttp($call('PATCH',$path,$admin,['revision'=>3,'name'=>'Missing'])->getStatusCode()===404,'missing record maps to 404');
+    assertHttp($sessions->revoke($sessionToken['id'],$uid),'browser session can be revoked');
+    assertHttp($call('POST','/integrations',null,$input,$session,AuthService::csrfToken($session))->getStatusCode()===401,
+        'revoked browser session cannot mutate with a valid CSRF token');
     $audit=file_get_contents($work.'/storage/logs/audit.jsonl');assertHttp(str_contains($audit,'integration.credential_changed')&&!str_contains($audit,'new-secret')&&!str_contains($audit,'credential-for-test'),'audit contains operation but no secret');
 } finally { RecoveryBundle::cleanup($work); }
