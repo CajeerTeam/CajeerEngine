@@ -54,7 +54,7 @@ try {
     $center=new IntegrationCenter(new IntegrationStore($work),ProviderRegistry::defaults(),new SecretVault('base64:'.base64_encode(random_bytes(32))),$config);
     $controller=new IntegrationController($center,new AuditLogger($work));$router=new Router();
     foreach(RouteRegistry::api() as [$method,$path,$name,$service,$action,$scopes]) if($service==='integrations') $router->add([$method],$path,$name,[$controller,$action],$scopes);
-    $pipeline=new MiddlewarePipeline([new ErrorHandlerMiddleware($config,new RuntimeLogger($work)),new JsonBodyMiddleware(),new AuthenticationMiddleware($config,$auth,$router),new ApiContractMiddleware(new ApiContract($root))]);
+    $pipeline=new MiddlewarePipeline([new ErrorHandlerMiddleware($config,new RuntimeLogger($work)),new JsonBodyMiddleware(),new AuthenticationMiddleware($auth,$router),new ApiContractMiddleware(new ApiContract($root))]);
     $call=static function(string $method,string $path,?string $token=null,?array $body=null,?string $cookie=null,?string $csrf=null)use($router,$pipeline){
         $headers=['CONTENT_TYPE'=>'application/json'];if($token!==null)$headers['HTTP_AUTHORIZATION']='Bearer '.$token;if($csrf!==null)$headers['HTTP_X_CSRF_TOKEN']=$csrf;
         $request=Request::create('/api/v1'.$path,$method,[],$cookie===null?[]:['ce_session'=>$cookie],[],$headers,$body===null?null:json_encode($body,JSON_THROW_ON_ERROR));

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace CajeerEngine\Console\Command;
 
 use CajeerEngine\Content\ContentEntryRepository;
-use CajeerEngine\Content\ContentTypeRepository;
 use CajeerEngine\Database\DatabaseManager;
 use CajeerEngine\Runtime\ConfigRepository;
 use CajeerEngine\Search\SearchFactory;
@@ -28,7 +27,7 @@ final class SearchIndexCommand extends BaseCommand
         $config = new ConfigRepository($this->rootPath);
         $db = new DatabaseManager($config);
         $search = (new SearchFactory($this->rootPath, $config, $db))->make();
-        $indexer = new SearchIndexer(new ContentTypeRepository($this->rootPath, $db), new ContentEntryRepository($this->rootPath, $db), $search);
+        $indexer = new SearchIndexer(new ContentEntryRepository($this->rootPath, $db), $search);
         $result = $indexer->indexAll();
         if ((bool) $input->getOption('json')) {
             $output->writeln(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));

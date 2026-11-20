@@ -102,10 +102,8 @@ final readonly class UpdateResolver
     private function metadata(): array
     {
         $url = $this->releasesUrl();
-        if ($url !== null) {
-            $data = $this->readJson($url, $url === GitHubEndpoints::RELEASES_URL);
-            if ($data !== null) { $data['_source'] = $url; return $data; }
-        }
+        $data = $this->readJson($url, $url === GitHubEndpoints::RELEASES_URL);
+        if ($data !== null) { $data['_source'] = $url; return $data; }
 
         foreach ([$this->localMetadataPath(), $this->bundledMetadataPath()] as $path) {
             if ($path !== null && is_file($path)) {

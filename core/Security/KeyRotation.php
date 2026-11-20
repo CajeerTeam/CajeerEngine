@@ -63,7 +63,11 @@ final readonly class KeyRotation
         try {
             Files::permissions($lock, 0600);
             if (!flock($handle, $apply ? LOCK_EX : LOCK_SH)) throw new \RuntimeException('AI credential rotation lock failed.');
-            if (!(new \SplFileInfo($path))->isFile()) return ['changed'=>0];
+            // Recheck the pathname after acquiring the lock: files may be removed
+            // or replaced while this process waits. Never read a symlink here.
+            clearstatcache(true, $path);
+            $stat = @lstat($path);
+            if (!is_array($stat) || (((int) $stat['mode']) & 0170000) !== 0100000) return ['changed'=>0];
             $state = Files::read($path);
             if (!isset($state['key_ciphertext'])) return ['changed'=>0];
             if (!is_string($state['key_ciphertext'])) throw new \RuntimeException('Invalid encrypted AI API credential.');

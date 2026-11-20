@@ -144,7 +144,7 @@ final class Application
             new ErrorHandlerMiddleware($config, $logger),
             new RateLimitMiddleware($config, $container->get(RateLimiter::class)),
             new JsonBodyMiddleware(),
-            new AuthenticationMiddleware($config, $authService, $router, $container->get(AuthenticationAssurance::class)),
+            new AuthenticationMiddleware($authService, $router, $container->get(AuthenticationAssurance::class)),
             new \CajeerEngine\Http\Middleware\ApiContractMiddleware(new \CajeerEngine\Api\ApiContract($rootPath)),
         ];
         $pipeline = new MiddlewarePipeline($middleware);
@@ -302,7 +302,6 @@ final class Application
         $container->set(ManagedQueueDriverInterface::class, fn (ServiceContainer $c): ManagedQueueDriverInterface => (new QueueFactory($rootPath, $c->get(ConfigRepository::class), $c->get(DatabaseManager::class)))->make());
         $container->set(SearchEngineInterface::class, fn (ServiceContainer $c): SearchEngineInterface => (new SearchFactory($rootPath, $c->get(ConfigRepository::class), $c->get(DatabaseManager::class)))->make());
         $container->set(SearchIndexer::class, fn (ServiceContainer $c): SearchIndexer => new SearchIndexer(
-            $c->get(ContentTypeRepository::class),
             $c->get(ContentEntryRepository::class),
             $c->get(SearchEngineInterface::class),
         ));
@@ -381,7 +380,6 @@ final class Application
             $rootPath,
             $c->get(SearchIndexer::class),
             $c->get(WebhookRepository::class),
-            $c->get(WebhookDispatcher::class),
             $c->get(ManagedQueueDriverInterface::class),
             $c->get(ExtensionRuntime::class)->platform(),
             \CajeerEngine\Scheduler\TaskRunStore::fromConfig($rootPath,$c->get(ConfigRepository::class),$c->get(DatabaseManager::class)),

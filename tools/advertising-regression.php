@@ -53,7 +53,7 @@ try{
  reject(fn()=>$server->enqueue('owner','actor',array_replace($input,['email_sha256'=>str_repeat('a',64)])),InvalidArgumentException::class,'same ID different matching data rejected');
  $stored='';foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($work,FilesystemIterator::SKIP_DOTS))as $file)if($file->isFile())$stored.=file_get_contents($file->getPathname());
  check(!str_contains($stored,$hash)&&!str_contains($stored,$input['user_agent'])&&!str_contains($stored,$input['source_url']),'matching data encrypted in consent records and queue');
- $wh=new WebhookRepository($work);$index=new SearchIndexer(new ContentTypeRepository($work),new ContentEntryRepository($work),new FileSearchIndex($work));$worker=new QueueWorker($queue,$index,$wh,new WebhookDispatcher(new SignedPayload(),$wh),null,$server);
+ $wh=new WebhookRepository($work);$index=new SearchIndexer(new ContentEntryRepository($work),new FileSearchIndex($work));$worker=new QueueWorker($queue,$index,$wh,new WebhookDispatcher(new SignedPayload(),$wh),null,$server);
  check($worker->work(null,1)['processed']===1&&count($transport->calls)===1,'real worker sends Meta conversion');
  $call=$transport->calls[0];$data=json_decode($call['body'],true)['data'][0];check($data['event_name']==='Purchase'&&$data['event_id']===$input['id']&&$data['user_data']['em']===[$hash]&&$data['custom_data']['value']===45.5&&$call['headers']['Authorization']==='Bearer test-token-secret','Meta request payload and credentials');
  check($server->status('owner',$grant['grant_id'])['items'][0]['status']==='delivered','Meta API receipt recorded');

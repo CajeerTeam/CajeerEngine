@@ -53,7 +53,7 @@ putenv('SEARCH_DRIVER=file');
 try {
     $file = new FileQueueDriver($root, 30);
     $transport = new FaultQueue($file);
-    $search = new SearchIndexer(new ContentTypeRepository($root), new ContentEntryRepository($root), new FileSearchIndex($root));
+    $search = new SearchIndexer(new ContentEntryRepository($root), new FileSearchIndex($root));
     $webhooks = new WebhookRepository($root);
     $dispatcher = new WebhookDispatcher(new SignedPayload(), $webhooks);
     $worker = new QueueWorker($transport, $search, $webhooks, $dispatcher);
@@ -90,7 +90,7 @@ try {
     $transport->failDown = false;
 
     $transport->cleanupDown = true;
-    $runner = new SchedulerRunner($root, $search, $webhooks, $dispatcher, $transport);
+    $runner = new SchedulerRunner($root, $search, $webhooks, $transport);
     $result = $runner->run();
     assertRuntime(!$result['ok'] && ($result['tasks']['queue.cleanup_processed']['ok'] ?? true) === false, 'failed queue cleanup fails scheduler run');
     assertRuntime(isset($result['tasks']['webhooks.dispatch_pending']), 'failure does not starve later scheduler tasks');

@@ -59,7 +59,7 @@ foreach (RouteRegistry::api() as [$method,$path,$name,$group,$action,$scopes]) {
         $router->add([$method], $path, $name, [$group === 'identityAdmin' ? $controller : $authController, $action], $scopes);
     }
 }
-$pipeline = new MiddlewarePipeline([new JsonBodyMiddleware(), new AuthenticationMiddleware($cfg, $auth, $router, $assurance)]);
+$pipeline = new MiddlewarePipeline([new JsonBodyMiddleware(), new AuthenticationMiddleware($auth, $router, $assurance)]);
 $browser = Request::create('https://cms.example.test/api/v1/auth/login','POST');
 $adminCookie = $auth->login('admin@identity.test', 'CorrectPassword123!', null, $browser)['access_token'];
 $viewerCookie = $auth->login('target@identity.test', 'CorrectPassword123!', null, $browser)['access_token'];

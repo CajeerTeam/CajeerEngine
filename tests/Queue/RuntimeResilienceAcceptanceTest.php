@@ -58,10 +58,10 @@ final class RuntimeResilienceAcceptanceTest extends TestCase
             public function diagnostics(): array { throw new \RuntimeException('Offline'); }
             public function cleanupProcessed(int $olderThanSeconds = 604800): int { throw new \RuntimeException('Offline'); }
         };
-        $search = new SearchIndexer(new ContentTypeRepository($this->root), new ContentEntryRepository($this->root), new FileSearchIndex($this->root));
+        $search = new SearchIndexer(new ContentEntryRepository($this->root), new FileSearchIndex($this->root));
         $repository = new WebhookRepository($this->root);
         $dispatcher = new WebhookDispatcher(new SignedPayload(), $repository);
-        return [$queue, new QueueWorker($queue, $search, $repository, $dispatcher), new SchedulerRunner($this->root, $search, $repository, $dispatcher, $queue)];
+        return [$queue, new QueueWorker($queue, $search, $repository, $dispatcher), new SchedulerRunner($this->root, $search, $repository, $queue)];
     }
 
     public function testQueueEndpointsReturn503WithoutTransportSecrets(): void

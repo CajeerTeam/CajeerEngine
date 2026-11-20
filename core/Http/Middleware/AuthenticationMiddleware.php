@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace CajeerEngine\Http\Middleware;
 
 use CajeerEngine\Http\Router;
-use CajeerEngine\Runtime\ConfigRepository;
 use CajeerEngine\Security\AuthService;
 use CajeerEngine\Security\AuthenticationAssurance;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -14,7 +13,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 final readonly class AuthenticationMiddleware implements MiddlewareInterface
 {
-    public function __construct(ConfigRepository $config, private AuthService $auth, private Router $router, private ?AuthenticationAssurance $assurance = null) {}
+    public function __construct(private AuthService $auth, private Router $router, private ?AuthenticationAssurance $assurance = null) {}
 
     public function process(Request $request, callable $next): Response
     {

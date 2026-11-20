@@ -79,7 +79,7 @@ $check(($auth->authenticateRequest($request('/api/v1/auth/me',$personal['plain_t
 $router=new Router();
 $router->add(['GET'],'/api/v1/auth/me','test.me',[new \CajeerEngine\Api\Controller\AuthController($auth),'me'],[]);
 $router->add(['POST'],'/api/v1/secured-write','test.write',static fn()=>new \Symfony\Component\HttpFoundation\JsonResponse(['ok'=>true]),['content:write']);
-$pipeline=new MiddlewarePipeline([new AuthenticationMiddleware($cfg,$auth,$router)]);
+$pipeline=new MiddlewarePipeline([new AuthenticationMiddleware($auth,$router)]);
 $read=$pipeline->handle($request('/api/v1/auth/me',$jwt),$router->dispatch(...));
 $check($read->getStatusCode()===200 && str_contains($read->getContent(),'oidc_access'),'external JWT accepted end-to-end by HTTP authentication middleware');
 $write=$pipeline->handle($request('/api/v1/secured-write',$jwt,'POST'),$router->dispatch(...));

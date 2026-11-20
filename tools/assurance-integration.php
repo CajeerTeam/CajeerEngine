@@ -44,7 +44,7 @@ foreach(RouteRegistry::api() as [$method,$path,$name,$group,$action,$scopes]) {
         $router->add([$method],$path,$name,[$group==='auth'?$controller:$usersController,$action],$scopes);
     }
 }
-$pipeline=new MiddlewarePipeline([new JsonBodyMiddleware(),new AuthenticationMiddleware($cfg,$auth,$router,$assurance)]);
+$pipeline=new MiddlewarePipeline([new JsonBodyMiddleware(),new AuthenticationMiddleware($auth,$router,$assurance)]);
 $call=static function(string $method,string $path,array $body=[],?string $c=null,?string $csrfHeader=null,?string $bearer=null)use($pipeline,$router,$cookie,$csrf):\Symfony\Component\HttpFoundation\Response {
     $headers=['CONTENT_TYPE'=>'application/json'];
     if($csrfHeader !== null)$headers['HTTP_X_CSRF_TOKEN']=$csrfHeader;

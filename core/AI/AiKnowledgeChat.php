@@ -249,7 +249,7 @@ final readonly class AiKnowledgeChat
             return ['conversation_id' => $conversationId, 'message_id' => $answerId,
                 'text' => $answer['text'], 'sources' => $answer['sources'], 'usage' => $usage, 'model' => $model];
         } catch (\Throwable $e) {
-            if ($lease) $this->release($userId, $period, $job, $reserved, $result === null ? null : $result['usage']);
+            if ($lease) $this->release($userId, $period, $job, $reserved, $result['usage']);
             throw $e;
         }
     }

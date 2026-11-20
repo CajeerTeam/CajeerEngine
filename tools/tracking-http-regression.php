@@ -39,7 +39,7 @@ try {
     foreach(RouteRegistry::api() as [$method,$path,$name,$service,$action,$scopes])if(isset($controllers[$service]))$router->add([$method],$path,$name,[$controllers[$service],$action],$scopes);
     $router->add(['GET'],'/','public.home',fn()=>new Response('<html></html>',200,['Content-Type'=>'text/html']),null);
     $router->add(['GET'],'/admin/','admin.fixture',fn()=>new Response('<html></html>',200,['Content-Type'=>'text/html']),null);
-    $pipeline=new MiddlewarePipeline([new SecurityHeadersMiddleware($work),new ErrorHandlerMiddleware($config,new RuntimeLogger($work)),new JsonBodyMiddleware(),new AuthenticationMiddleware($config,$auth,$router),new ApiContractMiddleware(new ApiContract($root))]);
+    $pipeline=new MiddlewarePipeline([new SecurityHeadersMiddleware($work),new ErrorHandlerMiddleware($config,new RuntimeLogger($work)),new JsonBodyMiddleware(),new AuthenticationMiddleware($auth,$router),new ApiContractMiddleware(new ApiContract($root))]);
     $call=static function(string $method,string $path,?string $token=null,?array $body=null,?string $cookie=null,?string $csrf=null,string $host='site.example',?string $origin=null)use($router,$pipeline){
         $headers=['CONTENT_TYPE'=>'application/json'];if($origin!==null)$headers['HTTP_ORIGIN']=$origin;if($token!==null)$headers['HTTP_AUTHORIZATION']='Bearer '.$token;if($csrf!==null)$headers['HTTP_X_CSRF_TOKEN']=$csrf;
         $request=Request::create('https://'.$host.$path,$method,[],$cookie===null?[]:['ce_session'=>$cookie],[],$headers,$body===null?null:json_encode($body,JSON_THROW_ON_ERROR));

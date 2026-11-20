@@ -74,7 +74,7 @@ final class DatabaseManager
             $outcome='success';return $result;
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
-                if($savepoint!==null){$pdo->exec('ROLLBACK TO SAVEPOINT '.$savepoint);$pdo->exec('RELEASE SAVEPOINT '.$savepoint);}
+                if (!$started) {$pdo->exec('ROLLBACK TO SAVEPOINT '.$savepoint);$pdo->exec('RELEASE SAVEPOINT '.$savepoint);}
                 else $pdo->rollBack();
             }
             throw $e;

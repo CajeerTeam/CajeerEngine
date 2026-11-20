@@ -46,6 +46,6 @@ final class ImportRunCommand extends BaseCommand
         $output->writeln('[OK] Import file: ' . $result['file']);
         $output->writeln('[OK] Imported: ' . implode(', ', (array) $result['imported']));
         $output->writeln('[INFO] Skipped: ' . implode(', ', (array) $result['skipped']));
-        return $result['ok']?self::SUCCESS:self::FAILURE;
+        return self::SUCCESS;
     }
 }

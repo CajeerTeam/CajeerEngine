@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace CajeerEngine\Scheduler;
 
-use CajeerEngine\Integration\WebhookDispatcher;
 use CajeerEngine\Integration\WebhookRepository;
 use CajeerEngine\Queue\ManagedQueueDriverInterface;
 use CajeerEngine\Search\SearchIndexer;
@@ -15,7 +14,6 @@ final readonly class SchedulerRunner
         private string $rootPath,
         private SearchIndexer $searchIndexer,
         private WebhookRepository $webhooks,
-        WebhookDispatcher $dispatcher,
         private ManagedQueueDriverInterface $queue,
         private ?\CajeerEngine\Extension\Runtime\PlatformServices $platform = null,
         private ?TaskRunStore $runStore = null,

@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace CajeerEngine\Search;
 
 use CajeerEngine\Content\ContentEntryRepository;
-use CajeerEngine\Content\ContentTypeRepository;
 
 final readonly class SearchIndexer
 {
     public function __construct(
-        ContentTypeRepository $types,
         private ContentEntryRepository $entries,
         private SearchEngineInterface $index,
     ) {

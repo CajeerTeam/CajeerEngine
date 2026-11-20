@@ -41,7 +41,7 @@ $router=new \CajeerEngine\Http\Router();
 foreach (\CajeerEngine\Http\RouteRegistry::api() as [$method,$path,$name,$controllerName,$action,$scopes]) {
     if ($controllerName==='auth' && str_contains($path,'/auth/sessions')) $router->add([$method],$path,$name,[$controller,$action],$scopes);
 }
-$pipeline=new \CajeerEngine\Http\Middleware\MiddlewarePipeline([new \CajeerEngine\Http\Middleware\AuthenticationMiddleware($cfg,$auth,$router)]);
+$pipeline=new \CajeerEngine\Http\Middleware\MiddlewarePipeline([new \CajeerEngine\Http\Middleware\AuthenticationMiddleware($auth,$router)]);
 $call=static function(string $method,string $path,?string $cookie=null,?string $bearer=null,?string $csrf=null)use($router,$pipeline):\Symfony\Component\HttpFoundation\Response {
     $headers=['CONTENT_TYPE'=>'application/json'];
     if($bearer!==null)$headers['HTTP_AUTHORIZATION']='Bearer '.$bearer;
