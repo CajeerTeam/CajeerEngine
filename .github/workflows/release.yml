@@ -193,14 +193,21 @@ jobs:
         run: python3 tools/ai-migration-remediation-sqlite-regression.py
       - name: AI Migration Remediation route and assurance regression
         run: php tools/ai-migration-remediation-regression.php
+      - name: Install browser acceptance dependencies before UI tests
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/ce-consent-browser
+          /tmp/ce-consent-browser/bin/pip install playwright
+          /tmp/ce-consent-browser/bin/python -m playwright install --with-deps chromium
+          echo "CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')" >> "$GITHUB_ENV"
       - name: AI Migration Copilot production admin browser acceptance
-        run: python3 tools/ai-migration-copilot-browser.py
+        run: /tmp/ce-consent-browser/bin/python tools/ai-migration-copilot-browser.py
       - name: AI External Analytics deterministic comparison and safe evidence
         run: php tools/ai-external-analytics-regression.php
       - name: AI External Analytics real SQLite snapshots, budget, provider failure and credential boundary
         run: php tools/ai-external-analytics-integration.php --require-db
       - name: AI External Analytics static SPA browser acceptance
-        run: python3 tools/ai-external-analytics-browser.py
+        run: /tmp/ce-consent-browser/bin/python tools/ai-external-analytics-browser.py
       - name: AI Tools real Responses function calling and scope security
         run: php tools/ai-tools-regression.php
       - name: AI Assistant production SSE, function dispatch and privacy regression
@@ -212,7 +219,7 @@ jobs:
       - name: AI Actions SQL transactional rollback and idempotency
         run: python3 tools/ai-actions-sqlite-regression.py
       - name: AI Actions production static admin approval UI (Chromium)
-        run: python3 tools/ai-actions-browser.py
+        run: /tmp/ce-consent-browser/bin/python tools/ai-actions-browser.py
       - name: OpenAI AI Chat credential encryption and rotation
         run: php tools/ai-vault-regression.php
       - name: AI Chat real PDO SQLite persistence, ownership and budget acceptance
@@ -254,7 +261,7 @@ jobs:
       - name: AI Support Center SQL schema and optimistic update regression
         run: python3 tools/ai-support-sqlite-regression.py
       - name: AI Support Center public widget and admin SPA Chromium regression
-        run: python3 tools/ai-support-browser.py
+        run: /tmp/ce-consent-browser/bin/python tools/ai-support-browser.py
       - name: Identity GA SQL rollback and selective revocation (SQLite)
         run: python3 tools/identity-ga-sqlite-regression.py
       - name: Unified Session Management PDO / SQLite integration
@@ -315,9 +322,6 @@ jobs:
       - run: php tools/advertising-regression.php
       - name: Consent browser regression (Chromium)
         run: |
-          python3 -m venv /tmp/ce-consent-browser
-          /tmp/ce-consent-browser/bin/pip install playwright
-          /tmp/ce-consent-browser/bin/python -m playwright install --with-deps chromium
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/consent-browser-regression.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/oidc-admin-browser-regression.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/oidc-account-browser-regression.py
