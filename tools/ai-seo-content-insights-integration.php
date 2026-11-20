@@ -38,7 +38,7 @@ try {
     foreach(['0015_analytics_hub','0017_analytics_sync_runs','0031_ai_chat','0032_ai_content_editor','0040_ai_cost_control'] as $file)
         $db->connection()->exec((string)file_get_contents($root.'/migrations/sqlite/'.$file.'.sql'));
     $types=new ContentTypeRepository($dir,$db);$entries=new ContentEntryRepository($dir,$db);
-    $types->create(['handle'=>'pages','name'=>'Pages','fields'=>[['handle'=>'body','type'=>'richtext']]]);
+    $types->create(['handle'=>'pages','name'=>'Pages','fields'=>[['handle'=>'body','label'=>'Body','type'=>'richtext']]]);
     $article=$entries->create('pages',['title'=>'Setup guide','slug'=>'setup','status'=>'published',
         'locale'=>'en','data'=>['body'=>'<p>Actual installation instructions with documented examples.</p>']]);
     $routes=new RouteIndex($dir,$db);$routes->rebuild();
