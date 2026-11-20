@@ -70,7 +70,7 @@ $call = static function (string $method, string $path, array $payload = [], stri
     if ($csrf !== null) $headers['HTTP_X_CSRF_TOKEN'] = $csrf;
     if ($bearer !== null) $headers['HTTP_AUTHORIZATION'] = 'Bearer '.$bearer;
     $r = Request::create('https://cms.example.test/api/v1'.$path, $method, [], $cookie === '' ? [] : ['ce_session' => $cookie], [], $headers,
-        in_array($method, ['POST','PUT','PATCH','DELETE'], true) ? json_encode($payload, JSON_THROW_ON_ERROR) : null);
+        in_array($method, ['POST','PUT','PATCH','DELETE'], true) ? json_encode((object) $payload, JSON_THROW_ON_ERROR) : null);
     return $pipeline->handle($r, $router->dispatch(...));
 };
 $path = '/identity/admin/users';
