@@ -316,6 +316,8 @@ jobs:
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/migration-planning-browser-regression.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/migration-validation-browser-regression.py
           CHROMIUM_PATH=$(/tmp/ce-consent-browser/bin/python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()') /tmp/ce-consent-browser/bin/python tools/ai-migration-remediation-browser.py
+      - name: TypeScript SDK endpoint and operation regression
+        run: node tools/sdk-client-compatibility-regression.mjs
       - run: php tools/generate-api-sdk.php --check
       - run: php bin/cajeer api:lint --strict --json
       - run: php tools/github-release-regression.php
@@ -326,6 +328,8 @@ jobs:
       - run: php tools/update-regression.php
       - run: php tools/disaster-recovery-regression.php
       - run: php tools/import-regression.php
+      - name: Extension compatibility and signed update preflight
+        run: php tools/compatibility-upgrade-regression.php
       - run: php tools/extension-regression.php
       - run: php tools/routing-regression.php
       - run: php tools/routing-regression.php --database

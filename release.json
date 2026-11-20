@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "1.9.6",
+  "version": "1.9.7",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-1.9.6-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-1.9.6-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-1.9.7-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-1.9.7-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-1.9.6-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-1.9.7-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,6 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
+    "1.9.7 Compatibility & Upgrade: unify strict Engine API and extension dependency range validation (caret, tilde, comparisons and zero-major boundaries); verify installed enabled extension manifests against signed target Engine API before destructive upgrade; reject spoofed stable/RC release catalogs and invalid extension constraints; fix native Node ESM SDK import of generated operations and validate HTTPS-only remote endpoints; execute regression suite in PR and release CI. Source/SDK API operations remain backward compatible.",
     "1.9.6 Performance & Scalability: aggregate CMS search result-count/type/locale facets in one MVCC SQL scan; consolidate bounded RAG retrieval of up to 14 terms into one indexed SQL round trip while keeping separate per-term caps and publication checks; skip stampede locks for previously identified oversized public pages via short-lived invalidating markers; batch queue-worker observability metrics to reduce lock contention without losing completed batch totals. Include actual SQLite query and regression coverage in CI; staging throughput and p95/p99 remain external acceptance gates.",
     "1.9.5 Security & Privacy Hardening: make 2FA recovery-code redemption atomic on PostgreSQL/MySQL/SQLite; prevent login enumeration with uniform failures, dummy Argon2id verification and hashed audit identifiers; bound login and JSON request sizes; redact production validation/database/extension failures; restrict runtime log permissions and refuse symlink redirection; suppress credentials in PHP stack traces via SensitiveParameter. Dedicated runtime and PDO integration acceptance are mandatory; live penetration testing remains separate.",
     "1.9.4 AI Assistant Production: validate real OpenAI SSE completion, stream accounting, output caps and tool-batch safety before executing CMS tools; block JSON-encoded credentials in AI tool outputs, wipe decrypted API keys on preflight failure, and verify complete AI Automation schema in live readiness. Offline protocol/fault regressions are mandatory; billable provider and production-host acceptance still require operator opt-in.",
@@ -131,7 +132,8 @@
     "1.8.6": "End-to-End Regression: real cross-module acceptance, atomic file-backed preview-token storage, mandatory SQLite, HTTP auth and queue/AI test gates.",
     "1.9.0-rc.1": "Release candidate for staging/production acceptance; not GA, not LTS; immutable candidate source/dist certification is required before public prerelease publication.",
     "1.9.3": "SkiF4er ID Production — version-aware live identity acceptance, verified pinned JWKS readiness, strict ID and access token type/binding checks.",
-    "1.9.6": "Performance & Scalability — fewer CMS search/RAG SQL trips, no large-render lock convoy, batched queue metrics."
+    "1.9.6": "Performance & Scalability — fewer CMS search/RAG SQL trips, no large-render lock convoy, batched queue metrics.",
+    "1.9.7": "Compatibility & Upgrade — Engine API and extension dependency checks, signed update preflight, strict release-channel isolation and native Node ESM SDK compatibility and executable regression gates."
   },
   "stability": "stable",
   "roadmap": {

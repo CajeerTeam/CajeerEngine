@@ -50,6 +50,10 @@ jobs:
         run: |
           php tools/search-webmaster-regression.php --require-db
           php tools/analytics-hub-regression.php --require-db
+      - name: Extension compatibility and update preflight regression
+        run: |
+          php tools/compatibility-upgrade-regression.php
+          php tools/github-release-regression.php
       - name: Deployment and disaster recovery acceptance (actual SQLite)
         run: |
           php tools/deployment-recovery-acceptance.php
@@ -91,3 +95,4 @@ jobs:
           npm run build --prefix admin
           npm install --prefix packages/ts-sdk --no-audit --no-fund
           npm run build --prefix packages/ts-sdk
+          node tools/sdk-client-compatibility-regression.mjs

@@ -1,5 +1,5 @@
-import { operations, type OperationId, type OperationArguments } from './operations'
-export { operations, type OperationId, type OperationArguments } from './operations'
+import { operations, type OperationId, type OperationArguments } from './operations.js'
+export { operations, type OperationId, type OperationArguments } from './operations.js'
 
 export type CajeerEngineClientOptions = {
   baseUrl: string
@@ -74,9 +74,22 @@ export type MediaUploadInput = {
 }
 
 export class CajeerEngineClient {
-  constructor(private readonly options: CajeerEngineClientOptions) {}
+  private readonly baseUrl: string
+
+  constructor(private readonly options: CajeerEngineClientOptions) {
+    const url = new URL(options.baseUrl)
+    const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+    if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) ||
+        url.username || url.password || url.search || url.hash ||
+        /[\x00-\x20\x7f\\]/.test(options.baseUrl)) {
+      throw new Error('HTTPS API base URL required (HTTP is allowed for loopback development only)')
+    }
+    this.baseUrl = url.href.replace(/\/+$/, '')
+    this.setToken(options.token)
+  }
 
   setToken(token: string | undefined): void {
+    if (token !== undefined && /[\r\n]/.test(token)) throw new Error('Invalid API token')
     this.options.token = token
   }
 
@@ -292,8 +305,7 @@ export class CajeerEngineClient {
     if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
     if (this.options.token) headers.set('Authorization', `Bearer ${this.options.token}`)
 
-    const base = this.options.baseUrl.replace(/\/$/, '')
-    const response = await fetch(`${base}${path}`, { ...init, headers, redirect: 'error' })
+    const response = await fetch(`${this.baseUrl}${path}`, { ...init, headers, redirect: 'error' })
     if (response.ok && /(?:application\/(octet-stream|zip)|image\/)/.test(response.headers.get('Content-Type') || '')) return response.blob()
     const payload = await response.json().catch(() => null)
     if (!response.ok) {

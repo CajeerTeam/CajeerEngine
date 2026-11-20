@@ -76,6 +76,7 @@ final class UpdateManager
             if (version_compare($v['version'],$previous,'<=')) throw new \RuntimeException('Target must be newer; use verified rollback for downgrade');
             if (!is_file($this->rootPath.'/storage/app/installed.lock')) throw new \RuntimeException('Installed CMS required');
             $plan=$this->stage($dir,$v['manifest']);
+            $this->assertEnabledExtensionCompatibility($dir, (string) $v['version']);
             $report=['ok'=>true,'id'=>$id,'previous_version'=>$previous,'target_version'=>$v['version'],'sha256'=>$v['sha256'],'copy_plan'=>$plan,'dry_run'=>!empty($options['dry_run'])];
             if ($report['dry_run']) return $report;
             $backup=new BackupManager($this->rootPath,$this->config);
@@ -249,6 +250,59 @@ final class UpdateManager
         }
         } finally { OperationLock::release($guard); }
     }
+    /**
+     * Refuse an incompatible Engine API upgrade before maintenance, backup or file replacement.
+     * Only the authenticated, SHA-256-verified dist staged above supplies the target API.
+     */
+    private function assertEnabledExtensionCompatibility(string $transactionDir, string $targetVersion): void
+    {
+        $path = $transactionDir . '/stage/release.json';
+        if (!is_file($path)) {
+            throw new \RuntimeException('Update is missing the target release metadata');
+        }
+        $release = OperationFiles::read($path);
+        if (($release['version'] ?? null) !== $targetVersion ||
+            !is_string($release['engine_api_version'] ?? null)) {
+            throw new \RuntimeException('Invalid target Engine API metadata');
+        }
+        $registryFile = $this->rootPath . '/storage/app/extensions/registry.json';
+        if (!is_file($registryFile)) {
+            return;
+        }
+        $registry = OperationFiles::read($registryFile);
+        if (!is_array($registry['extensions'] ?? null)) {
+            throw new \RuntimeException('Invalid extension registry');
+        }
+        foreach ($registry['extensions'] as $name => $record) {
+            if (!is_array($record) || empty($record['enabled'])) {
+                continue;
+            }
+            $relative = $record['path'] ?? null;
+            if (!is_string($relative) || $relative === '') {
+                throw new \RuntimeException('Enabled extension has no package path: ' . $name);
+            }
+            $manifest = (new \CajeerEngine\Extension\ManifestLoader())->load(
+                OperationFiles::path($this->rootPath, $relative . '/cajeer.extension.json'),
+            );
+            $constraint = $record['engine'] ?? null;
+            if ($manifest->name !== $name || $manifest->version !== ($record['version'] ?? null) ||
+                $manifest->engineConstraint !== $constraint) {
+                throw new \RuntimeException('Installed extension manifest differs from registry: ' . $name);
+            }
+            if (!is_string($constraint) || $constraint === '') {
+                throw new \RuntimeException('Enabled extension has no Engine API constraint: ' . $name);
+            }
+            try {
+                $compatible = \CajeerEngine\Extension\VersionConstraint::matches($release['engine_api_version'], $constraint);
+            } catch (\InvalidArgumentException $e) {
+                throw new \RuntimeException('Enabled extension has an invalid Engine API constraint: ' . $name, 0, $e);
+            }
+            if (!$compatible) {
+                throw new \RuntimeException('Update blocks incompatible enabled extension: ' . $name . ' (' . $constraint . ')');
+            }
+        }
+    }
+
     private function stage(string $dir,array $manifest): array
     {
         $files=[]; $zip=$dir.'/package.zip';

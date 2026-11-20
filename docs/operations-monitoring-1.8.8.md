@@ -1,4 +1,4 @@
-# CajeerEngine 1.9.6 — Monitoring, Workers & Scheduler
+# CajeerEngine 1.9.7 — Monitoring, Workers & Scheduler
 
 ## Endpoints и режим доступа
 

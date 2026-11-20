@@ -266,6 +266,9 @@ final readonly class ReleaseBuilder
         if (version_compare($this->version(), '1.5.5', '>=')) $required = array_merge($required, ['core/Identity/OidcApiAuthenticator.php','docs/oidc-api-authentication.md']);
         if (version_compare($this->version(), '1.8.8', '>=')) $required = array_merge($required, ['core/Rc/OperationsDocsVerifier.php', 'tools/operations-docs-check.php', 'docs/operations-handbook-1.8.8.md', 'docs/operations-deployment-1.8.8.md', 'docs/operations-monitoring-1.8.8.md', 'docs/operations-recovery-1.8.8.md', 'docs/operations-security-1.8.8.md', 'docs/operations-incidents-1.8.8.md', 'docs/operations-acceptance-1.8.8.md']);
         if ($mode === 'source' && version_compare($this->version(), '1.8.8', '>=')) $required[] = 'tools/operations-docs-regression.php';
+        if ($mode === 'source' && version_compare($this->version(), '1.9.7', '>=')) {
+            $required = array_merge($required, ['tools/compatibility-upgrade-regression.php', 'tools/sdk-client-compatibility-regression.mjs', 'docs/compatibility-upgrade-1.9.7.md']);
+        }
         if ($mode === 'dist') $required = array_merge($required, ['vendor/autoload.php', 'vendor/composer/installed.json', 'composer.lock']);
         else $required = array_merge($required, ['deploy/production.py', 'deploy/install.php', 'deploy/verify.php', 'deploy/host-smoke.sh', 'deploy/test_production.py', 'deploy/site.example.json', 'docs/production-deployment.md']);
         if ($mode === 'source' && version_compare($this->version(), '1.3.0', '>=')) $required = array_merge($required, ['tools/production-acceptance.py','tools/certification-evidence.py','tools/certification-regression.py','tools/rate-limit-concurrency.php','docs/production-certification.md']);

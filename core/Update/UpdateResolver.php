@@ -41,6 +41,22 @@ final readonly class UpdateResolver
             if ($releaseChannel !== $channel && $channel !== 'dev') { continue; }
             $version = (string) ($release['version'] ?? '');
             if (!preg_match('/^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?$/D', $version)) { continue; }
+            // Custom/offline catalogs must not smuggle prereleases into stable,
+            // or claim that an RC is a stable artifact.
+            $expectedChannel = preg_match('/-rc(?:\.|$)/i', $version) ? 'rc'
+                : (preg_match('/-beta(?:\.|$)/i', $version) ? 'beta'
+                : (str_contains($version, '-') ? 'dev' : 'stable'));
+            if ($releaseChannel !== $expectedChannel ||
+                (isset($release['stability']) && $release['stability'] !== $expectedChannel)) {
+                continue;
+            }
+            $dist = $release['artifacts']['dist'] ?? null;
+            $artifactName = 'cajeerengine-' . $version . '-dist.zip';
+            if (!is_array($dist) || ($dist['name'] ?? null) !== $artifactName ||
+                ($dist['checksum_name'] ?? null) !== $artifactName . '.sha256' ||
+                ($dist['signature_name'] ?? null) !== $artifactName . '.sig') {
+                continue;
+            }
             if ($latest === null || version_compare($version, (string) $latest['version'], '>')) {
                 $latest = $release;
             }

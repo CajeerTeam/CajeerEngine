@@ -63,8 +63,12 @@ final readonly class ManifestLoader
         if (isset($payload['version']) && is_string($payload['version']) && !preg_match('/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/', $payload['version'])) {
             $errors[] = 'version должен быть SemVer, например 1.2.3';
         }
-        if (isset($payload['engine']) && is_string($payload['engine']) && trim($payload['engine']) === '') {
-            $errors[] = 'engine не должен быть пустым';
+        if (isset($payload['engine']) && is_string($payload['engine'])) {
+            try {
+                VersionConstraint::assertValid($payload['engine']);
+            } catch (\InvalidArgumentException) {
+                $errors[] = 'engine должен содержать поддерживаемое строгое ограничение версий';
+            }
         }
 
         foreach (['permissions', 'events', 'providers'] as $field) {

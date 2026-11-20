@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## Compatibility & Upgrade 1.9.7
+
+Обновления CMS проверяют активные расширения до замены файлов: установленный manifest и реестр должны совпадать, а диапазон `engine` должен разрешать Engine API подписанного релиза. Выражения `^`, `~`, `>=`, `<=`, `>`, `<`, `=` и пересечения через пробелы или запятые обрабатываются единообразно для Engine API и зависимостей расширений. Некорректные ограничения отвергаются. Каталоги обновлений не могут публиковать prerelease как stable. Проверки: `php tools/compatibility-upgrade-regression.php`, `php tools/extension-regression.php`, `php tools/github-release-regression.php`. Инструкция: [Compatibility & Upgrade](docs/compatibility-upgrade-1.9.7.md).
+
 ## Performance & Scalability 1.9.6
 
 Оптимизированы рабочие SQL-пути поиска CMS (общая агрегация total/facets), RAG Knowledge Chat (один bounded запрос вместо отдельного запроса на термин) отсутствие последовательной блокировки для некешируемых больших страниц и пакетная запись метрик QueueWorker. Проверка: `php tools/performance-scalability-regression.php`, `python3 tools/performance-scalability-sqlite-regression.py`, `php tools/performance-regression.php --database` (с `pdo_sqlite`). Требования и ограничения: [Performance & Scalability](docs/performance-scalability-1.9.6.md). Подтверждение реальных p95/p99/RPS требует staging с production-профилем нагрузки.
