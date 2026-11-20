@@ -23,18 +23,28 @@ final class CompatStatement extends PDOStatement
     public function execute(?array $params = null): bool { return true; }
     public function fetchColumn(int $column = 0): mixed { return $this->exists ? 1 : 0; }
 }
+final class CompatColumnStatement extends PDOStatement
+{
+    public function __construct(private readonly string $collation) {}
+    public function execute(?array $params = null): bool { return true; }
+    public function fetch(int $mode = PDO::FETCH_DEFAULT, int $cursorOrientation = PDO::FETCH_ORI_NEXT, int $cursorOffset = 0): mixed
+    {
+        return ['COLUMN_TYPE' => 'char(36)', 'CHARACTER_SET_NAME' => 'utf8mb4', 'COLLATION_NAME' => $this->collation];
+    }
+}
 final class CompatPDO extends PDO
 {
     /** @var list<string> */
     public array $queries = [];
-    public function __construct(private readonly string $dialect = 'mysql', private readonly bool $exists = false) {}
+    public function __construct(private readonly string $dialect = 'mysql', private readonly bool $exists = false, private readonly string $collation = 'utf8mb4_general_ci') {}
     public function getAttribute(int $attribute): mixed
     {
         return $attribute === PDO::ATTR_DRIVER_NAME ? $this->dialect : null;
     }
     public function prepare(string $query, array $options = []): PDOStatement|false
     {
-        ensure(str_contains($query, 'information_schema.columns'), 'Conditional column must inspect information_schema');
+        ensure(stripos($query, 'information_schema.columns') !== false, 'Migration normalization must inspect information_schema');
+        if (str_contains($query, 'COLUMN_TYPE')) return new CompatColumnStatement($this->collation);
         return new CompatStatement($this->exists);
     }
     public function exec(string $statement): int|false
@@ -82,6 +92,19 @@ foreach (['0005_queue_search_webhooks.sql', '0007_queue_runtime_columns.sql'] as
     $unmodified = new CompatPDO();
     MigrationSqlExecutor::execute($unmodified, 'pgsql', $sql);
     ensure(str_contains($unmodified->queries[0], 'ADD COLUMN IF NOT EXISTS'), 'Postgres dialect was unexpectedly modified');
+}
+// Immutable AI tool call migration must inherit the referenced parent collation,
+// not the database default (which differs on MariaDB).
+$aiSql = file_get_contents($root . '/migrations/mysql/0037_ai_tools.sql');
+ensure(is_string($aiSql), 'Missing AI tool calls migration');
+foreach (['utf8mb4_general_ci', 'utf8mb4_unicode_ci'] as $collation) {
+    $fixture = new CompatPDO('mysql', false, $collation);
+    MigrationSqlExecutor::execute($fixture, 'mysql', $aiSql);
+    ensure(count($fixture->queries) === 2, 'AI tool calls migration did not execute both SQL statements');
+    $create = $fixture->queries[0];
+    ensure(substr_count($create, 'CHAR(36) CHARACTER SET utf8mb4 COLLATE ' . $collation) === 2,
+        'AI tool calls foreign keys did not inherit the referenced column collation');
+    ensure(str_contains($create, 'id VARCHAR(36) PRIMARY KEY'), 'Unrelated AI tool call identifiers were changed');
 }
 $wrong = new CompatPDO('sqlite');
 $runner = new MigrationRunner($wrong, $root . '/migrations');
