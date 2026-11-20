@@ -166,6 +166,9 @@ final class BackupManager
         try {
             if (OperationLock::active($this->root)) throw new \RuntimeException('Use update:rollback for active recovery');
             $this->verify($id);
+            // Detect insufficient PostgreSQL privileges or unapproved MySQL
+            // restore before entering maintenance and creating recovery state.
+            $this->db->assertRecoveryReady();
             $marker=F::path($this->root,'storage/app/backup-restore.json');
             if (is_file($marker)) {
                 $old=F::read($marker); if (($old['id']??null)!==$id) throw new \RuntimeException('Resume the interrupted restore with its original backup ID');
@@ -201,6 +204,13 @@ final class BackupManager
         foreach ($m['files'] as $relative=>$info) if (!hash_equals($info['sha256'],F::hash(F::path($this->root,$relative)))) throw new \RuntimeException('Restored file verification failed');
         if ($env!==null && (!is_file($this->root.'/.env') || !hash_equals(hash('sha256',$env),F::hash($this->root.'/.env')))) throw new \RuntimeException('Restored environment verification failed');
         $this->db->verifyRestored();
+        // After a SQLite restore the exact on-disk database must match the
+        // authenticated snapshot. A concurrent writer is a recovery failure,
+        // not grounds to reopen the site and risk silently losing writes.
+        $dbIdentity=$this->db->identity();
+        if ($dbIdentity['driver']==='sqlite' && !hash_equals($m['database_sha256'],F::hash($dbIdentity['database']))) {
+            throw new \RuntimeException('SQLite changed during restore; keep maintenance enabled and reconcile writers');
+        }
         return ['ok'=>true,'id'=>$id,'version'=>$m['version'],'restored_files'=>array_keys($m['files']),'maintenance'=>true];
     }
     public function directory(string $id): string

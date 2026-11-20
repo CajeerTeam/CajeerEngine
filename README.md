@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## Full Platform E2E & Recovery 1.9.8
+
+Сквозная приёмка `bash tools/e2e-acceptance.sh` охватывает реальные SQLite-репозитории CMS, HTTP, SkiF4er ID, внешнюю аналитику с тестовым транспортом, Migration Center, очереди, AI и восстановление зашифрованной резервной копии. `php tools/database-recovery-integrity-regression.php` также проверяет отказ при повреждении внешних ключей SQLite и точное восстановление базы, файлов, медиа и очереди. Релиз не объявляется готовым, если отсутствуют обязательные зависимости или тест не пройден. Подробности: [Full Platform E2E & Recovery](docs/full-platform-e2e-recovery-1.9.8.md).
+
 ## Compatibility & Upgrade 1.9.7
 
 Обновления CMS проверяют активные расширения до замены файлов: установленный manifest и реестр должны совпадать, а диапазон `engine` должен разрешать Engine API подписанного релиза. Выражения `^`, `~`, `>=`, `<=`, `>`, `<`, `=` и пересечения через пробелы или запятые обрабатываются единообразно для Engine API и зависимостей расширений. Некорректные ограничения отвергаются. Каталоги обновлений не могут публиковать prerelease как stable. Проверки: `php tools/compatibility-upgrade-regression.php`, `php tools/extension-regression.php`, `php tools/github-release-regression.php`. Инструкция: [Compatibility & Upgrade](docs/compatibility-upgrade-1.9.7.md).

@@ -269,6 +269,9 @@ final readonly class ReleaseBuilder
         if ($mode === 'source' && version_compare($this->version(), '1.9.7', '>=')) {
             $required = array_merge($required, ['tools/compatibility-upgrade-regression.php', 'tools/sdk-client-compatibility-regression.mjs', 'docs/compatibility-upgrade-1.9.7.md']);
         }
+        if ($mode === 'source' && version_compare($this->version(), '1.9.8', '>=')) {
+            $required = array_merge($required, ['tools/database-recovery-integrity-regression.php', 'tools/e2e-acceptance.sh', 'docs/full-platform-e2e-recovery-1.9.8.md']);
+        }
         if ($mode === 'dist') $required = array_merge($required, ['vendor/autoload.php', 'vendor/composer/installed.json', 'composer.lock']);
         else $required = array_merge($required, ['deploy/production.py', 'deploy/install.php', 'deploy/verify.php', 'deploy/host-smoke.sh', 'deploy/test_production.py', 'deploy/site.example.json', 'docs/production-deployment.md']);
         if ($mode === 'source' && version_compare($this->version(), '1.3.0', '>=')) $required = array_merge($required, ['tools/production-acceptance.py','tools/certification-evidence.py','tools/certification-regression.py','tools/rate-limit-concurrency.php','docs/production-certification.md']);

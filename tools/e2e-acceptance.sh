@@ -29,4 +29,12 @@ php tools/queue-regression.php
 printf '%s\n' '[E2E] AI conversation, security, budget and tool proposal approval (mocked provider, real SQL)'
 php tools/ai-chat-integration.php --require-db
 php tools/ai-actions-integration.php --require-db
+printf '%s\n' '[E2E] Identity: real OIDC store, revocation and SQL sessions'
+php tools/oidc-db-regression.php --require-db
+printf '%s\n' '[E2E] Analytics: credential-safe reports through real queue worker and SQLite persistence'
+php tools/analytics-hub-regression.php --require-db
+printf '%s\n' '[E2E] Migration Center: transactional batch import, resume, and revision conflicts'
+php tools/migration-execution-regression.php --require-db
+printf '%s\n' '[E2E] Recovery: authenticated offsite snapshot, SQL foreign-key consistency and rollback of files'
+php tools/database-recovery-integrity-regression.php
 printf '%s\n' '[E2E] Completed without skips or failed steps'

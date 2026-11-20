@@ -1,3 +1,11 @@
+# 1.9.8 — Full Platform E2E & Recovery
+
+- SQLite recovery now checks both `PRAGMA integrity_check` and `PRAGMA foreign_key_check` before accepting a database backup or restored database; the PDO and Python fallback paths enforce the same conditions.
+- SQLite recovery refuses to declare success if the restored database differs byte-for-byte from its authenticated snapshot, protecting against concurrent writers and corrupted restoration.
+- The cross-module E2E release gate executes real HTTP/middleware and migrated CMS, Identity (OIDC), Analytics queue/SQL, Migration Center transactional checkpoints, AI and encrypted offsite recovery exercises; missing PDO/Composer dependencies fail the gate.
+- The recovery regression creates a real relational database, introduces a broken foreign key that passes `integrity_check`, verifies the backup is rejected, then restores DB, content, uploaded media and queued records from a verified snapshot.
+- Release CI and PR CI include the deterministic DR fault injection; full production-host, external Keycloak, external analytics providers and OpenAI acceptance remain separate release gates.
+
 # 1.9.7 — Compatibility & Upgrade
 
 - Исправлены реальные проверки Engine API: неверные диапазоны отвергаются, caret для `0.x` ограничен минорной или патчевой версией, `~` и интервалы согласованы с зависимостями расширений.

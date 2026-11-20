@@ -66,6 +66,8 @@ final class DatabaseBackup
             if (in_array('sqlite',\PDO::getAvailableDrivers(),true)) {
                 $pdo=new \PDO('sqlite:'.$file,null,null,[\PDO::ATTR_ERRMODE=>\PDO::ERRMODE_EXCEPTION]);
                 if ($pdo->query('PRAGMA integrity_check')->fetchColumn()!=='ok') throw new \RuntimeException('SQLite integrity check failed');
+                // SQLite integrity_check does not validate foreign-key relations.
+                if ($pdo->query('PRAGMA foreign_key_check')->fetch()!==false) throw new \RuntimeException('SQLite foreign key check failed');
             } else $this->sqlitePython('verify',$file);
         } elseif ($this->driver==='pgsql') self::run(['pg_restore','--list',$file],$this->pgEnv());
         else {
@@ -173,8 +175,11 @@ with sqlite3.connect(pathlib.Path(source).resolve().as_uri() + '?mode=ro', uri=T
     if mode == 'backup':
         with sqlite3.connect(sys.argv[3], timeout=10) as out:
             db.backup(out)
-    elif db.execute('PRAGMA integrity_check').fetchall() != [('ok',)]:
-        raise RuntimeError('SQLite integrity check failed')
+    else:
+        if db.execute('PRAGMA integrity_check').fetchall() != [('ok',)]:
+            raise RuntimeError('SQLite integrity check failed')
+        if db.execute('PRAGMA foreign_key_check').fetchone() is not None:
+            raise RuntimeError('SQLite foreign key check failed')
 PYTHON;
         self::run([$python,'-I','-c',$script,$action,$file,$target??'']);
     }

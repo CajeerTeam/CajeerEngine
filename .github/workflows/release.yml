@@ -327,6 +327,7 @@ jobs:
         run: php tools/deployment-recovery-acceptance.php
       - run: php tools/update-regression.php
       - run: php tools/disaster-recovery-regression.php
+      - run: php tools/database-recovery-integrity-regression.php
       - run: php tools/import-regression.php
       - name: Extension compatibility and signed update preflight
         run: php tools/compatibility-upgrade-regression.php
