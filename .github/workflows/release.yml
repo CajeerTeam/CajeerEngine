@@ -173,7 +173,8 @@ jobs:
       - name: AI Automation 1.8.0 GA cross-version migration and SQL privacy acceptance
         run: python3 tools/ai-automation-security-sqlite-regression.py
       - name: AI Automation 1.8.0 RabbitMQ deterministic one-shot delivery acceptance
-        run: php tools/ai-automation-rabbitmq-regression.php
+        # This test defines AMQP protocol fakes; installed ext-amqp must not load.
+        run: php -n tools/ai-automation-rabbitmq-regression.php
       - name: AI Automation 1.8.0 GA real PostgreSQL and MariaDB schema acceptance
         env:
           AI_AUTOMATION_GA_FIXTURE: "1"
