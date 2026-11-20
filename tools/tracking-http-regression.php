@@ -11,7 +11,7 @@ use CajeerEngine\Queue\FileQueueDriver;
 use CajeerEngine\Audit\AuditLogger;
 use CajeerEngine\Backup\RecoveryBundle;
 use CajeerEngine\Database\{DatabaseManager,MigrationRunner};
-use CajeerEngine\Database\Repository\{ApiTokenRepository,AuditLogRepository,RoleRepository,UserRepository};
+use CajeerEngine\Database\Repository\{ApiTokenRepository,AuditLogRepository,RoleRepository,UserRepository,UserSessionRepository};
 use CajeerEngine\Http\Middleware\{ApiContractMiddleware,AuthenticationMiddleware,ErrorHandlerMiddleware,JsonBodyMiddleware,MiddlewarePipeline,SecurityHeadersMiddleware};
 use CajeerEngine\Http\{RouteRegistry,Router};
 use CajeerEngine\Privacy\{TrackingConfig,ConsentPolicy};
@@ -31,7 +31,12 @@ try {
     $read=$tokens->create($uid,'reader',['tracking:read'])['plain_token'];$write=$tokens->create($uid,'writer',['tracking:read','tracking:write'])['plain_token'];
     $serverToken=$tokens->create($uid,'server',['tracking:read','tracking:write','integrations:run'])['plain_token'];
     $hubRead=$tokens->create($uid,'hub-reader',['analytics:read'])['plain_token'];$hubWrite=$tokens->create($uid,'hub-writer',['analytics:read','analytics:write','analytics:run','integrations:secrets'])['plain_token'];
-    $auth=new AuthService($config,$users,$tokens,new AuditLogRepository($db),$passwords,new TwoFactorTotp());
+    // Browser cookies must reference a real, revocable session; API bearer tokens are not cookies.
+    $sessionRecord=$tokens->create($uid,'admin-session',['*']);
+    $session=$sessionRecord['plain_token'];
+    $sessions=new UserSessionRepository($db);
+    $sessions->register($sessionRecord['id'],$uid,'local',Request::create('/api/v1/tracking/counters','PUT'),$sessionRecord['expires_at']);
+    $auth=new AuthService($config,$users,$tokens,new AuditLogRepository($db),$passwords,new TwoFactorTotp(),$sessions);
     $tracking=new TrackingConfig($work);$policy=new ConsentPolicy($work);$audit=new AuditLogger($work);
     $eventConfig=new EventConfig($work);$journal=new EventJournal($work);$center=new IntegrationCenter(new IntegrationStore($work),ProviderRegistry::defaults(),new SecretVault('base64:'.base64_encode(random_bytes(32))),$config);$server=new ServerEvents($work,$center,new FileQueueDriver($work));
     $hub=new \CajeerEngine\Analytics\Reporting\AnalyticsHub($db,new SecretVault('base64:'.base64_encode(random_bytes(32))),new FileQueueDriver($work),$config);
@@ -49,10 +54,13 @@ try {
     assertHttp($call('GET',$path)->getStatusCode()===401,'anonymous admin read denied');
     assertHttp($call('GET',$path,$read)->getStatusCode()===200,'read scope accepted');
     assertHttp($call('PUT',$path,$read,$input)->getStatusCode()===403,'reader cannot publish');
-    assertHttp($call('PUT',$path,null,$input,$write)->getStatusCode()===403,'cookie mutation requires CSRF');
+    $withoutCsrf=$call('PUT',$path,null,$input,$session);
+    assertHttp($withoutCsrf->getStatusCode()===403
+        && (json_decode((string)$withoutCsrf->getContent(),true)['error']['code'] ?? null)==='csrf_failed',
+        'cookie mutation requires CSRF');
     assertHttp($call('PUT',$path,$write,['revision'=>1])->getStatusCode()===422,'schema rejects incomplete configuration');
     assertHttp($call('PUT',$path,$write,array_replace($input,['gtm_id'=>'GTM-ABC123']))->getStatusCode()===422,'reject direct tags with GTM');
-    $old=$policy->publicConfig()['version'];$res=$call('PUT',$path,null,$input,$write,AuthService::csrfToken($write));
+    $old=$policy->publicConfig()['version'];$res=$call('PUT',$path,null,$input,$session,AuthService::csrfToken($session));
     assertHttp($res->getStatusCode()===200&&json_decode((string)$res->getContent(),true)['data']['revision']===2,'authenticated publication persists');
     assertHttp($call('PUT',$path,$write,$input)->getStatusCode()===409,'stale revision conflict');
     $pub=$call('GET','/api/v1/public/consent');$data=json_decode((string)$pub->getContent(),true)['data'];
@@ -81,7 +89,7 @@ try {
     assertHttp(!str_contains((string)$call('GET','/')->headers->get('Content-Security-Policy'),'googletagmanager.com'),'disabled CSP does not permit vendor scripts');
     $hubPath='/api/v1/analytics/reports';$source=['name'=>'Metrika site','provider'=>'metrika','resource'=>'1234','enabled'=>true,'credential'=>['type'=>'oauth_token','token'=>'private-test-token']];
     assertHttp($call('GET',$hubPath)->getStatusCode()===401&&$call('GET',$hubPath,$hubRead)->getStatusCode()===200,'analytics hub read scope');
-    assertHttp($call('POST',$hubPath,$hubRead,$source)->getStatusCode()===403&&$call('POST',$hubPath,null,$source,$hubWrite)->getStatusCode()===403,'analytics write scope and CSRF required');
+    assertHttp($call('POST',$hubPath,$hubRead,$source)->getStatusCode()===403&&$call('POST',$hubPath,null,$source,$session)->getStatusCode()===403,'analytics write scope and CSRF required');
     assertHttp($call('POST',$hubPath,$hubWrite,array_replace($source,['resource'=>'G-123']))->getStatusCode()===422,'analytics property schema rejects measurement ID');
     $created=$call('POST',$hubPath,$hubWrite,$source);assertHttp($created->getStatusCode()===201&&!str_contains($created->getContent(),'private-test-token'),'source created and credential not exposed');$hubId=json_decode($created->getContent(),true)['data']['id'];
     assertHttp($call('GET',$hubPath.'/'.$hubId.'/data',$hubRead)->getStatusCode()===200,'empty stored report readable');
@@ -91,8 +99,11 @@ try {
     $searchCreated=$call('POST',$hubPath,$hubWrite,$searchSource);assertHttp($searchCreated->getStatusCode()===201,'Search Console property created');$searchId=json_decode($searchCreated->getContent(),true)['data']['id'];
     $actionPath=$hubPath.'/'.$searchId.'/webmaster';$action=['revision'=>1,'action'=>'inspect','url'=>'https://other.example/page'];
     assertHttp($call('POST',$actionPath,$hubRead,$action)->getStatusCode()===403,'webmaster action requires write and run scopes');
-    assertHttp($call('POST',$actionPath,null,$action,$hubWrite)->getStatusCode()===403,'webmaster action CSRF required');
+    assertHttp($call('POST',$actionPath,null,$action,$session)->getStatusCode()===403,'webmaster action CSRF required');
     assertHttp($call('POST',$actionPath,$hubWrite,array_replace($action,['action'=>'invalid']))->getStatusCode()===422,'webmaster action validates operation');
     assertHttp($call('DELETE',$hubPath.'/'.$searchId,$hubWrite,['revision'=>1])->getStatusCode()===200,'search source deletion');
     assertHttp($call('DELETE',$hubPath.'/'.$hubId,$hubWrite,['revision'=>1])->getStatusCode()===200,'source deletion');
+    assertHttp($sessions->revoke($sessionRecord['id'],$uid),'browser session can be revoked');
+    assertHttp($call('PUT',$path,null,$input,$session,AuthService::csrfToken($session))->getStatusCode()===401,
+        'revoked browser session rejected despite valid CSRF');
 } finally { putenv('ANALYTICS_SERVER_TARGETS'); RecoveryBundle::cleanup($work); }
