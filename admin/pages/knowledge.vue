@@ -28,7 +28,8 @@ async function refresh(){
       api.request<{data:{handle:string;name:string}[]}>('/content-types')
     ])
     categories.value=a.data;documents.value=b.data.items;total.value=b.data.total;types.value=c.data
-    if(types.value.length&&!types.value.some(x=>x.handle===cms.type))cms.type=types.value[0].handle
+    const firstType = types.value[0]
+    if(firstType && !types.value.some(x=>x.handle===cms.type))cms.type=firstType.handle
   }catch(e){error.value=e instanceof Error?e.message:'Не удалось получить базу знаний.'}
   finally{loading.value=false}
 }

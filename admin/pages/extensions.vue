@@ -63,10 +63,10 @@ onMounted(load)
     <p>Modules, plugins и themes управляются через Extension Registry.</p>
 
     <div class="ce-card-grid">
-      <AdminCard title="Обнаружено" :value="String(meta.discovered || 0)" />
-      <AdminCard title="Установлено" :value="String(meta.installed || 0)" />
-      <AdminCard title="Включено" :value="String(meta.enabled || 0)" />
-      <AdminCard title="Невалидно" :value="String(meta.invalid || 0)" />
+      <AdminCard label="Обнаружено" :value="String(meta.discovered || 0)" />
+      <AdminCard label="Установлено" :value="String(meta.installed || 0)" />
+      <AdminCard label="Включено" :value="String(meta.enabled || 0)" />
+      <AdminCard label="Невалидно" :value="String(meta.invalid || 0)" />
     </div>
 
     <form class="ce-panel" @submit.prevent="installTarget">

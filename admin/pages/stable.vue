@@ -16,10 +16,10 @@
 <script setup lang="ts">
 const api = useAdminApi()
 const state = ref<unknown>({ loading: true })
-async function load() { state.value = await api.get('/stable') }
-async function smoke() { state.value = await api.post('/stable/smoke-test', {}) }
-async function lock() { state.value = await api.post('/stable/release-lock', {}) }
-async function backup() { state.value = await api.post('/stable/backup', { include_uploads: true }) }
-async function support() { state.value = await api.post('/stable/support-bundle', { include_logs: true }) }
+async function load() { state.value = await api.request('/stable') }
+async function smoke() { state.value = await api.request('/stable/smoke-test', { method: 'POST', body: JSON.stringify({}) }) }
+async function lock() { state.value = await api.request('/stable/release-lock', { method: 'POST', body: JSON.stringify({}) }) }
+async function backup() { state.value = await api.request('/stable/backup', { method: 'POST', body: JSON.stringify({ include_uploads: true }) }) }
+async function support() { state.value = await api.request('/stable/support-bundle', { method: 'POST', body: JSON.stringify({ include_logs: true }) }) }
 onMounted(load)
 </script>

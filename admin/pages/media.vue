@@ -1,12 +1,13 @@
 <script setup lang="ts">
 const { request } = useAdminApi()
-const media = ref<any[]>([])
+type MediaAsset = { id: string; filename: string; mime_type: string; url: string; size: number }
+const media = ref<MediaAsset[]>([])
 const filename = ref('note.txt')
 const content = ref('CajeerEngine media upload')
 const error = ref('')
 
 async function load() {
-  const response = await request('/media')
+  const response = await request<{ data: MediaAsset[] }>('/media')
   media.value = response.data || []
 }
 
