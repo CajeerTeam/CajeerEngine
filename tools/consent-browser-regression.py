@@ -7,6 +7,7 @@ import html
 import json
 import os
 import shutil
+import time
 import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -24,6 +25,19 @@ def check(condition, message):
     if not condition:
         raise AssertionError(message)
     print('PASS', message, flush=True)
+
+def wait_for_expression(page, expression, timeout_ms=10000):
+    """Poll via Playwright's protocol evaluator without browser-side eval (CSP safe)."""
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        try:
+            if page.evaluate(expression):
+                return
+        except Exception:
+            if page.is_closed():
+                raise
+        page.wait_for_timeout(50)
+    raise AssertionError(f'Browser state was not reached: {expression}')
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args): pass
@@ -70,25 +84,25 @@ try:
         check(not any(x in REQUESTS for x in ['/analytics.js','/marketing.js','/functional.js']) and not external,'no optional HTTP requests before consent')
         check(page.evaluate("CajeerConsent.allows('analytics')") is False,'default denied')
         check(page.evaluate("dataLayer[0][2].ad_user_data")=='denied','Google Consent Mode defaults queued without network')
-        page.get_by_role('button',name='Reject all').click();page.reload();page.wait_for_function('CajeerConsent.getState().ready')
+        page.get_by_role('button',name='Reject all').click();page.reload();wait_for_expression(page, 'CajeerConsent.getState().ready')
         check(not page.get_by_role('dialog').is_visible() and not page.evaluate("CajeerConsent.allows('analytics')"),'rejection persisted across reload')
-        page.get_by_role('button',name='Privacy preferences').click();page.get_by_role('checkbox',name='Analytics').check();page.get_by_role('button',name='Save choices').click();page.wait_for_function('window.analyticsLoaded===1 && window.externalLoaded===true')
+        page.get_by_role('button',name='Privacy preferences').click();page.get_by_role('checkbox',name='Analytics').check();page.get_by_role('button',name='Save choices').click();wait_for_expression(page, 'window.analyticsLoaded===1 && window.externalLoaded===true')
         check(page.evaluate("CajeerConsent.allows('analytics') && !CajeerConsent.allows('marketing')") and '/marketing.js' not in REQUESTS and '/functional.js' not in REQUESTS,'granular consent loads only analytics')
         check(external==['https://tracker.example/allowed.js'],'only approved external origin loaded')
         check(page.evaluate("dataLayer.at(-1)[2].analytics_storage")=='granted' and page.evaluate("dataLayer.at(-1)[2].ad_storage")=='denied','Google consent update follows categories')
         check(page.evaluate("JSON.parse(localStorage.getItem('ce.consent.v1')).history.length") == 2,'bounded local decision history recorded')
-        tab=ctx.new_page();tab.goto(base);tab.wait_for_function('window.analyticsLoaded===1')
-        page.get_by_role('button',name='Privacy preferences').click();page.get_by_role('button',name='Reject all').click();page.wait_for_function('CajeerConsent.getState().ready && !CajeerConsent.allows("analytics")');tab.wait_for_function('CajeerConsent.getState().ready && !CajeerConsent.allows("analytics")');tab.wait_for_function('window.analyticsLoaded===undefined')
+        tab=ctx.new_page();tab.goto(base);wait_for_expression(tab, 'window.analyticsLoaded===1')
+        page.get_by_role('button',name='Privacy preferences').click();page.get_by_role('button',name='Reject all').click();wait_for_expression(page, 'CajeerConsent.getState().ready && !CajeerConsent.allows("analytics")');wait_for_expression(tab, 'CajeerConsent.getState().ready && !CajeerConsent.allows("analytics")');wait_for_expression(tab, 'window.analyticsLoaded===undefined')
         check(page.evaluate("!document.cookie.includes('_ga=')") and tab.evaluate("!document.cookie.includes('_ga=')"),'revocation removes managed cookies and reloads active tabs')
-        tab.close();page.get_by_role('button',name='Privacy preferences').click();page.get_by_role('button',name='Accept all').click();page.wait_for_function('window.marketingLoaded===1 && window.functionalLoaded===1')
+        tab.close();page.get_by_role('button',name='Privacy preferences').click();page.get_by_role('button',name='Accept all').click();wait_for_expression(page, 'window.marketingLoaded===1 && window.functionalLoaded===1')
         STATE['policy']={**POLICY,'version':'b'*64,'revision':2};page.reload();page.get_by_role('button',name='Reject all').wait_for()
         check(page.evaluate("!CajeerConsent.allows('analytics') && CajeerConsent.getState().revision===2") and page.evaluate('window.analyticsLoaded===undefined'),'fresh API policy invalidates stored consent even with stale cached HTML')
-        page.get_by_role('button',name='Accept all').click();page.wait_for_function('window.analyticsLoaded===1')
+        page.get_by_role('button',name='Accept all').click();wait_for_expression(page, 'window.analyticsLoaded===1')
         page.evaluate("let x=JSON.parse(localStorage.getItem('ce.consent.v1'));x.expires=Date.now()-1;localStorage.setItem('ce.consent.v1',JSON.stringify(x))");page.reload();page.get_by_role('button',name='Reject all').wait_for()
         check(page.evaluate("!CajeerConsent.allows('analytics')"),'expired consent is denied')
         STATE['fail']=True;page.reload();page.wait_for_timeout(400)
         check(page.evaluate("!CajeerConsent.getState().ready && !CajeerConsent.allows('analytics')") and page.evaluate('window.analyticsLoaded===undefined'),'policy API failure fails closed')
-        ctx.close();ctx=browser.new_context();ctx.route('https://tracker.example/**',route);ctx.route('https://evil.example/**',route);page=ctx.new_page();n=REQUESTS.count('/api/v1/public/consent');page.goto(base+'/static');page.get_by_role('button',name='Accept all').wait_for();page.get_by_role('button',name='Accept all').click();page.wait_for_function('window.analyticsLoaded===1')
+        ctx.close();ctx=browser.new_context();ctx.route('https://tracker.example/**',route);ctx.route('https://evil.example/**',route);page=ctx.new_page();n=REQUESTS.count('/api/v1/public/consent');page.goto(base+'/static');page.get_by_role('button',name='Accept all').wait_for();page.get_by_role('button',name='Accept all').click();wait_for_expression(page, 'window.analyticsLoaded===1')
         check(REQUESTS.count('/api/v1/public/consent')==n,'static export snapshot works without API')
         check(not errors,'no browser runtime exceptions')
         ctx.close();browser.close()
