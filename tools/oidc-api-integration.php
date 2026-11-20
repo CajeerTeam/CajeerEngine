@@ -59,7 +59,7 @@ $request=static function(string $path,string $token,string $method='GET',bool $c
 };
 $identity=$auth->authenticateRequest($request('/api/v1/auth/me',$jwt));
 $check(($identity['user_id']??null)===$uid && ($identity['auth_source']??null)==='oidc_access','verified subject resolves to linked Cajeer user');
-$check(($identity['cookie']??null)===false && ($identity['session']??null)===false && ($identity['token_id']??'missing')===null,'external access is not a browser session');
+$check(($identity['cookie']??null)===false && ($identity['session']??null)===false && array_key_exists('token_id', $identity) && $identity['token_id'] === null,'external access is not a browser session');
 $check(($identity['scopes']??null)===['content:read','media:read'],'external OAuth scopes capped by local RBAC and API policy');
 $check(!$auth->hasScopes($identity,['content:write']) && $auth->hasScopes($identity,['content:read']),'privileged operations blocked by policy');
 $check($auth->authenticateRequest($request('/api/v1/auth/sessions',$jwt))===null,'session management cannot use external bearer token');
