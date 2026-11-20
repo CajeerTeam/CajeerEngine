@@ -160,7 +160,10 @@ final readonly class KeyRotation
                 }
                 continue;
             }
-            foreach ($item['events'] ?? [] as $event => &$record) {
+            if (!isset($item['events'])) continue;
+            if (!is_array($item['events'])) throw new \RuntimeException('Invalid advertising event registry');
+            // Iterate the stored array directly: `?? []` creates a temporary for by-reference foreach.
+            foreach ($item['events'] as $event => &$record) {
                 if (!isset($record['ad_data'])) continue;
                 if (!is_string($record['ad_data'])) throw new \RuntimeException('Invalid advertising ciphertext');
                 $new = $this->integrations->rewrap('analytics-ad:v1:'.$grant.':'.$event, $record['ad_data']);
