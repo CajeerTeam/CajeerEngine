@@ -242,12 +242,23 @@ final readonly class ReleaseBuilder
         return !in_array(false, $this->distRequirements(), true);
     }
 
+    /** CI may install development dependencies; production distributions may not. */
+    public function auditedVendorReady(): bool
+    {
+        return $this->vendorInventoryReady(true);
+    }
+
     private function lockedVendorReady(): bool
+    {
+        return $this->vendorInventoryReady(false);
+    }
+
+    private function vendorInventoryReady(bool $allowDevelopment): bool
     {
         try {
             $lock = (string) @file_get_contents($this->rootPath . '/composer.lock');
             $installed = (string) @file_get_contents($this->rootPath . '/vendor/composer/installed.json');
-            $packages = ReleaseDependencyInventory::validate($lock, $installed);
+            $packages = ReleaseDependencyInventory::validate($lock, $installed, $allowDevelopment);
             foreach ($packages as $package) if (!is_file($this->rootPath . '/vendor/' . $package . '/composer.json')) return false;
             foreach (ReleaseDependencyInventory::AUTOLOAD_FILES as $file) if (!is_file($this->rootPath . '/' . $file)) return false;
             return true;

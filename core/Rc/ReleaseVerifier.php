@@ -56,6 +56,13 @@ final readonly class ReleaseVerifier
 
             foreach (['vendor_autoload', 'composer_lock', 'admin_prebuilt_assets', 'locked_vendor', 'env_example', 'cli'] as $requirement) {
                 $ok = (bool) ($distReq[$requirement] ?? false);
+                if ($requirement === 'locked_vendor' && !$ok && $builder->auditedVendorReady()) {
+                    // This is a source/CI checkout with require-dev installed.
+                    // The installed packages must still match the lock exactly;
+                    // the real dist build continues to reject development vendor.
+                    $checks[] = CheckResult::pass('release', 'ci.development_vendor', 'CI dev dependencies match composer.lock; production dist requires no-dev install.');
+                    continue;
+                }
                 $checks[] = $ok
                     ? CheckResult::pass('release', 'dist.requirement.' . $requirement, 'Dist requirement выполнен: ' . $requirement)
                     : CheckResult::warn('release', 'dist.requirement.' . $requirement, 'Dist requirement не выполнен в текущем source sandbox: ' . $requirement);

@@ -75,6 +75,7 @@ jobs:
           composer validate --strict
           node admin/scripts/publish-admin-assets.mjs --check > /dev/null
           php tools/generate-api-sdk.php --check
+          php tools/release-ci-inventory-regression.php
           php tools/ci-check.php --strict
           php bin/cajeer api:lint --strict --json
       - name: Production 2.0 release and support privacy regressions
