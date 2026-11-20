@@ -36,17 +36,18 @@ $key=openssl_pkey_new(['private_key_type'=>OPENSSL_KEYTYPE_RSA,'private_key_bits
 $metadata=json_encode(['issuer'=>$issuer,'authorization_endpoint'=>$issuer.'/protocol/openid-connect/auth','token_endpoint'=>$issuer.'/protocol/openid-connect/token','jwks_uri'=>$issuer.'/protocol/openid-connect/certs','introspection_endpoint'=>$issuer.'/protocol/openid-connect/token/introspect'],JSON_THROW_ON_ERROR);
 $jwks=json_encode(['keys'=>[['kid'=>'api-integration','alg'=>'RS256','kty'=>'RSA','n'=>$b64($rsa['n']),'e'=>$b64($rsa['e'])]]],JSON_THROW_ON_ERROR);
 $revoked=false;
-$transport=static function(string $method,string $url,?string $body,array $headers)use(&$revoked,$metadata,$jwks):array {
+$expiresAt=time()+300;
+$transport=static function(string $method,string $url,?string $body,array $headers)use(&$revoked,$metadata,$jwks,$expiresAt):array {
     if(str_ends_with($url,'/.well-known/openid-configuration'))return ['status'=>200,'body'=>$metadata];
     if(str_ends_with($url,'/certs'))return ['status'=>200,'body'=>$jwks];
-    if(str_ends_with($url,'/token/introspect'))return ['status'=>200,'body'=>json_encode(['active'=>!$revoked,'sub'=>'alice-sub','client_id'=>'frontend-one'],JSON_THROW_ON_ERROR)];
+    if(str_ends_with($url,'/token/introspect'))return ['status'=>200,'body'=>json_encode(['active'=>!$revoked,'sub'=>'alice-sub','client_id'=>'frontend-one','scope'=>'openid cajeer.api','exp'=>$expiresAt,'aud'=>['cajeerengine-api']],JSON_THROW_ON_ERROR)];
     throw new RuntimeException('Unexpected IdP endpoint');
 };
 $client=new OidcClient('cajeerengine-web','client-secret','https://cms.example.test/auth/oidc/callback',$transport);
 $api=new OidcApiAuthenticator($client,$db,'cajeerengine-api',['frontend-one'],'cajeer.api',['content:read','media:read'],true);
 $tokens=new ApiTokenRepository($db);
 $auth=new AuthService($cfg,$users,$tokens,new AuditLogRepository($db),$pw,new TwoFactorTotp(),null,$api);
-$claims=['iss'=>$issuer,'aud'=>['cajeerengine-api'],'sub'=>'alice-sub','typ'=>'Bearer','azp'=>'frontend-one','scope'=>'openid cajeer.api','iat'=>time()-2,'exp'=>time()+300];
+$claims=['iss'=>$issuer,'aud'=>['cajeerengine-api'],'sub'=>'alice-sub','typ'=>'Bearer','azp'=>'frontend-one','scope'=>'openid cajeer.api','iat'=>time()-2,'exp'=>$expiresAt];
 $sign=static function(array $payload)use($key,$b64):string {
     $text=$b64(json_encode(['alg'=>'RS256','kid'=>'api-integration','typ'=>'JWT'],JSON_THROW_ON_ERROR)).'.'.$b64(json_encode($payload,JSON_THROW_ON_ERROR));
     openssl_sign($text,$sig,$key,OPENSSL_ALGO_SHA256);return $text.'.'.$b64($sig);
