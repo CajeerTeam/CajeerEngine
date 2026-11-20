@@ -159,16 +159,24 @@ expect_status 401 --path-as-is "$base/api/v1/%75sers"
 expect_status 401 -I "$base/api/v1/users"
 expect_status 422 "${auth[@]}" -d '{"email":"bad"}' "$base/api/v1/auth/login"
 expect_status 422 "${auth[@]}" -d '{"force":true,"package":"test.zip"}' "$base/api/v1/updates/apply"
-viewer=$(curl -fsS "${auth[@]}" -d '{"email":"viewer@example.invalid","name":"Viewer","password":"ReleaseSmokeOnly-9X!","roles":["viewer"]}' "$base/api/v1/users")
+# A machine/Bearer token may not perform high-risk user mutations, even with admin scopes.
+expect_status 403 "${auth[@]}" -d '{"email":"viewer@example.invalid","name":"Viewer","password":"ReleaseSmokeOnly-9X!","roles":["viewer"]}' "$base/api/v1/users"
+# Obtain a real browser cookie and prove that the session is not implicitly assured.
+browser=$(curl -fsS -c "$root/cookies" -H 'X-Cajeer-Browser: 1' -H 'Content-Type: application/json' -d '{"email":"smoke@example.invalid","password":"ReleaseSmokeOnly-9X!"}' "$base/api/v1/auth/login")
+csrf=$(php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR); if(isset($j["data"]["access_token"]))exit(1); echo $j["data"]["csrf_token"];' <<< "$browser")
+[[ -n $csrf ]]
+expect_status 403 -b "$root/cookies" -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' -d '{"email":"viewer@example.invalid","name":"Viewer","password":"ReleaseSmokeOnly-9X!","roles":["viewer"]}' "$base/api/v1/users"
+php -r '$j=json_decode(file_get_contents($argv[1]),true,512,JSON_THROW_ON_ERROR);if(($j["error"]["code"]??null)!=="step_up_required")exit(1);' "$root/response.json"
+# Confirm the current password through the real HTTP assurance endpoint.
+expect_status 200 -b "$root/cookies" -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' -d '{"password":"ReleaseSmokeOnly-9X!"}' "$base/api/v1/auth/assurance/confirm"
+php -r '$j=json_decode(file_get_contents($argv[1]),true,512,JSON_THROW_ON_ERROR);if(($j["data"]["fresh"]??false)!==true)exit(1);' "$root/response.json"
+viewer=$(curl -fsS -b "$root/cookies" -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' -d '{"email":"viewer@example.invalid","name":"Viewer","password":"ReleaseSmokeOnly-9X!","roles":["viewer"]}' "$base/api/v1/users")
 viewerid=$(php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR); echo $j["data"]["id"];' <<< "$viewer")
 viewerlogin=$(curl -fsS -H 'Content-Type: application/json' -d '{"email":"viewer@example.invalid","password":"ReleaseSmokeOnly-9X!"}' "$base/api/v1/auth/login")
 viewertoken=$(php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR); echo $j["data"]["access_token"];' <<< "$viewerlogin")
 expect_status 403 -H "Authorization: Bearer $viewertoken" -H 'Content-Type: application/json' -d '{"title":"denied","data":{}}' "$base/api/v1/content/pages"
-expect_status 200 "${auth[@]}" -X DELETE "$base/api/v1/users/$viewerid"
+expect_status 200 -b "$root/cookies" -H "X-CSRF-Token: $csrf" -X DELETE "$base/api/v1/users/$viewerid"
 expect_status 401 -H "Authorization: Bearer $viewertoken" "$base/api/v1/auth/me"
-browser=$(curl -fsS -c "$root/cookies" -H 'X-Cajeer-Browser: 1' -H 'Content-Type: application/json' -d '{"email":"smoke@example.invalid","password":"ReleaseSmokeOnly-9X!"}' "$base/api/v1/auth/login")
-csrf=$(php -r '$j=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR); if(isset($j["data"]["access_token"]))exit(1); echo $j["data"]["csrf_token"];' <<< "$browser")
-[[ -n $csrf ]]
 expect_status 200 -b "$root/cookies" "$base/api/v1/auth/me"
 expect_status 403 -b "$root/cookies" -X POST "$base/api/v1/auth/logout"
 expect_status 200 -b "$root/cookies" -H "X-CSRF-Token: $csrf" -X POST "$base/api/v1/auth/logout"
