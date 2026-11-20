@@ -253,11 +253,16 @@ final class AiBackgroundAutomationTest extends TestCase
             $insert->execute([$id,$task['id'],$owner,'Routine work',time()-100]);
         }
         self::assertSame(100,$automation->dispatch()['offered']);
-        $stmt=$pdo->prepare('SELECT last_offer_at FROM ce_ai_automation_runs WHERE id = ?');
-        $stmt->execute([$ids[100]]); self::assertNull($stmt->fetchColumn()?:null);
-        // The previously unoffered run must win over the oldest 100 on next tick.
+        // UUIDs are generated randomly. Their lexicographic order is unrelated to
+        // insertion order, so identify the one unoffered run from persisted state.
+        $unoffered=$pdo->query("SELECT id FROM ce_ai_automation_runs WHERE status = 'queued' AND last_offer_at IS NULL")->fetchAll(PDO::FETCH_COLUMN);
+        self::assertCount(1,$unoffered);
+        self::assertContains($unoffered[0],$ids);
+        // The previously unoffered run must get a turn on the next scheduler tick.
         self::assertSame(100,$automation->dispatch()['offered']);
-        $stmt->execute([$ids[100]]);self::assertNotNull($stmt->fetchColumn());
+        $stmt=$pdo->prepare('SELECT last_offer_at FROM ce_ai_automation_runs WHERE id = ?');
+        $stmt->execute([$unoffered[0]]);
+        self::assertNotNull($stmt->fetchColumn());
     }
 
     public function testMismatchedRunOwnerNeverCallsProvider(): void

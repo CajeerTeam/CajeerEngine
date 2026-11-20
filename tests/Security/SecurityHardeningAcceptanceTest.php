@@ -45,7 +45,11 @@ final class SecurityHardeningAcceptanceTest extends TestCase
         $response = $controller->store($request, []);
         $created = json_decode($response->getContent(), true, flags: JSON_THROW_ON_ERROR)['data'];
         self::assertArrayHasKey('secret', $created);
-        self::assertSame('no-store', $response->headers->get('Cache-Control'));
+        // Symfony adds `private` to cache-control for sensitive responses.
+        // Require both directives without depending on their serialization order.
+        $cacheControl = $response->headers->get('Cache-Control', '');
+        self::assertTrue($response->headers->hasCacheControlDirective('no-store'), $cacheControl);
+        self::assertTrue($response->headers->hasCacheControlDirective('private'), $cacheControl);
         $id = $created['id'];
         $list = json_decode($controller->index(Request::create('/api/v1/webhooks'), [])->getContent(), true, flags: JSON_THROW_ON_ERROR);
         self::assertArrayNotHasKey('secret', $list['data'][0]);
