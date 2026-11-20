@@ -68,6 +68,7 @@ try {
     $config->set('storage.default','local');$config->set('queue.default','file');$config->set('search.default','sqlite');
     $db=new DatabaseManager($config);
     $db->connection()->exec((string)file_get_contents($root.'/migrations/sqlite/0031_ai_chat.sql'));
+    $db->connection()->exec((string)file_get_contents($root.'/migrations/sqlite/0040_ai_cost_control.sql'));
     $db->connection()->exec((string)file_get_contents($root.'/migrations/sqlite/0032_ai_content_editor.sql'));
     $settings=new AiSettings($dir);
     $callCount=0;$failure=false;$received='';
