@@ -72,6 +72,8 @@ jobs:
           python3 tools/staging-load-regression.py
       - name: Migration Center production safety and lossless import regression
         run: php tools/migration-production-regression.php
+      - name: AI Assistant production SSE, function dispatch and privacy regression
+        run: php tools/ai-assistant-production-regression.php
       - name: Full unit and integration test suite
         run: vendor/bin/phpunit --no-coverage
       - name: End-to-end acceptance (real HTTP, SQLite, CMS, queue and AI)

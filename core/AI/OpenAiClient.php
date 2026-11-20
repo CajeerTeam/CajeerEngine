@@ -36,10 +36,12 @@ class OpenAiClient
         $names = [];
         foreach ($tools as $tool) {
             if (($tool['type'] ?? '') !== 'function' || !is_string($tool['name'] ?? null)) throw new \InvalidArgumentException('Invalid tool declaration.');
+            if (!preg_match('/^[a-z][a-z0-9_]{1,63}$/D', $tool['name']) || isset($names[$tool['name']]))
+                throw new \InvalidArgumentException('Duplicate or invalid AI tool declaration.');
             $names[$tool['name']] = true;
         }
         $total = ['input_tokens'=>0,'output_tokens'=>0,'cached_input_tokens'=>0];
-        $trace = []; $callsMade = 0;
+        $trace = []; $callsMade = 0; $seenCallIds = [];
         for ($round = 0; $round < 4; ++$round) {
             // The final round must produce an answer rather than another function call.
             $response = $this->request($key, $model, $input, $maxOutput, $tools, null, $round === 3);
@@ -56,19 +58,27 @@ class OpenAiClient
                 return ['text'=>$response['text'],'usage'=>$total,'response_id'=>$response['response_id'],'tools'=>$trace];
             }
             if ($round >= 3 || $callsMade + count($response['calls']) > 8) throw new AiProviderException('AI function call budget exceeded.', 502);
-            // Preserve complete function_call items so a stateless next request can
-            // correlate call_id with the function_call_output item.
+            // Validate the ENTIRE batch before executing any tool. A malformed later
+            // call must not leave earlier pending CMS action proposals behind.
+            $validatedCalls = [];
             foreach ($response['calls'] as $call) {
                 $name = $call['name'] ?? null;
                 $callId = $call['call_id'] ?? null;
                 $argsJson = $call['arguments'] ?? null;
                 if (!is_string($name) || !isset($names[$name]) || !is_string($callId) || !preg_match('/^[a-zA-Z0-9_-]{4,128}$/D',$callId)
-                    || !is_string($argsJson) || strlen($argsJson) > 4096) {
+                    || isset($seenCallIds[$callId]) || !is_string($argsJson) || strlen($argsJson) > 4096) {
                     throw new AiProviderException('OpenAI returned an invalid function call.', 502);
                 }
+                $seenCallIds[$callId] = true;
                 $arguments = json_decode($argsJson, true);
-                if (!is_array($arguments) || array_is_list($arguments)) throw new AiProviderException('OpenAI supplied invalid tool arguments.', 502);
-                $input[] = ['type'=>'function_call','call_id'=>$callId,'name'=>$name,'arguments'=>$argsJson];
+                if (!is_array($arguments) || !preg_match('/^\s*\{/', $argsJson))
+                    throw new AiProviderException('OpenAI supplied invalid tool arguments.', 502);
+                $validatedCalls[] = ['name'=>$name,'call_id'=>$callId,'arguments_json'=>$argsJson,'arguments'=>$arguments];
+            }
+            // Preserve complete function_call items for the stateless follow-up.
+            foreach ($validatedCalls as $call) {
+                $name = $call['name']; $callId = $call['call_id']; $arguments = $call['arguments'];
+                $input[] = ['type'=>'function_call','call_id'=>$callId,'name'=>$name,'arguments'=>$call['arguments_json']];
                 $begin = microtime(true);
                 $state = 'ok';
                 try {
@@ -112,44 +122,8 @@ class OpenAiClient
         if (strlen($body) > 135000) throw new AiProviderException('OpenAI request exceeds size limits.', 422);
         $ch = curl_init($url);
         if ($ch === false) throw new AiProviderException('Cannot initialize OpenAI transport.', 503);
-        $status = 0; $pending = ''; $seenBytes = 0; $text = ''; $completed = false; $responseId = '';
-        $usage = ['input_tokens'=>0,'output_tokens'=>0,'cached_input_tokens'=>0]; $calls = []; $providerError = null;
-        $onEvent = static function(string $data) use (&$text,&$completed,&$responseId,&$usage,&$calls,&$providerError,$onDelta): void {
-            $event = json_decode($data, true);
-            if (!is_array($event)) return;
-            $type = $event['type'] ?? '';
-            if ($type === 'response.output_text.delta' && is_string($event['delta'] ?? null)) {
-                $delta = $event['delta'];
-                if (strlen($text) + strlen($delta) > 65536) throw new AiProviderException('AI response exceeds size limit.', 502);
-                $text .= $delta;
-                if ($onDelta !== null) $onDelta($delta);
-            } elseif ($type === 'response.completed') {
-                $completed = true;
-                $response = $event['response'] ?? [];
-                $responseId = (string)($response['id'] ?? '');
-                $usage = ['input_tokens'=>max(0,(int)($response['usage']['input_tokens'] ?? 0)), 'output_tokens'=>max(0,(int)($response['usage']['output_tokens'] ?? 0)), 'cached_input_tokens'=>max(0,(int)($response['usage']['input_tokens_details']['cached_tokens'] ?? 0))];
-                foreach ($response['output'] ?? [] as $item) {
-                    if (($item['type'] ?? '') === 'function_call') $calls[] = $item;
-                    elseif (($item['type'] ?? '') === 'message' && $text === '') {
-                        foreach ($item['content'] ?? [] as $part) {
-                            if (($part['type'] ?? '') === 'output_text' && is_string($part['text'] ?? null)) $text .= $part['text'];
-                        }
-                    }
-                }
-            } elseif (in_array($type, ['response.failed','response.incomplete','error'], true)) {
-                $providerError = 'OpenAI did not complete the response.';
-            }
-        };
-        $consume = static function(string $chunk) use (&$pending, $onEvent): void {
-            $pending .= str_replace("\r", '', $chunk);
-            while (($pos = strpos($pending,"\n\n")) !== false) {
-                $frame = substr($pending,0,$pos); $pending = substr($pending,$pos+2);
-                $lines = [];
-                foreach (explode("\n", $frame) as $line) if (str_starts_with($line,'data:')) $lines[] = ltrim(substr($line,5));
-                if ($lines !== []) $onEvent(implode("\n",$lines));
-            }
-            if (strlen($pending) > 262144) throw new AiProviderException('Invalid OpenAI event stream.', 502);
-        };
+        $status = 0; $seenBytes = 0;
+        $stream = new OpenAiResponseStream($onDelta === null ? null : \Closure::fromCallable($onDelta));
         $failure = null;
         try {
             curl_setopt_array($ch, [
@@ -158,12 +132,12 @@ class OpenAiClient
                 CURLOPT_FOLLOWLOCATION=>false,CURLOPT_PROXY=>'',CURLOPT_CONNECTTIMEOUT=>5,CURLOPT_TIMEOUT=>90,
                 CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,
                 CURLOPT_RESOLVE=>[$host.':'.$port.':'.(str_contains($ip,':')?'['.$ip.']':$ip)],
-                CURLOPT_WRITEFUNCTION=>static function($handle,string $chunk) use (&$status,&$seenBytes,$consume,&$failure): int {
+                CURLOPT_WRITEFUNCTION=>static function($handle,string $chunk) use (&$status,&$seenBytes,$stream,&$failure): int {
                     $length = strlen($chunk); $seenBytes += $length;
                     if ($seenBytes > 1048576) { $failure = new AiProviderException('OpenAI stream too large.',502); return 0; }
                     $status = (int)curl_getinfo($handle,CURLINFO_RESPONSE_CODE);
                     if ($status >= 200 && $status < 300) {
-                        try { $consume($chunk); } catch (\Throwable $e) { $failure = $e; return 0; }
+                        try { $stream->feed($chunk); } catch (\Throwable $e) { $failure = $e; return 0; }
                     }
                     return $length;
                 },
@@ -175,10 +149,7 @@ class OpenAiClient
             if ($status === 429) throw new AiProviderException('OpenAI rate or quota limit reached.',429);
             if ($status === 401 || $status === 403) throw new AiProviderException('OpenAI rejected the configured API key.',502);
             if ($status < 200 || $status >= 300) throw new AiProviderException('OpenAI temporarily unavailable (HTTP '.$status.').',502);
-            if (!$completed || $providerError !== null || $usage['input_tokens']+$usage['output_tokens'] <= 0)
-                throw new AiProviderException('OpenAI returned an incomplete response.',502);
-            if (strlen($text) > 65536) throw new AiProviderException('AI response exceeds size limit.',502);
-            return ['text'=>$text,'calls'=>$calls,'usage'=>$usage,'response_id'=>$responseId];
+            return $stream->result();
         } finally { curl_close($ch); }
     }
 }

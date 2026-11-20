@@ -57,6 +57,7 @@ final readonly class AiGaAcceptance
             'ce_ai_editor_proposals', 'ce_ai_translation_proposals', 'ce_ai_translation_glossary',
             'ce_kb_categories', 'ce_kb_documents', 'ce_kb_chunks', 'ce_kb_terms',
             'ce_ai_kb_conversations', 'ce_ai_kb_messages', 'ce_support_tickets', 'ce_support_messages',
+            'ce_ai_automations', 'ce_ai_automation_runs',
         ];
         try {
             $pdo = $this->db->connection();
@@ -73,7 +74,7 @@ final readonly class AiGaAcceptance
             }
         } catch (\Throwable) {
             $record('database_connectivity', false, 'Database connection or schema cannot be read.');
-            $record('ai_sql_schema', false, 'Apply migrations through 0040 before enabling AI.');
+            $record('ai_sql_schema', false, 'Apply all AI migrations through 0043 before enabling the assistant.');
         }
         if ($probeProvider) {
             // Explicit operator opt-in: this makes one billable outbound OpenAI request.

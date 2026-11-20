@@ -72,7 +72,8 @@ final readonly class AiChat
         $month = gmdate('Y-m');
         $costJob = self::uuid();
         // Reserve a deliberately conservative upper bound before the external call.
-        $prepared = $this->db->transaction(function (PDO $pdo) use ($userId, $id, $newId, $message, $settings, $now, $busyUntil, $month, $definitions, $costJob, $billingModule): array {
+        try {
+            $prepared = $this->db->transaction(function (PDO $pdo) use ($userId, $id, $newId, $message, $settings, $now, $busyUntil, $month, $definitions, $costJob, $billingModule): array {
             // Reclaim reservations abandoned by dead PHP workers after the 180s lease expires.
             $expiredQuery = 'SELECT id, reserved_tokens, reservation_period FROM ce_ai_conversations WHERE user_id = ? AND busy_until > 0 AND busy_until < ? AND reserved_tokens > 0';
             if (in_array($this->db->driver(), ['mysql', 'pgsql'], true)) $expiredQuery .= ' FOR UPDATE';
@@ -121,7 +122,13 @@ final readonly class AiChat
             $reserve->execute([$reservation, $month, $id, $userId]);
             (new AiCostControl($this->db, $this->settings))->hold($pdo, $costJob, $userId, $billingModule === 'chat' && $definitions !== [] ? 'chat_tools' : $billingModule, $settings, $reservation, $busyUntil, $now);
             return ['input' => $input, 'reservation' => $reservation, 'title' => $row['title']];
-        });
+            });
+        } catch (\Throwable $error) {
+            // Preflight may fail before curl (budget, revoked session or DB outage).
+            // Never keep a decrypted credential in memory after transaction failure.
+            if (function_exists('sodium_memzero')) sodium_memzero($key);
+            throw $error;
+        }
         try {
             $result = $definitions === []
                 ? $this->client->complete($key, $settings['model'], $prepared['input'], $settings['max_output_tokens'], $onDelta)

@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## AI Assistant Production 1.9.4
+
+Усилен реальный транспорт OpenAI Responses: проверка SSE-потока, строгий учёт usage, защита от повреждённых ответов, атомарная предварительная проверка группы AI Tools и фильтрация секретов в JSON. Запускать [регрессии и production acceptance](docs/ai-assistant-production-1.9.4.md) перед обновлением. Реальный платный запрос выполняется только с явным `--probe-provider`; результат CI не заменяет staging-приёмку.
+
 ## SkiF4er ID Production 1.9.3
 
 Усилена реальная серверная авторизация: строгая привязка introspection к подписанному access JWT, защита ID-токенов от подмены OAuth bearer, проверка ключей JWKS и исправление production `identity:acceptance` для актуальных версий. См. [SkiF4er ID Production](docs/skif4er-id-production-1.9.3.md). Проверка реальных браузерных сессий и глобального SSO на staging остаётся обязательной.

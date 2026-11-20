@@ -41,15 +41,11 @@ try {
         echo 'SKIP SQL fixtures: no pdo_sqlite\n';
         exit(0);
     }
-    $pdo = (new DatabaseManager($cfg))->connection();
-    $pdo->exec('PRAGMA foreign_keys = ON');
-    foreach (['0031_ai_chat','0032_ai_content_editor','0033_ai_translation_studio','0034_ai_knowledge_base','0035_ai_knowledge_chat','0036_ai_support_center','0037_ai_tools','0038_ai_actions'] as $name) {
-        $pdo->exec((string)file_get_contents($root.'/migrations/sqlite/'.$name.'.sql'));
-    }
-    // The service must use this same connection to examine the schema.
-    $db = new DatabaseManager($cfg); $connection = $db->connection();
-    foreach (['0031_ai_chat','0032_ai_content_editor','0033_ai_translation_studio','0034_ai_knowledge_base','0035_ai_knowledge_chat','0036_ai_support_center','0037_ai_tools','0038_ai_actions'] as $name)
-        $connection->exec((string)file_get_contents($root.'/migrations/sqlite/'.$name.'.sql'));
+    // Exercise the exact 1.9.x migration chain, not the obsolete 0031-0038 subset.
+    $db = new DatabaseManager($cfg);
+    $connection = $db->connection();
+    $connection->exec('PRAGMA foreign_keys = ON');
+    (new \CajeerEngine\Database\MigrationRunner($connection, $root.'/migrations'))->run('sqlite');
     $service = new AiGaAcceptance($root, $cfg, $db);
     $healthy = $service->run(); $healthyChecks = array_column($healthy['checks'], 'status', 'check');
     $check($healthyChecks['database_connectivity'] === 'pass' && $healthyChecks['ai_sql_schema'] === 'pass', 'All real migrated AI tables pass readiness');

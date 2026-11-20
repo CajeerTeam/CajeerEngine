@@ -175,6 +175,8 @@ jobs:
         run: python3 tools/ai-external-analytics-browser.py
       - name: AI Tools real Responses function calling and scope security
         run: php tools/ai-tools-regression.php
+      - name: AI Assistant production SSE, function dispatch and privacy regression
+        run: php tools/ai-assistant-production-regression.php
       - name: AI Tools PDO Knowledge Base execution, tool history and budget acceptance
         run: php tools/ai-tools-integration.php --require-db
       - name: AI Actions real CMS, support, ACL and optimistic approval (PDO SQLite)
