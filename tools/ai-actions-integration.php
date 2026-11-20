@@ -29,14 +29,18 @@ function denied172(callable $run, string $what):void {
 }
 $tmp=sys_get_temp_dir().'/ce-actions-'.bin2hex(random_bytes(5));mkdir($tmp,0700);
 $old=getenv('CONTENT_STORAGE');
+$oldCms=getenv('CMS_STORAGE');
 try {
+    // All CMS collaborators in this integration must use the same migrated SQLite connection.
     putenv('CONTENT_STORAGE=database');
+    putenv('CMS_STORAGE=database');
     $config=new ConfigRepository($root);$config->set('database.default','sqlite');
     $config->set('database.connections.sqlite.database',':memory:');
     $db=new DatabaseManager($config);$pdo=$db->connection();
-    foreach (['0001_initial_schema','0002_database_core','0003_content_core','0010_public_routes','0012_cms_search','0036_ai_support_center','0038_ai_actions'] as $migration) {
+    foreach (['0001_initial_schema','0002_database_core','0003_content_core','0008_cms_product_layer','0010_public_routes','0012_cms_search','0036_ai_support_center','0038_ai_actions'] as $migration) {
         $pdo->exec((string)file_get_contents($root.'/migrations/sqlite/'.$migration.'.sql'));
     }
+    pass172($db->tableExists('ce_cms_theme_settings') && $db->tableExists('ce_cms_navigation_menus') && $db->tableExists('ce_cms_redirects'), 'CMS routing dependencies are migrated before AI actions');
     $types=new ContentTypeRepository($tmp,$db);$entries=new ContentEntryRepository($tmp,$db);
     $types->create(['handle'=>'pages','name'=>'Pages','fields'=>[['handle'=>'body','label'=>'Body','type'=>'textarea']]]);
     $support=(new ReflectionClass(AiSupportCenter::class))->newInstanceWithoutConstructor();
@@ -86,6 +90,7 @@ try {
     echo "AI Actions real PHP/PDO acceptance PASSED\n";
 } finally {
     putenv('CONTENT_STORAGE='.($old===false?'':$old));
+    putenv('CMS_STORAGE='.($oldCms===false?'':$oldCms));
     foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tmp, FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST) as $f) {
         if ($f->isDir()&&!$f->isLink())rmdir($f->getPathname()); else unlink($f->getPathname());
     } rmdir($tmp);
