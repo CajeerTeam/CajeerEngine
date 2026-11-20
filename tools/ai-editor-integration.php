@@ -30,9 +30,9 @@ $reject = static function (callable $fn, string $label) use ($assert): void {
     throw new RuntimeException('FAIL ' . $label);
 };
 $dir = sys_get_temp_dir() . '/ce-ai-editor-' . bin2hex(random_bytes(7)); mkdir($dir, 0700);
-$oldKey = getenv('INTEGRATIONS_KEY'); $oldOpenAi = getenv('OPENAI_API_KEY'); $oldStorage=getenv('CONTENT_STORAGE');
+$oldKey = getenv('INTEGRATIONS_KEY'); $oldOpenAi = getenv('OPENAI_API_KEY'); $oldStorage=getenv('CONTENT_STORAGE'); $oldCmsStorage=getenv('CMS_STORAGE');
 try {
-    putenv('INTEGRATIONS_KEY=base64:' . base64_encode(random_bytes(32)));putenv('OPENAI_API_KEY=');putenv('CONTENT_STORAGE=file');
+    putenv('INTEGRATIONS_KEY=base64:' . base64_encode(random_bytes(32)));putenv('OPENAI_API_KEY=');putenv('CONTENT_STORAGE=file');putenv('CMS_STORAGE=file');
     $settings = new AiSettings($dir);
     $settings->update(['api_key'=>'sk-test-123456789012345678901234567890', 'model'=>'gpt-4.1-mini', 'max_output_tokens'=>256, 'monthly_token_limit'=>100000]);
     $config = new ConfigRepository($root); $config->set('database.default', 'sqlite'); $config->set('database.connections.sqlite.database', ':memory:');
@@ -126,5 +126,5 @@ try {
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST) as $f) {
         if ($f->isDir()&&!$f->isLink())rmdir($f->getPathname());else unlink($f->getPathname());
     } rmdir($dir);
-    foreach (['INTEGRATIONS_KEY'=>$oldKey,'OPENAI_API_KEY'=>$oldOpenAi,'CONTENT_STORAGE'=>$oldStorage] as $key=>$value) putenv($key.'='.($value===false?'':$value));
+    foreach (['INTEGRATIONS_KEY'=>$oldKey,'OPENAI_API_KEY'=>$oldOpenAi,'CONTENT_STORAGE'=>$oldStorage,'CMS_STORAGE'=>$oldCmsStorage] as $key=>$value) putenv($key.'='.($value===false?'':$value));
 }
