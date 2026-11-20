@@ -7,6 +7,7 @@ import html
 import json
 import os
 import shutil
+import time
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -19,6 +20,19 @@ GTM={**DIRECT,'metrika_id':'','ga4_id':'','ga4_debug':False,'gtm_id':'GTM-ABC123
 def check(ok,msg):
     if not ok: raise AssertionError(msg)
     print('PASS',msg,flush=True)
+
+def wait_for_expression(page, expression, timeout_ms=10000):
+    """Evaluate via the Playwright protocol, not browser-side eval blocked by strict CSP."""
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        try:
+            if page.evaluate(expression):
+                return
+        except Exception:
+            if page.is_closed():
+                raise
+        page.wait_for_timeout(50)
+    raise AssertionError(f'Browser state was not reached: {expression}')
 
 def dom(browser):
     def setup(cfg=DIRECT,host='site.example',path='/article',dynamic=True,conflict=False,fail=False):
@@ -34,7 +48,7 @@ def dom(browser):
           const append=document.head.append.bind(document.head);document.head.append=(...nodes)=>{for(const n of nodes){if(n instanceof HTMLScriptElement&&n.dataset.ceTracking){test.scripts.push(n.src);n.dispatchEvent(new Event(test.fail?'error':'load'));}else append(n);}};
           new Function('location','localStorage','fetch',source)(location,storage,fetch);
         }''',{'source':SOURCE,'policy':{**POLICY,'tracking':cfg},'host':host,'path':path,'dynamic':dynamic,'conflict':conflict,'fail':fail})
-        page.wait_for_function('CajeerConsent.getState().ready');return page
+        wait_for_expression(page,'CajeerConsent.getState().ready');return page
     def granular(page):
         page.get_by_role('button',name='Customize').click();page.get_by_role('checkbox',name='Analytics').check();page.get_by_role('button',name='Save choices').click()
     page=setup()
@@ -63,7 +77,7 @@ def dom(browser):
     page=setup(conflict=True);granular(page);check(page.evaluate('CajeerTracking.getStatus().ga4.reason')=='existing-tag' and len(page.evaluate('test.scripts'))==1,'existing Google tag not duplicated');page.close()
     page=setup(fail=True);granular(page);check(page.evaluate('CajeerTracking.getStatus().ga4.reason==="load-failed" && !CajeerTracking.event("lead")'),'failed library reports error, no events');page.close()
     page=setup(dynamic=False);granular(page);check(page.evaluate('test.requests.length===0 && test.scripts.length===2'),'static runtime no API dependency');page.close()
-    page=setup();granular(page);page.evaluate('''()=>{test.policy={...test.policy,version:'b'.repeat(64),tracking:{...test.policy.tracking,enabled:false}};document.dispatchEvent(new Event('visibilitychange'));}''');page.wait_for_function('test.reloads===1');check(page.evaluate('!CajeerTracking.event("lead")'),'configuration revision stops previously loaded tracking');page.close()
+    page=setup();granular(page);page.evaluate('''()=>{test.policy={...test.policy,version:'b'.repeat(64),tracking:{...test.policy.tracking,enabled:false}};document.dispatchEvent(new Event('visibilitychange'));}''');wait_for_expression(page,'test.reloads===1');check(page.evaluate('!CajeerTracking.event("lead")'),'configuration revision stops previously loaded tracking');page.close()
 
 def network(browser):
     # Playwright fulfills the vendor requests, but Chromium actually performs script fetches under CSP.
@@ -79,8 +93,8 @@ def network(browser):
         requests.append(r.request.url);r.fulfill(content_type='application/javascript',body='window.vendorLoaded=(window.vendorLoaded||0)+1;')
     ctx.route('https://site.example/**',site);ctx.route('https://mc.yandex.ru/**',vendor);ctx.route('https://www.googletagmanager.com/**',vendor)
     page=ctx.new_page();page.goto('https://site.example/');page.get_by_role('button',name='Reject all').wait_for();check(not requests,'network: no vendor requests before consent')
-    page.get_by_role('button',name='Accept all').click();page.wait_for_function('window.vendorLoaded===2');check(len(requests)==2,'network: real browser loaded both vendor script URLs under CSP')
-    page.get_by_role('button',name='Privacy preferences').click();page.get_by_role('button',name='Reject all').click();page.wait_for_function('CajeerConsent.getState().ready && !CajeerConsent.allows("analytics")');page.wait_for_function('window.vendorLoaded===undefined');check(len(requests)==2,'network: reload after revoke sends no vendor request')
+    page.get_by_role('button',name='Accept all').click();wait_for_expression(page,'window.vendorLoaded===2');check(len(requests)==2,'network: real browser loaded both vendor script URLs under CSP')
+    page.get_by_role('button',name='Privacy preferences').click();page.get_by_role('button',name='Reject all').click();wait_for_expression(page,'CajeerConsent.getState().ready && !CajeerConsent.allows("analytics")');wait_for_expression(page,'window.vendorLoaded===undefined');check(len(requests)==2,'network: reload after revoke sends no vendor request')
     ctx.close()
 
 if __name__=='__main__':
