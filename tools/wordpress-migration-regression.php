@@ -65,7 +65,7 @@ try{
  $p=$prepare(['name'=>'REST fixture','source'=>'wordpress-rest','config'=>['url'=>'https://old.example.com'],'credential'=>['username'=>'reader','password'=>'app-password']]);$id=$p['id'];$hash=$p['plan']['sha256'];$http->changed=true;reject(fn()=>$center->executeWordPress($id,$hash),RevisionConflict::class,'REST source change blocks execution');check($entries->list('articles')===[],'stale source creates no content');$http->changed=false;
  reject(fn()=>$center->executeDle($id,$hash),InvalidArgumentException::class,'DLE command cannot execute WordPress project');
  $r=$center->executeWordPress($id,$hash);$article=$entries->find('articles','wp-rest');$page=$entries->find('pages','wp-rest-page');
- check($r['counts']['create']===2&&$article['data']['body']==='REST body'&&$page['status']==='draft'&&$page['data']['parent']==='9','REST actual persisted content and protected page');
+ check($r['counts']['create']===2&&$article['data']['body']===WordPressContent::html('REST body')&&str_contains($article['data']['body'],'REST body')&&$page['status']==='draft'&&$page['data']['parent']==='9','REST actual persisted content and protected page');
  check((new RouteIndex($work,$db))->lookup('/wp-rest')['id']===$article['id']&&(new RouteIndex($work,$db))->lookup('/wp-rest-page')===null,'published route exists and protected route is not public');
  check($center->show($id)['status']==='completed'&&$center->executeWordPress($id,$hash)===$r&&count($entries->list('articles'))===1,'completed receipt visible; replay is idempotent');
  reject(fn()=>$center->delete($id,$p['revision']),RevisionConflict::class,'completed WordPress project immutable');
