@@ -33,7 +33,7 @@ with sync_playwright() as p:
     check(page.evaluate('dataLayer.find(x=>x[0]==="event"&&x[1]==="site_search")[2].result_count')==7,'GA4 search mapping and numeric count')
     check(page.evaluate("ym.a.some(x=>x[1]==='reachGoal'&&x[2]==='search_goal')"),'Metrica custom goal mapping')
     check(page.evaluate('''()=>{const id='b'.repeat(32);return CajeerAnalytics.emit('generate_lead',{value:15,currency:'USD'},{id})&&!CajeerAnalytics.emit('generate_lead',{value:15,currency:'USD'},{id})}'''),'stable event ID deduplicated')
-    check(page.evaluate('dataLayer.at(-1)[1]')=='qualified_lead' and page.evaluate("ym.a.some(x=>x[1]==='reachGoal'&&x[2]==='search_goal')"),'per-provider disable and mapped GA4 event')
+    check(page.evaluate("dataLayer.some(x=>x[0]==='event'&&x[1]==='qualified_lead'&&x[2]?.value===15&&x[2]?.currency==='USD')") and page.evaluate("ym.a.some(x=>x[1]==='reachGoal'&&x[2]==='search_goal')"),'per-provider disable and mapped GA4 event')
     check(page.evaluate('!CajeerAnalytics.emit("purchase",{value:1,currency:"USD"}) && !CajeerAnalytics.emit("form_submit") && !CajeerAnalytics.emit("unknown") && !CajeerAnalytics.emit("generate_lead",{email:"test@example.com"})'),'browser purchase, disabled, unknown and PII rejected')
     page.locator('#download').click();page.locator('#outbound').click();page.locator('#ignored').click()
     check(page.evaluate('CajeerAnalytics.getJournal().filter(r=>r.name==="file_download").length')==1,'trusted download click collected')
