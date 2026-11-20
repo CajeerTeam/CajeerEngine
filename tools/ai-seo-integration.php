@@ -35,7 +35,7 @@ try{
     $db->connection()->exec((string)file_get_contents($root.'/migrations/sqlite/0040_ai_cost_control.sql'));
     $db->connection()->exec(file_get_contents($root.'/migrations/sqlite/0032_ai_content_editor.sql'));
     $types=new ContentTypeRepository($dir,$db);$entries=new ContentEntryRepository($dir,$db);
-    $types->create(['handle'=>'pages','name'=>'Pages','fields'=>[['handle'=>'body','type'=>'richtext']]]);
+    $types->create(['handle'=>'pages','name'=>'Pages','fields'=>[['handle'=>'body','label'=>'Body','type'=>'richtext']]]);
     $initial=$entries->create('pages',['title'=>'Installation guide','slug'=>'install','status'=>'published','locale'=>'en','data'=>['body'=>'<h1>How to install</h1><p>Verified setup instructions.</p>']]);
     $currentOutput='Installation guide and setup steps';$calls=0;
     $client=new class($currentOutput,$calls) extends OpenAiClient{
