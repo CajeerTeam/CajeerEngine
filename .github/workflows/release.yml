@@ -525,7 +525,14 @@ jobs:
         run: |
           set -euo pipefail
           version=$(cat VERSION)
-          [[ "$GITHUB_REF_NAME" == "v$version" ]]
+          if [[ "$GITHUB_REF" == "refs/tags/v$version" ]]; then
+            : # Existing immutable tag
+          elif [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
+            : # Certified on-demand release request validated by the release job
+          else
+            echo "Publishing from an unexpected Git ref is forbidden" >&2
+            exit 1
+          fi
           [[ "${GITHUB_REPOSITORY,,}" == cajeerteam/cajeerengine ]]
           [[ -n "$RELEASE_SIGNING_KEY" ]]
           key=$(mktemp)
@@ -563,4 +570,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_DIR: ${{ runner.temp }}/verified-release
-        run: bash tools/github-publish-release.sh "$RELEASE_DIR" "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY"
+        run: bash tools/github-publish-release.sh "$RELEASE_DIR" "v$(cat VERSION)" "$GITHUB_REPOSITORY"
