@@ -16,7 +16,7 @@ final readonly class IdentityMigration
     {
         if(strlen($raw)>16384)return '';
         preg_match_all('/s:\d+:"([a-zA-Z0-9_-]{1,100})";b:1;/', $raw,$m);
-        return implode(',',array_slice(array_unique($m[1]??[]),0,30));
+        return implode(',',array_slice(array_unique($m[1]),0,30));
     }
     public static function safeRole(RoleRepository $roles,string $handle):array
     {
@@ -39,7 +39,7 @@ final readonly class IdentityMigration
                 $name=trim(strip_tags((string)($u['name']??$sid)));if($name==='')$name=$sid;
                 $name=mb_substr($name,0,190);
                 // Unrecoverable random password, never returned or stored in plain text.
-                $hash=password_hash(bin2hex(random_bytes(32)),PASSWORD_ARGON2ID);if(!is_string($hash))throw new \RuntimeException('Password hashing failed.');
+                $hash=password_hash(bin2hex(random_bytes(32)),PASSWORD_ARGON2ID);
                 $id=$this->users->create($email,$name,$hash,[$role]);
                 $this->users->disable($id);
                 $status=!empty($u['blocked'])?'blocked':'pending';

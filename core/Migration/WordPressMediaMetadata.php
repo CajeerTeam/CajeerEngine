@@ -16,7 +16,7 @@ final class WordPressMediaMetadata
             while($reader->read()){
                 $d=$reader->depth;$n=$reader->localName;$wp=str_contains($reader->namespaceURI,'wordpress.org/export/');
                 if($reader->nodeType===\XMLReader::ELEMENT){
-                    if($d===2&&$n==='item'&&$reader->namespaceURI===''){$item=[];continue;}
+                    if($d===2&&$n==='item'&&$reader->namespaceURI===''){$item=['post_id'=>null,'post_type'=>null,'attachment_url'=>null,'_thumbnail_id'=>null,'_wp_attached_file'=>null];continue;}
                     if($item===null)continue;
                     if($d===3&&$wp&&in_array($n,['post_id','post_type','attachment_url'],true)){$item[$n]=$reader->readString();continue;}
                     if($d===3&&$wp&&$n==='postmeta'){$pair=[];continue;}
@@ -27,8 +27,8 @@ final class WordPressMediaMetadata
                     if($d===2&&$n==='item'&&$item!==null){
                         $id=(string)($item['post_id']??'');
                         if(ctype_digit($id)&&$id!=='0'){
-                            if(($item['post_type']??'')==='attachment'){$url=(string)($item['_wp_attached_file']??$item['attachment_url']??'');if($url!=='')$attachments[$id]=$url;}
-                            elseif(ctype_digit((string)($item['_thumbnail_id']??''))&&$item['_thumbnail_id']!=='0')$featured[$id]=(string)$item['_thumbnail_id'];
+                            if(($item['post_type']??'')==='attachment'){$url=(string)(self::metadata($item, '_wp_attached_file') ?: self::metadata($item, 'attachment_url'));if($url!=='')$attachments[$id]=$url;}
+                            else { $thumbnail=self::metadata($item, '_thumbnail_id');if(ctype_digit($thumbnail)&&$thumbnail!=='0')$featured[$id]=$thumbnail; }
                         }
                         $item=null;
                     }
@@ -38,6 +38,11 @@ final class WordPressMediaMetadata
         if(count($attachments)>20000||count($featured)>20000)throw new \RuntimeException('WordPress attachment metadata limit exceeded.');
         return ['attachments'=>$attachments,'featured'=>$featured];
     }
+    private static function metadata(array $item, string $name): string
+    {
+        return is_string($item[$name] ?? null) ? $item[$name] : '';
+    }
+
     public static function fromDatabase(\PDO $pdo,string $prefix):array
     {
         $p=$prefix===''?'':SourceDiscovery::identifier($prefix);

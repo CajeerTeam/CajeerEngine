@@ -90,16 +90,16 @@ final readonly class AiSeoAssistant
         if ($wordCount < 120) $issue('thin_content', 'low', 'В текстовых полях материала мало слов (' . $wordCount . ').', 'Проверить полноту ответа на запрос посетителя.');
         preg_match_all('~<h([1-6])\b[^>]*>~iu', $html, $headingMatches);
         $headingCounts = array_fill_keys(['h1','h2','h3','h4','h5','h6'], 0);
-        foreach ($headingMatches[1] ?? [] as $n) $headingCounts['h' . $n]++;
+        foreach ($headingMatches[1] as $n) $headingCounts['h' . $n]++;
         if ($headingCounts['h1'] > 1) $issue('multiple_h1', 'medium', 'В сохранённом HTML несколько H1.', 'Проверить структуру заголовков (шаблон может добавлять H1 отдельно).');
         if ($headingCounts['h2'] === 0 && $wordCount >= 300) $issue('no_subheadings', 'low', 'В длинном тексте нет H2.', 'Разбить длинный текст на тематические разделы.');
         preg_match_all('~<img\b[^>]*>~iu', $html, $images);
         $missingAlt = 0;
-        foreach ($images[0] ?? [] as $tag) if (!preg_match('~\balt\s*=\s*(["\'])[^"\']+\1~iu', $tag)) $missingAlt++;
+        foreach ($images[0] as $tag) if (!preg_match('~\balt\s*=\s*(["\'])[^"\']+\1~iu', $tag)) $missingAlt++;
         if ($missingAlt > 0) $issue('missing_image_alt', 'medium', 'Изображений без непустого alt: ' . $missingAlt . '.', 'Добавить точные альтернативные описания для информативных изображений.');
         preg_match_all('~<a\b[^>]*\bhref\s*=\s*(["\'])(.*?)\1~iu', $html, $links);
         $badLinks = []; $internalCount = 0;
-        foreach ($links[2] ?? [] as $href) {
+        foreach ($links[2] as $href) {
             if (count($badLinks) >= 10 || !str_starts_with($href, '/') || str_starts_with($href, '//')) continue;
             $urlPath = parse_url($href, PHP_URL_PATH);
             if (!is_string($urlPath) || $urlPath === '' || $urlPath === '/' || !preg_match('~^/[a-zA-Z0-9_./%-]+$~D', $urlPath)) continue;

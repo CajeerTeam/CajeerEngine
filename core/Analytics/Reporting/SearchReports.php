@@ -113,8 +113,8 @@ final readonly class SearchReports implements ReportProvider
                 foreach($r['text_indicator_to_statistics'] as $entry){$byDay=[];foreach($entry['statistics']??[] as $stat){$d=$stat['date']??'';$key=match($stat['field']??''){'CLICKS'=>'TOTAL_CLICKS','IMPRESSIONS'=>'TOTAL_SHOWS','POSITION'=>'AVG_SHOW_POSITION',default=>null};if($key!==null&&$d>=$recentFrom&&$d<=$to)$byDay[$d][$key]=$stat['value']??null;}$tmp=[];foreach($byDay as $v)$tmp[]=['values'=>self::values($v)];$agg=self::aggregate($tmp);if($agg)$rows[]=['label'=>self::label($entry['text_indicator']['value']??null,true),'values'=>$agg[0]['values']];}
                 usort($rows,fn($a,$b)=>($b['values'][0]??-1)<=>($a['values'][0]??-1));$sections['pages']=self::section($rows,'page',(int)($r['count']??0)>100,['actual_from'=>$recentFrom,'actual_to'=>$to,'limited_by_provider'=>true]);
             }
-            $r=$this->json($base.'/sitemaps?limit=100','GET',$headers);if(!is_array($r['sitemaps']??null))throw new \RuntimeException('Invalid analytics response');$maps=[];foreach($r['sitemaps']??[] as $m)$maps[]=['url'=>self::label($m['sitemap_url']??null,true),'status'=>$m['sitemap_type']??null,'errors'=>self::num($m['errors_count']??null),'urls'=>self::num($m['urls_count']??null),'last_read'=>$m['last_access_date']??null];
-            $r=$this->json($base.'/indexing/samples?limit=100','GET',$headers);if(!is_array($r['samples']??null))throw new \RuntimeException('Invalid analytics response');$samples=[];foreach($r['samples']??[] as $m)$samples[]=['url'=>self::label($m['url']??null,true),'status'=>$m['status']??null,'http_code'=>$m['http_code']??null,'last_read'=>$m['access_date']??null];
+            $r=$this->json($base.'/sitemaps?limit=100','GET',$headers);if(!is_array($r['sitemaps']??null))throw new \RuntimeException('Invalid analytics response');$maps=[];foreach($r['sitemaps'] as $m)$maps[]=['url'=>self::label($m['sitemap_url']??null,true),'status'=>$m['sitemap_type']??null,'errors'=>self::num($m['errors_count']??null),'urls'=>self::num($m['urls_count']??null),'last_read'=>$m['last_access_date']??null];
+            $r=$this->json($base.'/indexing/samples?limit=100','GET',$headers);if(!is_array($r['samples']??null))throw new \RuntimeException('Invalid analytics response');$samples=[];foreach($r['samples'] as $m)$samples[]=['url'=>self::label($m['url']??null,true),'status'=>$m['status']??null,'http_code'=>$m['http_code']??null,'last_read'=>$m['access_date']??null];
             $meta=['sitemaps'=>$maps,'sitemaps_limited'=>count($maps)>=100,'index_samples'=>$samples,'index_sample_count'=>$r['count']??null];
         }
         return ['provider'=>$this->provider,'resource'=>$resource,'from'=>$from,'to'=>$to,'metrics'=>self::METRICS,'labels'=>['Clicks','Impressions','CTR (ratio)','Average position'],'timezone'=>$this->provider==='webmaster'?'Europe/Moscow':'America/Los_Angeles','sections'=>$sections,'webmaster'=>$meta,'fetched_at'=>gmdate(DATE_ATOM)];
@@ -135,10 +135,9 @@ final readonly class SearchReports implements ReportProvider
             if($this->provider==='webmaster')$this->json($base.'/user-added-sitemaps','POST',$headers,['url'=>$url]);else $this->json($base.'/sitemaps/'.rawurlencode($url),'PUT',$headers);
             return ['accepted'=>true];
         }
-        if($action==='inspect'&&$this->provider==='search_console'){
+        {
             $r=$this->json('https://searchconsole.googleapis.com/v1/urlInspection/index:inspect','POST',$headers,['inspectionUrl'=>$url,'siteUrl'=>$resource,'languageCode'=>'en-US']);$i=$r['inspectionResult']['indexStatusResult']??null;if(!is_array($i))throw new \RuntimeException('Invalid analytics response');
             $i=array_intersect_key($i,array_flip(['verdict','coverageState','robotsTxtState','indexingState','lastCrawlTime','pageFetchState','googleCanonical','userCanonical']));foreach(['googleCanonical','userCanonical'] as $k)if(isset($i[$k]))$i[$k]=self::label($i[$k],true);return $i;
         }
-        throw new \InvalidArgumentException('Unsupported search action');
     }
 }

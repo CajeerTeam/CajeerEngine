@@ -40,12 +40,12 @@ final class ImportRunCommand extends BaseCommand
         ]);
         if ($input->getOption('json')) {
             $output->writeln(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            return ($result['ok']??false)?self::SUCCESS:self::FAILURE;
+            return $result['ok']?self::SUCCESS:self::FAILURE;
         }
         if (!$result['ok']) { $output->writeln('[FAIL] ' . implode('; ', $result['errors']??[])); return self::FAILURE; }
         $output->writeln('[OK] Import file: ' . $result['file']);
         $output->writeln('[OK] Imported: ' . implode(', ', (array) $result['imported']));
         $output->writeln('[INFO] Skipped: ' . implode(', ', (array) $result['skipped']));
-        return ($result['ok']??false)?self::SUCCESS:self::FAILURE;
+        return $result['ok']?self::SUCCESS:self::FAILURE;
     }
 }

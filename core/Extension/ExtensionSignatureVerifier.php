@@ -25,19 +25,6 @@ final readonly class ExtensionSignatureVerifier
         return hash('sha256', json_encode($raw, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
     }
 
-    /** @param array<string, mixed> $raw */
-    private function expectedHash(array $raw): ?string
-    {
-        $signature = $raw['signature'] ?? $raw['signatures'] ?? null;
-        if (is_string($signature)) {
-            return $signature;
-        }
-        if (is_array($signature) && isset($signature['sha256']) && is_string($signature['sha256'])) {
-            return $signature['sha256'];
-        }
-        return null;
-    }
-
     /** @param array<string, mixed> $value */
     private function ksortRecursive(array &$value): void
     {

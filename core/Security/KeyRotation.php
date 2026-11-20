@@ -56,14 +56,14 @@ final readonly class KeyRotation
     private function aiSettings(bool $apply): array
     {
         $path = Files::path($this->root, 'storage/app/ai/settings.json');
-        if (!is_file($path)) return ['changed'=>0];
+        if (!(new \SplFileInfo($path))->isFile()) return ['changed'=>0];
         $lock = Files::path($this->root, 'storage/app/ai/settings.lock');
         $handle = fopen($lock, 'c+');
         if ($handle === false) throw new \RuntimeException('AI credential rotation lock unavailable.');
         try {
             Files::permissions($lock, 0600);
             if (!flock($handle, $apply ? LOCK_EX : LOCK_SH)) throw new \RuntimeException('AI credential rotation lock failed.');
-            if (!is_file($path)) return ['changed'=>0];
+            if (!(new \SplFileInfo($path))->isFile()) return ['changed'=>0];
             $state = Files::read($path);
             if (!isset($state['key_ciphertext'])) return ['changed'=>0];
             if (!is_string($state['key_ciphertext'])) throw new \RuntimeException('Invalid encrypted AI API credential.');
@@ -137,7 +137,7 @@ final readonly class KeyRotation
     private function serverEvents(bool $apply): array
     {
         $path = Files::path($this->root, 'storage/app/privacy/server-events.json');
-        if (!is_file($path)) return ['changed'=>0];
+        if (!(new \SplFileInfo($path))->isFile()) return ['changed'=>0];
         $state = Files::read($path);
         if (!is_array($state['grants'] ?? null)) throw new \RuntimeException('Invalid server analytics state');
         $changed = 0;

@@ -129,7 +129,9 @@ final readonly class OidcStore
      * SQLite holds its transactional reader lock until session registration.
      * The callback MUST re-check the mapping after a separate provisioning step.
      *
-     * @template T @param callable(string):T $issue @return T
+     * @template T
+     * @param callable(string):T $issue
+     * @return T
      */
     public function withLinkedIdentity(string $issuer, string $subject, callable $issue): mixed
     {

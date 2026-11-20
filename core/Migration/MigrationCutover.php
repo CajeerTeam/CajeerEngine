@@ -206,7 +206,7 @@ final readonly class MigrationCutover
         foreach($verifiedRecords as $r){
             if(($r['action']??'')==='skip'||!isset($r['target_id']))continue;
             $entry=$lookup('entry',[$r['target_type'],$r['target_id']]);if(!$entry)continue;
-            if(isset($r['author_id'])&&$r['author_id']!==null&&($entry['author_id']??null)!==$r['author_id'])$result['drift'][]=['source'=>$r['source_type'].':'.$r['source_id'],'code'=>'author_assignment_changed'];
+            if(isset($r['author_id'])&&($entry['author_id']??null)!==$r['author_id'])$result['drift'][]=['source'=>$r['source_type'].':'.$r['source_id'],'code'=>'author_assignment_changed'];
             foreach(MediaMigration::missingReferences($entry['data'],[]) as $asset){if(count($unresolvedAssets)<50)$unresolvedAssets[$asset]=true;}
             $route=$routes->forEntry((string)$r['target_id']);
             if($entry['status']==='published'){

@@ -17,7 +17,7 @@ final readonly class EventConfig
     {
         $rules=[];
         foreach(['page_view','search','file_download','outbound_click','scroll','form_submit','generate_lead','sign_up','login'] as $name){
-            $rules[]=['name'=>$name,'enabled'=>true,'automatic'=>in_array($name,self::AUTOMATIC,true),'ga4'=>in_array($name,self::AUTOMATIC,true)?'site_'.$name:$name,'metrika'=>$name,'gtm'=>$name,'matomo'=>$name,'plausible'=>$name==='pageview'?'':$name];
+            $rules[]=['name'=>$name,'enabled'=>true,'automatic'=>in_array($name,self::AUTOMATIC,true),'ga4'=>in_array($name,self::AUTOMATIC,true)?'site_'.$name:$name,'metrika'=>$name,'gtm'=>$name,'matomo'=>$name,'plausible'=>$name==='page_view'?'':$name];
         }
         return ['revision'=>1,'enabled'=>true,'allow_custom'=>true,'collect_diagnostics'=>false,'rules'=>$rules];
     }
@@ -32,7 +32,7 @@ final readonly class EventConfig
         $path=F::path($this->root,'storage/app/privacy/events.lock');$h=fopen($path,'c+b');if(!$h)throw new \RuntimeException('Cannot open events lock');
         try{F::permissions($path,0600);if(!flock($h,LOCK_EX))throw new \RuntimeException('Cannot lock events');
              $current=$this->get();if($data['revision']!==$current['revision'])throw new RevisionConflict('Event rules changed; reload before saving.');
-             $previous=array_column($current['rules'],null,'name');foreach($data['rules'] as &$rule){$old=$previous[$rule['name']]??[];$rule+=['matomo'=>$old['matomo']??$rule['name'],'plausible'=>$old['plausible']??($rule['name']==='pageview'?'':$rule['name'])];}unset($rule);$data['revision']++;F::json($dir.'/events.json',$data,0600);return $data;
+             $previous=array_column($current['rules'],null,'name');foreach($data['rules'] as &$rule){$old=$previous[$rule['name']]??[];$rule+=['matomo'=>$old['matomo']??$rule['name'],'plausible'=>$old['plausible']??($rule['name']==='page_view'?'':$rule['name'])];}unset($rule);$data['revision']++;F::json($dir.'/events.json',$data,0600);return $data;
         }finally{fclose($h);}
     }
     public static function name(mixed $name): bool
@@ -40,7 +40,7 @@ final readonly class EventConfig
         return is_string($name)&&preg_match('/^[a-z][a-z0-9_]{0,39}$/D',$name)===1&&!preg_match('/^(?:ce_|google_|ga_|firebase_|gtm_|session_|first_)/',$name)&&!in_array($name,self::RESERVED,true);
     }
     private static function normalize(array $data): array {
-        foreach($data['rules'] as &$rule)$rule+=['matomo'=>$rule['name'],'plausible'=>$rule['name']==='pageview'?'':$rule['name']];unset($rule);return $data;
+        foreach($data['rules'] as &$rule)$rule+=['matomo'=>$rule['name'],'plausible'=>$rule['name']==='page_view'?'':$rule['name']];unset($rule);return $data;
     }
     public static function validate(array $data): void
     {
@@ -50,11 +50,11 @@ final readonly class EventConfig
         $seen=[];
         foreach($data['rules'] as $rule){
             $keys=['name','enabled','automatic',...self::PROVIDERS];
-            if(is_array($rule)&&isset($rule['name']))$rule+=['matomo'=>$rule['name'],'plausible'=>$rule['name']==='pageview'?'':$rule['name']];
+            if(is_array($rule)&&isset($rule['name']))$rule+=['matomo'=>$rule['name'],'plausible'=>$rule['name']==='page_view'?'':$rule['name']];
             if(!is_array($rule)||count($rule)!==count($keys)||array_diff($keys,array_keys($rule))||!self::name($rule['name'])||isset($seen[$rule['name']])||!is_bool($rule['enabled'])||!is_bool($rule['automatic']))throw new \InvalidArgumentException('Invalid or duplicate event rule');
             $seen[$rule['name']]=true;
             if($rule['automatic']&&!in_array($rule['name'],self::AUTOMATIC,true))throw new \InvalidArgumentException('Unsupported automatic event');
-            foreach(self::PROVIDERS as $provider){$target=$rule[$provider];if(!is_string($target)||($provider==='plausible'&&$target==='pageview')||($target!==''&&(!self::name($target)||($rule['name']!=='page_view'&&$target==='page_view'))))throw new \InvalidArgumentException('Invalid event mapping');
+            foreach(self::PROVIDERS as $provider){$target=$rule[$provider];if(!is_string($target)||($provider==='plausible'&&$target==='page_view')||($target!==''&&(!self::name($target)||($rule['name']!=='page_view'&&$target==='page_view'))))throw new \InvalidArgumentException('Invalid event mapping');
                 if($rule['name']==='page_view'&&$target!==''&&$target!=='page_view')throw new \InvalidArgumentException('Page view mapping is fixed');}
         }
         if(!isset($seen['page_view']))throw new \InvalidArgumentException('Page view rule is required');
@@ -63,6 +63,6 @@ final readonly class EventConfig
     {
         if(!$config['enabled']||!self::name($name))return null;
         foreach($config['rules'] as $rule)if($rule['name']===$name)return $rule['enabled']?$rule:null;
-        return $config['allow_custom']?['name'=>$name,'enabled'=>true,'automatic'=>false,'ga4'=>$name,'metrika'=>$name,'gtm'=>$name,'matomo'=>$name,'plausible'=>$name==='pageview'?'':$name]:null;
+        return $config['allow_custom']?['name'=>$name,'enabled'=>true,'automatic'=>false,'ga4'=>$name,'metrika'=>$name,'gtm'=>$name,'matomo'=>$name,'plausible'=>$name]:null;
     }
 }

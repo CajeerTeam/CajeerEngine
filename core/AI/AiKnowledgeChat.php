@@ -183,6 +183,7 @@ final readonly class AiKnowledgeChat
         $settings = $this->settings->status();
         $job = self::uuid(); $period = gmdate('Y-m'); $reserved = 0; $lease = false;
         $usage = ['input_tokens' => 0, 'output_tokens' => 0]; $model = '';
+        $result = null;
         $answer = ['text' => 'В опубликованной базе знаний нет подходящих подтверждённых фрагментов. Уточните вопрос или добавьте документ.', 'sources' => []];
         if ($sources !== []) {
             if (!$settings['configured']) throw new \DomainException('OpenAI API key is not configured.');
@@ -212,7 +213,7 @@ final readonly class AiKnowledgeChat
                     }
                 }
             } catch (\Throwable $e) {
-                $this->release($userId, $period, $job, $reserved, $result['usage'] ?? null);
+                $this->release($userId, $period, $job, $reserved, $result === null ? null : $result['usage']);
                 throw $e;
             }
         }
@@ -223,7 +224,7 @@ final readonly class AiKnowledgeChat
             $created = (int)round(microtime(true) * 1000000);
             $answerId = self::uuid();
             $this->db->transaction(function (PDO $pdo) use ($new, $conversationId, $userId, $title, $scope, $locale, $created,
-                $question, $answer, $answerId, $usage, $model, $lease, $period, $job, $reserved): void {
+                $question, $answer, $answerId, $usage, $lease, $period, $job, $reserved): void {
                 if ($new) {
                     $pdo->prepare('INSERT INTO ce_ai_kb_conversations (id, user_id, title, visibility, locale, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
                         ->execute([$conversationId, $userId, $title, $scope, $locale, time(), time()]);
@@ -248,7 +249,7 @@ final readonly class AiKnowledgeChat
             return ['conversation_id' => $conversationId, 'message_id' => $answerId,
                 'text' => $answer['text'], 'sources' => $answer['sources'], 'usage' => $usage, 'model' => $model];
         } catch (\Throwable $e) {
-            if ($lease) $this->release($userId, $period, $job, $reserved, $result['usage'] ?? null);
+            if ($lease) $this->release($userId, $period, $job, $reserved, $result === null ? null : $result['usage']);
             throw $e;
         }
     }

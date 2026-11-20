@@ -161,7 +161,7 @@ final readonly class S3CompatibleDisk implements StorageDiskInterface
 
         $result = @file_get_contents($url, false, $context);
         /** @var list<string> $responseHeaders */
-        $responseHeaders = $http_response_header ?? [];
+        $responseHeaders = (get_defined_vars()['http_response_header'] ?? []);
         $status = $this->statusCode($responseHeaders);
         if ($result === false) {
             throw new \RuntimeException('S3 request failed без HTTP-ответа: ' . $method . ' ' . $url);
@@ -191,7 +191,7 @@ final readonly class S3CompatibleDisk implements StorageDiskInterface
     private function canonicalUri(string $path): string
     {
         $segments = array_map(static fn (string $segment): string => rawurlencode(rawurldecode($segment)), explode('/', $path));
-        return implode('/', $segments) ?: '/';
+        return $path === '' ? '/' : implode('/', $segments);
     }
 
     private function signingKey(string $date): string

@@ -76,7 +76,7 @@ final class MediaRepository
         $this->assertAllowed($filename,$mime,$size);
         $info=['filename'=>$filename,'mime_type'=>$mime,'size'=>$size,'checksum'=>F::hash($path)];
         if(str_starts_with($mime,'image/')){
-            $dim=@getimagesize($path);if(!$dim||($dim['mime']??'')!==$mime||$dim[0]<=0||$dim[1]<=0||$dim[0]*$dim[1]>16000000)throw new \InvalidArgumentException('Invalid image or pixel limit exceeded');
+            $dim=@getimagesize($path);if(!$dim||$dim['mime']!==$mime||$dim[0]<=0||$dim[1]<=0||$dim[0]*$dim[1]>16000000)throw new \InvalidArgumentException('Invalid image or pixel limit exceeded');
             $info+=['width'=>$dim[0],'height'=>$dim[1]];
         }
         return $info;
@@ -201,7 +201,7 @@ final class MediaRepository
     {
         if($ttl<1||$ttl>900)throw new \InvalidArgumentException('Signed link TTL must be 1–900 seconds');
         $file=$this->download($id,$variant,$version);$expires=time()+$ttl;
-        if($s3){$row=$this->required($id);if($variant!==null&&$variant!=='')throw new \InvalidArgumentException('S3 replica currently supports originals');$replica=$row['s3_replica']??null;if(($replica['checksum']??null)!==$file['checksum'])throw new \InvalidArgumentException('Run media:s3-sync first');$disk=$this->storage->disk('s3');if($disk->fileChecksum($replica['key'])!==$file['checksum'])throw new \RuntimeException('S3 replica damaged; resynchronize');return ['url'=>$disk->presignedUrl($replica['key'],'GET',$ttl,true),'expires_at'=>$expires,'backend'=>'s3'];}
+        if($s3){$row=$this->required($id);if($variant!==null&&$variant!=='')throw new \InvalidArgumentException('S3 replica currently supports originals');$replica=$row['s3_replica']??null;if(($replica['checksum']??null)!==$file['checksum'])throw new \InvalidArgumentException('Run media:s3-sync first');$disk=$this->storage->s3Disk();if($disk->fileChecksum($replica['key'])!==$file['checksum'])throw new \RuntimeException('S3 replica damaged; resynchronize');return ['url'=>$disk->presignedUrl($replica['key'],'GET',$ttl,true),'expires_at'=>$expires,'backend'=>'s3'];}
         $query=['expires'=>$expires,'variant'=>$variant??'','version'=>$version??''];$query['signature']=hash_hmac('sha256',implode('|',[$id,$file['checksum'],$expires,$query['variant'],$query['version']]),$this->signingKey());
         return ['url'=>'/api/v1/media/'.$id.'/signed-download?'.http_build_query($query,'','&',PHP_QUERY_RFC3986),'expires_at'=>$expires,'backend'=>'local'];
     }
@@ -213,7 +213,7 @@ final class MediaRepository
     }
     public function syncReplica(string $id): array
     {
-        return $this->locked(function()use($id){$row=$this->required($id);$file=$this->download($id);$key='media/'.$id.'/'.$row['checksum'].'/'.basename($row['path']);$disk=$this->storage->disk('s3');$disk->putFile($key,$file['local_path']);if($disk->fileChecksum($key)!==$row['checksum'])throw new \RuntimeException('S3 replica checksum mismatch');$row['s3_replica']=['key'=>$key,'checksum'=>$row['checksum'],'verified_at'=>gmdate('c')];$this->catalog->save($row,true);return $row;});
+        return $this->locked(function()use($id){$row=$this->required($id);$file=$this->download($id);$key='media/'.$id.'/'.$row['checksum'].'/'.basename($row['path']);$disk=$this->storage->s3Disk();$disk->putFile($key,$file['local_path']);if($disk->fileChecksum($key)!==$row['checksum'])throw new \RuntimeException('S3 replica checksum mismatch');$row['s3_replica']=['key'=>$key,'checksum'=>$row['checksum'],'verified_at'=>gmdate('c')];$this->catalog->save($row,true);return $row;});
     }
     private function required(string $id): array {return $this->find($id)??throw new \InvalidArgumentException('Media не найден');}
     private function validId(mixed $id): bool {return is_string($id)&&preg_match('/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/D',$id)===1;}

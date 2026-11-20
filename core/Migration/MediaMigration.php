@@ -212,7 +212,7 @@ final readonly class MediaMigration
             $id=(string)$r['target_id'];$type=(string)$r['target_type'];
             $attach=$featured[(string)($r['source_id']??'')]??null;
             if($attach!==null&&$featuredField!==null){
-                $typeInfo=$this->types?->find($type);$fields=array_column($typeInfo['fields']??[],null,'handle');
+                $typeInfo=$this->types->find($type);$fields=array_column($typeInfo['fields']??[],null,'handle');
                 if(($fields[$featuredField]['type']??null)!=='media'){$missingFeatured[]=(string)($r['source_id']??'');$attach=null;}
             }
             $beforeCount=$links;

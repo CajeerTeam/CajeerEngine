@@ -34,7 +34,7 @@ final class RedirectRepository
         $data = $this->file->readObject(['redirects' => []]);
         $items = is_array($data['redirects'] ?? null) ? $data['redirects'] : [];
         usort($items, static fn (array $a, array $b): int => strcmp((string) ($a['source_path'] ?? ''), (string) ($b['source_path'] ?? '')));
-        return array_values($items);
+        return $items;
     }
 
     /** @return array<string,mixed>|null */
@@ -258,7 +258,7 @@ final class RedirectRepository
         $this->file->writeObject([
             'version' => 1,
             'updated_at' => $this->now(),
-            'redirects' => array_values($items),
+            'redirects' => $items,
         ]);
     }
 
@@ -305,7 +305,7 @@ final class RedirectRepository
         return $path === '/' ? '/' : rtrim(preg_replace('#/+#', '/', $path) ?: $path, '/');
     }
 
-    private function boolParam(bool $value): int|bool
+    private function boolParam(bool $value): int
     {
         return $value ? 1 : 0;
     }

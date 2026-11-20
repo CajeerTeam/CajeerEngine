@@ -96,7 +96,7 @@ final readonly class MigrationRunner
         return ['driver' => $driver, 'applied' => $count, 'batch' => $batch, 'migrations' => $executed];
     }
 
-    /** @return array{driver:string,applied:list<array<string,mixed>>,pending:list<array<string,mixed>>,failed:list<array<string,mixed>>} */
+    /** @return array{driver:string,applied:list<array<string,mixed>>,pending:list<array<string,mixed>>,failed:list<array<string,mixed>>,integrity_errors:list<array<string,mixed>>} */
     public function status(string $driver): array
     {
         $driver = $this->assertDriver($driver);
@@ -150,9 +150,9 @@ final readonly class MigrationRunner
         return [
             'driver' => $driver,
             'integrity_errors' => $integrityErrors,
-            'applied' => array_values($appliedRows),
-            'pending' => array_values($pendingRows),
-            'failed' => array_values($failedRows),
+            'applied' => $appliedRows,
+            'pending' => $pendingRows,
+            'failed' => $failedRows,
         ];
     }
 
@@ -299,7 +299,7 @@ final readonly class MigrationRunner
     {
         $files = glob($dir . '/*.sql') ?: [];
         sort($files, SORT_STRING);
-        return array_values($files);
+        return $files;
     }
 
     private function assertDriver(string $driver): string

@@ -251,9 +251,6 @@ final readonly class UserRepository
             throw new \InvalidArgumentException('Пароль администратора должен быть не короче 12 символов.');
         }
         $hash = password_hash($password, PASSWORD_ARGON2ID);
-        if ($hash === false) {
-            throw new \RuntimeException('Не удалось создать хэш пароля администратора.');
-        }
         return $hash;
     }
 

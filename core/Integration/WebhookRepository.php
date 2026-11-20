@@ -330,7 +330,7 @@ final readonly class WebhookRepository
     /** @param list<array<string, mixed>> $items */
     private function persist(array $items): void
     {
-        (new JsonFile($this->path()))->writeObject(['version' => 1, 'updated_at' => $this->now(), 'webhooks' => array_values($items)]);
+        (new JsonFile($this->path()))->writeObject(['version' => 1, 'updated_at' => $this->now(), 'webhooks' => $items]);
     }
 
     /** @return array<string, mixed> */

@@ -33,7 +33,7 @@ final class NavigationRepository
         $data = $this->file->readObject(['menus' => []]);
         $items = is_array($data['menus'] ?? null) ? $data['menus'] : [];
         usort($items, static fn (array $a, array $b): int => strcmp((string) ($a['handle'] ?? ''), (string) ($b['handle'] ?? '')));
-        return array_values($items);
+        return $items;
     }
 
     /** @return array<string,mixed>|null */
@@ -245,9 +245,6 @@ final class NavigationRepository
     {
         $normalized = [];
         foreach ($items as $item) {
-            if (!is_array($item)) {
-                continue;
-            }
             $label = trim((string) ($item['label'] ?? ''));
             $url = trim((string) ($item['url'] ?? ''));
             if ($label === '' || $url === '') {
@@ -277,7 +274,7 @@ final class NavigationRepository
         $this->file->writeObject([
             'version' => 1,
             'updated_at' => $this->now(),
-            'menus' => array_values($menus),
+            'menus' => $menus,
         ]);
     }
 

@@ -146,7 +146,12 @@ final readonly class AdminController
         return is_array($identity) ? $identity : null;
     }
 
-    /** @template T @param callable():T $callback @param T $default @return T */
+    /**
+     * @template T
+     * @param callable():T $callback
+     * @param T $default
+     * @return T
+     */
     private function safe(callable $callback, mixed $default): mixed
     {
         try {

@@ -220,7 +220,7 @@ final readonly class AiSupportCenter
         if (array_key_exists('assigned_to', $input) && $input['assigned_to'] !== null && (!is_string($input['assigned_to']) || !preg_match('/^[a-f0-9-]{36}$/iD', $input['assigned_to']))) {
             throw new \InvalidArgumentException('Invalid assignee.');
         }
-        $this->db->transaction(function (PDO $pdo) use ($id, $actor, $input): void {
+        $this->db->transaction(function (PDO $pdo) use ($id, $input): void {
             $old = self::ticket($pdo, $id);
             if ((int)$old['revision'] !== $input['expected_revision']) throw new \DomainException('Ticket revision conflict; refresh and retry.');
             $assigned = array_key_exists('assigned_to', $input) ? $input['assigned_to'] : $old['assigned_to'];

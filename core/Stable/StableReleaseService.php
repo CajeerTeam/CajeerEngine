@@ -293,27 +293,6 @@ final readonly class StableReleaseService
         return true;
     }
 
-    /** @return list<string> */
-    private function backupFiles(bool $includeUploads): array
-    {
-        $roots = ['storage/app'];
-        if ($includeUploads) { $roots[] = 'public/uploads'; }
-        $files = [];
-        foreach ($roots as $dir) {
-            $base = $this->rootPath . '/' . $dir;
-            if (!is_dir($base)) { continue; }
-            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($base, \FilesystemIterator::SKIP_DOTS));
-            foreach ($iterator as $file) {
-                if (!$file instanceof \SplFileInfo || !$file->isFile()) { continue; }
-                $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($this->rootPath) + 1));
-                if (str_contains($relative, '/backups/') || str_contains($relative, '/support/')) { continue; }
-                $files[] = $relative;
-            }
-        }
-        sort($files, SORT_STRING);
-        return $files;
-    }
-
     private function redactedEnv(): string
     {
         $path = $this->rootPath . '/.env';

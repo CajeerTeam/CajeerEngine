@@ -30,7 +30,7 @@ final class WxrDiscovery
                 if($channel&&$d===2&&$n==='item'&&$r->namespaceURI===''){if($r->isEmptyElement)throw new \InvalidArgumentException('Empty WXR item.');$item=true;$itemDepth=$d;$type=null;$status=null;continue;}
                 if(!$wp||!$channel)continue;
                 if(!$item&&$d===2){if($n==='wxr_version')$version=trim($r->readString());elseif($n==='author')$counts['users']++;elseif($n==='category')$counts['categories']++;elseif($n==='tag')$counts['tags']++;}
-                if($item&&$d===$itemDepth+1){if($n==='post_type')$type=self::label($r->readString());elseif($n==='status')$status=self::label($r->readString());elseif($n==='comment')$counts['comments']++;}
+                if($item&&$d===$itemDepth+1){if($n==='post_type')self::readLabel($r,$type);elseif($n==='status')self::readLabel($r,$status);elseif($n==='comment')$counts['comments']++;}
                 if($item&&$d===$itemDepth+2&&$n==='meta_key'&&count($fields)<101){$v=trim($r->readString());if(strlen($v)<=200&&$v!=='')$fields[$v]=$v;}
                 if(count($types)>100||count($statuses)>100)throw new \InvalidArgumentException('WXR contains too many distinct types or statuses.');
             }
@@ -39,5 +39,10 @@ final class WxrDiscovery
         $warnings[]='WXR counts describe the export only. Author records are not a full user database; media entries do not contain file bytes. Custom types and plugin metadata require mapping.';
         return SourceDiscovery::report('wordpress-wxr',$counts,$types,$statuses,array_values($fields),$warnings,['version'=>'WXR '.$version,'sha256'=>hash('sha256',$xml),'bytes'=>strlen($xml)]);
     }
+    private static function readLabel(\XMLReader $reader, ?string &$target): void
+    {
+        $target = self::label($reader->readString());
+    }
+
     private static function label(string $v):string{ $v=trim($v);if(!preg_match('/^[A-Za-z0-9_-]{1,100}$/D',$v))throw new \InvalidArgumentException('Invalid WXR type or status.');return $v; }
 }

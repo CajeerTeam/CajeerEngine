@@ -126,7 +126,7 @@ final readonly class ReleaseBuilder
         // An artifacts index is the publication boundary for a complete release.
         // Never publish a source-only index after a failed dist build: downstream
         // publication and certification require both modes and their checksums.
-        $complete = $distError === null && is_array($dist);
+        $complete = $distError === null;
         $artifacts = $complete ? [$source, $dist] : [];
         $index = $complete ? $this->writeArtifactIndex($artifacts, $dryRun, $targetDir) : null;
         return [

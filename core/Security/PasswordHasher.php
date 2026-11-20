@@ -18,9 +18,6 @@ final readonly class PasswordHasher
         $algorithm = $this->algorithm();
         $options = $this->options();
         $hash = password_hash($plain, $algorithm, $options);
-        if ($hash === false) {
-            throw new \RuntimeException('Не удалось создать хэш пароля.');
-        }
         return $hash;
     }
 

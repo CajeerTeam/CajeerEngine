@@ -26,18 +26,5 @@ final readonly class InstallerController
         return new JsonResponse(['error' => ['code' => 'installer_cli_or_web_required', 'message' => 'Используйте /install с setup token или CLI installer.']], 403);
     }
 
-    /** @return array<string, mixed> */
-    private function json(Request $request): array
-    {
-        $parsed = $request->attributes->get('json');
-        if (is_array($parsed)) {
-            return $parsed;
-        }
-        $body = trim($request->getContent());
-        if ($body === '') {
-            return [];
-        }
-        $payload = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
-        return is_array($payload) ? $payload : [];
-    }
+
 }

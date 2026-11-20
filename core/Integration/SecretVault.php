@@ -60,7 +60,6 @@ final readonly class SecretVault
         $keys = [$active => sodium_crypto_generichash('cajeerengine:integration-vault:v1', $raw, 32)];
         sodium_memzero($raw);
         foreach ($this->previousKeys as $previous) {
-            if (!is_string($previous)) throw new \RuntimeException('Invalid previous encryption key.');
             $raw = self::rawKey($previous);
             $id = self::id($raw);
             if (!isset($keys[$id])) $keys[$id] = sodium_crypto_generichash('cajeerengine:integration-vault:v1', $raw, 32);

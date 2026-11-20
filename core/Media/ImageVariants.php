@@ -41,8 +41,8 @@ final readonly class ImageVariants
     }
     private function gd(string $source,string $dest,string $mime,string $ext,int $w,int $h): void
     {
-        if(($limit=ini_get('memory_limit'))!==false&&$limit!=='-1'){ $bytes=(int)$limit; $suffix=strtolower(substr($limit,-1));$bytes*=match($suffix){'g'=>1073741824,'m'=>1048576,'k'=>1024,default=>1};$d=getimagesize($source);if($bytes>0&&memory_get_usage(true)+($d[0]*$d[1]+$w*$h)*6+16777216>$bytes)throw new \InvalidArgumentException('Image exceeds PHP memory budget'); }
-        $loader=match($mime){'image/jpeg'=>'imagecreatefromjpeg','image/png'=>'imagecreatefrompng','image/gif'=>'imagecreatefromgif','image/webp'=>'imagecreatefromwebp'};
+        if(($limit=ini_get('memory_limit'))!=='-1'){ $bytes=(int)$limit; $suffix=strtolower(substr($limit,-1));$bytes*=match($suffix){'g'=>1073741824,'m'=>1048576,'k'=>1024,default=>1};$d=getimagesize($source);if($bytes>0&&memory_get_usage(true)+($d[0]*$d[1]+$w*$h)*6+16777216>$bytes)throw new \InvalidArgumentException('Image exceeds PHP memory budget'); }
+        $loader=match($mime){'image/jpeg'=>'imagecreatefromjpeg','image/png'=>'imagecreatefrompng','image/gif'=>'imagecreatefromgif','image/webp'=>'imagecreatefromwebp',default=>throw new \InvalidArgumentException('Unsupported raster input')};
         if(!function_exists($loader))throw new \RuntimeException('GD codec unavailable');
         $image=@$loader($source);if(!$image)throw new \InvalidArgumentException('Image cannot be decoded');
         $out=imagecreatetruecolor($w,$h);if(!$out)throw new \RuntimeException('Cannot allocate image');
@@ -53,7 +53,7 @@ final readonly class ImageVariants
     }
     private function convert(string $source,string $dest,string $mime,string $ext,int $w,int $h): void
     {
-        $format=match($mime){'image/jpeg'=>'JPEG','image/png'=>'PNG','image/gif'=>'GIF','image/webp'=>'WEBP'};
+        $format=match($mime){'image/jpeg'=>'JPEG','image/png'=>'PNG','image/gif'=>'GIF','image/webp'=>'WEBP',default=>throw new \InvalidArgumentException('Unsupported raster input')};
         // Only a fixed raster decoder is selected; no shell, arbitrary delegates, URLs or user arguments.
         $command=[$this->binary(),'-limit','memory','192MiB','-limit','map','256MiB','-limit','disk','256MiB','-limit','time','20','-limit','thread','1',$format.':'.$source.'[0]','-strip','-resize',$w.'x'.$h.'!',match($ext){'jpg'=>'JPEG','webp'=>'WEBP',default=>'PNG'}.':'.$dest];
         $p=proc_open($command,[0=>['file','/dev/null','r'],1=>['file','/dev/null','w'],2=>['file','/dev/null','w']],$pipes,null,null,['bypass_shell'=>true]);

@@ -153,7 +153,7 @@ final readonly class SeoMigration
         ksort($redirects,SORT_STRING);ksort($query,SORT_STRING);
         $configHash=hash('sha256',json_encode([$origin,$aliases,$pattern,$content['plan_sha256']??'',array_map(static fn($r)=>[$r['source'],$r['seo'],$r['path']],$entries)],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
         if($prior=$this->report($id)){if(!hash_equals($prior['configuration_sha256'],$configHash))throw new RevisionConflict('SEO migration already completed with different settings.');return $prior;}
-        return $routes->mutate(function()use($project,$id,$source,$entries,$redirects,$query,$rewriteMap,$skipped,$configHash,$redirectRepo,$routes){
+        return $routes->mutate(function()use($id,$source,$entries,$redirects,$query,$rewriteMap,$skipped,$configHash,$redirectRepo,$routes){
             if($prior=$this->report($id)){if(!hash_equals($prior['configuration_sha256'],$configHash))throw new RevisionConflict('SEO migration already completed with different settings.');return $prior;}
             foreach($redirects as $old=>$target){
                 $existing=$routes->lookup($old);if($existing!==null&&!(($existing['kind']??'')==='alias'&&($existing['target']??'')===$target))throw new RevisionConflict('Legacy URL collides with a public route: '.$old);

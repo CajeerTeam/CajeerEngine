@@ -147,7 +147,11 @@ final class PreviewTokenService
         });
     }
 
-    /** @template T @param callable():T $callback @return T */
+    /**
+     * @template T
+     * @param callable():T $callback
+     * @return T
+     */
     private function withTokenLock(callable $callback): mixed
     {
         $directory = \CajeerEngine\Update\OperationFiles::path($this->rootPath, 'storage/app/cms');

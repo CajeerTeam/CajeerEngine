@@ -41,7 +41,7 @@ final readonly class RateLimiter
             $state = ['hits' => 0, 'reset_at' => $now + $windowSeconds];
             $raw = stream_get_contents($handle);
             if ($raw === false) throw new \RuntimeException('Rate limit read failed');
-            if (is_string($raw) && trim($raw) !== '') {
+            if (trim($raw) !== '') {
                 $decoded = json_decode($raw, true);
                 if (!is_array($decoded) || !is_int($decoded['hits'] ?? null) || $decoded['hits'] < 0 || !is_int($decoded['reset_at'] ?? null) || $decoded['reset_at'] < 0) {
                     throw new \RuntimeException('Corrupt rate limit state');

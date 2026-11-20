@@ -6,6 +6,12 @@ namespace CajeerEngine\Runtime;
 
 final readonly class RuntimeLogger
 {
+    private static function safeRegularLog(string $path): bool
+    {
+        clearstatcache(true, $path);
+        return is_file($path) && !is_link($path);
+    }
+
     public function __construct(private string $rootPath)
     {
     }
@@ -72,7 +78,7 @@ final readonly class RuntimeLogger
                 if (is_link($path)) return;
                 if (is_file($path) && filesize($path) + strlen($line) > max(65536,(int)(getenv('OBSERVABILITY_LOG_MAX_BYTES') ?: 10485760))) {
                     for ($i=4; $i>=1; $i--) if (is_file($path.'.'.$i) && !is_link($path.'.'.$i)) rename($path.'.'.$i, $path.'.'.($i+1));
-                    if (is_file($path) && !is_link($path)) {
+                    if (self::safeRegularLog($path)) {
                         rename($path, $path.'.1');
                         @chmod($path.'.1',0600);
                     }

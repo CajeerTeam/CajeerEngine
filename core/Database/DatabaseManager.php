@@ -49,7 +49,11 @@ final class DatabaseManager
         return $pdo;
     }
 
-    /** @template T @param callable(PDO):T $callback @return T */
+    /**
+     * @template T
+     * @param callable(PDO):T $callback
+     * @return T
+     */
     public function transaction(callable $callback): mixed
     {
         $pdo = $this->connection();
@@ -70,8 +74,8 @@ final class DatabaseManager
             $outcome='success';return $result;
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
-                if($started)$pdo->rollBack();
-                elseif($savepoint!==null){$pdo->exec('ROLLBACK TO SAVEPOINT '.$savepoint);$pdo->exec('RELEASE SAVEPOINT '.$savepoint);}
+                if($savepoint!==null){$pdo->exec('ROLLBACK TO SAVEPOINT '.$savepoint);$pdo->exec('RELEASE SAVEPOINT '.$savepoint);}
+                else $pdo->rollBack();
             }
             throw $e;
         }finally{\CajeerEngine\Observability\TraceScope::leave($previousTrace);$duration=(hrtime(true)-$start)/1e9;(new \CajeerEngine\Observability\Metrics($this->config->rootPath()))->buffered('database','transaction',$outcome,$duration);(new \CajeerEngine\Observability\TraceExporter($this->config->rootPath()))->record($trace,'database','transaction',$wall,$duration,$outcome==='success');}
@@ -111,17 +115,17 @@ final class DatabaseManager
                 'database' => $this->databaseName(),
                 'latency_ms' => round((microtime(true) - $startedAt) * 1000, 2),
                 'tables' => $tables,
-                'missing_tables' => array_values(array_keys(array_filter($tables, static fn (bool $exists): bool => !$exists))),
+                'missing_tables' => array_keys(array_filter($tables, static fn (bool $exists): bool => !$exists)),
                 'schema_ready' => !in_array(false, $tables, true) && !in_array(false, $contentColumns, true) && !in_array(false, $securityColumns, true),
                 'content_core' => [
                     'ready' => !in_array(false, $contentColumns, true),
                     'columns' => $contentColumns,
-                    'missing_columns' => array_values(array_keys(array_filter($contentColumns, static fn (bool $exists): bool => !$exists))),
+                    'missing_columns' => array_keys(array_filter($contentColumns, static fn (bool $exists): bool => !$exists)),
                 ],
                 'security_core' => [
                     'ready' => !in_array(false, $securityColumns, true),
                     'columns' => $securityColumns,
-                    'missing_columns' => array_values(array_keys(array_filter($securityColumns, static fn (bool $exists): bool => !$exists))),
+                    'missing_columns' => array_keys(array_filter($securityColumns, static fn (bool $exists): bool => !$exists)),
                 ],
                 'queue_core' => [
                     'ready' => $this->tableExistsOn($pdo, $driver, 'ce_jobs') && ($driver!=='pgsql'||($this->columnExistsOn($pdo,$driver,'ce_jobs','reservation_token')&&$this->columnExistsOn($pdo,$driver,'ce_jobs','lease_until'))),

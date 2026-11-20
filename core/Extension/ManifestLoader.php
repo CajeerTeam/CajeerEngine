@@ -76,7 +76,7 @@ final readonly class ManifestLoader
                 $errors[] = "{$field} должен быть массивом строк";
                 continue;
             }
-            if (isset($payload[$field]) && is_array($payload[$field])) {
+            if (isset($payload[$field])) {
                 foreach ($payload[$field] as $value) {
                     if (!is_string($value) || trim($value) === '') {
                         $errors[] = "{$field} должен содержать только непустые строки";

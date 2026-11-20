@@ -64,7 +64,7 @@ final readonly class AiMigrationController
         $uid=$this->user($request);
         if($denied=$this->limit($uid,'options'))return $denied;
         $raw=$request->query->get('offset','0');
-        if(!is_string($raw) || !preg_match('/^(0|[1-9][0-9]{0,6})$/D',$raw) || (int)$raw>1000000)throw new \InvalidArgumentException('Invalid remediation offset.');
+        if(!preg_match('/^(0|[1-9][0-9]{0,6})$/D',$raw) || (int)$raw>1000000)throw new \InvalidArgumentException('Invalid remediation offset.');
         return new JsonResponse(['data'=>['options'=>$this->remediation->candidates((string)$params['id'],(int)$raw),
             'pending'=>$this->remediation->pending((string)$params['id'],$uid),
             'history'=>$this->remediation->history((string)$params['id'],$uid)]],200,['Cache-Control'=>'no-store']);

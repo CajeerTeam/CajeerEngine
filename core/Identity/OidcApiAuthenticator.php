@@ -26,7 +26,7 @@ final readonly class OidcApiAuthenticator
             throw new \InvalidArgumentException('OIDC API configuration incomplete.');
         }
         foreach ($allowedClients as $client) {
-            if (!is_string($client) || !preg_match('/^[A-Za-z0-9._:-]{3,128}$/D', $client)) throw new \InvalidArgumentException('Invalid OAuth client allowlist.');
+            if (!preg_match('/^[A-Za-z0-9._:-]{3,128}$/D', $client)) throw new \InvalidArgumentException('Invalid OAuth client allowlist.');
         }
         foreach ($maxPermissions as $permission) {
             if (!is_string($permission) || !preg_match('/^[a-z][a-z0-9_.:-]{2,128}$/D', $permission)) throw new \InvalidArgumentException('Invalid OIDC API permission ceiling.');

@@ -167,13 +167,13 @@ final readonly class AiChat
             return ['conversation_id' => $id, 'title' => $prepared['title'], 'text' => $result['text'], 'usage' => $result['usage'], 'model' => $settings['model'], 'tools' => $result['tools']];
         } catch (\Throwable $error) {
             // If OpenAI completed but CMS persistence failed, usage is still billable.
-            $chargeUsage = isset($result) && is_array($result['usage'] ?? null) ? $result['usage'] : null;
+            $chargeUsage = isset($result) ? $result['usage'] : null;
             try {
                 $this->db->transaction(function (PDO $pdo) use ($userId, $id, $busyUntil, $month, $prepared, $newId, $costJob, $chargeUsage): void {
                     $release = $pdo->prepare('UPDATE ce_ai_conversations SET busy_until = 0, reserved_tokens = 0, reservation_period = NULL WHERE id = ? AND user_id = ? AND busy_until = ?');
                     $release->execute([$id, $userId, $busyUntil]);
                     if ($release->rowCount() === 1) {
-                        $total = $chargeUsage === null ? 0 : max(0,(int)($chargeUsage['input_tokens']??0))+max(0,(int)($chargeUsage['output_tokens']??0));
+                        $total = $chargeUsage === null ? 0 : max(0,(int)$chargeUsage['input_tokens'])+max(0,(int)$chargeUsage['output_tokens']);
                         $stmt = $pdo->prepare('UPDATE ce_ai_usage SET reserved_tokens = CASE WHEN reserved_tokens >= ? THEN reserved_tokens - ? ELSE 0 END, used_tokens = used_tokens + ? WHERE user_id = ? AND period = ?');
                         $stmt->execute([$prepared['reservation'], $prepared['reservation'], $total, $userId, $month]);
                         $cost=new AiCostControl($this->db, $this->settings);

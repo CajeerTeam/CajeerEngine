@@ -53,10 +53,15 @@ final class UpdateManager
             if (!is_string($version)||!preg_match('/^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?$/D',$version)||!in_array($mode,['source','dist'],true)) throw new \RuntimeException('Invalid release identity');
             $m=(new ReleaseArtifactVerifier())->verify($packagePath,$mode,$version);
             foreach ($m['removed_files']??[] as $file) if (!is_string($file)||!$this->managed($file)||in_array($file,$m['files'],true)) throw new \RuntimeException('Invalid removed file');
-            if (version_compare(PHP_VERSION,'8.4.1','<')||version_compare(PHP_VERSION,'9.0','>=')) throw new \RuntimeException('Unsupported PHP runtime');
+            if (!self::supportsRuntime(PHP_VERSION)) throw new \RuntimeException('Unsupported PHP runtime');
             return ['ok'=>true,'package'=>$packagePath,'version'=>$version,'mode'=>$mode,'manifest'=>$m,'file_count'=>count($m['files'])]+$sig;
         } catch (\Throwable $e) { return ['ok'=>false,'error'=>$e->getMessage()]; }
     }
+    private static function supportsRuntime(string $version): bool
+    {
+        return version_compare($version, '8.4.1', '>=') && version_compare($version, '9.0', '<');
+    }
+
     public function apply(array $options=[]): array
     {
         $this->cliOnly();
@@ -205,7 +210,7 @@ final class UpdateManager
         $id=bin2hex(random_bytes(16)); $data=['ok'=>true,'id'=>$id,'action'=>$action,'actor'=>$actor,'requested_at'=>gmdate(DATE_ATOM),'state'=>'pending'];
         if ($action==='apply') {
             $stage=$this->staged();
-            if (empty($stage['id'])||empty($stage['sha256'])||($stage['id']??null)!==($payload['package']??null)||($stage['sha256']??null)!==($payload['sha256']??null)) throw new \RuntimeException('Select the exact staged artifact and digest');
+            if (empty($stage['id'])||empty($stage['sha256'])||$stage['id']!==($payload['package']??null)||$stage['sha256']!==($payload['sha256']??null)) throw new \RuntimeException('Select the exact staged artifact and digest');
             $data['stage']=$stage['id']; $data['sha256']=$stage['sha256'];
         } elseif ($action==='backup') { /* full backup, no arbitrary server path */ } elseif ($action==='rollback') { $last=$this->wizardState()['last_report']; if (($last['state']??null)!=='committed') throw new \RuntimeException('No committed update'); $data['transaction']=$last['id']; }
         else throw new \RuntimeException('Invalid operation');
@@ -289,7 +294,7 @@ final class UpdateManager
                 $manifest->engineConstraint !== $constraint) {
                 throw new \RuntimeException('Installed extension manifest differs from registry: ' . $name);
             }
-            if (!is_string($constraint) || $constraint === '') {
+            if ($constraint === '') {
                 throw new \RuntimeException('Enabled extension has no Engine API constraint: ' . $name);
             }
             try {

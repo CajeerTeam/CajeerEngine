@@ -66,14 +66,19 @@ final class RecoveryBundle
             self::extractInto($source, $temporary, $key);
             // POSIX rename replaces an existing empty directory atomically. Do
             // not delete that directory first: an error must leave it intact.
-            if (is_link($directory) || (is_dir($directory) && (new \FilesystemIterator($directory))->valid())
-                || !rename($temporary, $directory)) {
+            if (!self::destinationEmpty($directory) || !rename($temporary, $directory)) {
                 throw new \RuntimeException('Cannot publish verified recovery snapshot');
             }
             F::syncDir($parent);
         } finally {
             if (is_dir($temporary)) self::cleanup($temporary);
         }
+    }
+
+    private static function destinationEmpty(string $directory): bool
+    {
+        clearstatcache(true, $directory);
+        return !is_link($directory) && (!is_dir($directory) || !(new \FilesystemIterator($directory))->valid());
     }
 
     private static function extractInto(string $source,string $directory,string $key): void

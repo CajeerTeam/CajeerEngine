@@ -30,7 +30,7 @@ final readonly class AiGaAcceptance
             $url = (string)(getenv('APP_URL') ?: $this->config->string('app.url'));
             $record('https_origin', preg_match('~^https://[^/\s?#]+(?:/)?$~iD', $url) === 1, 'Use a single HTTPS APP_URL origin.');
         }
-        $record('php_runtime', PHP_VERSION_ID >= 80401, 'PHP 8.4.1 or newer is required.');
+        $record('php_runtime', version_compare(PHP_VERSION, '8.4.1', '>='), 'PHP 8.4.1 or newer is required.');
         $record('crypto_runtime', extension_loaded('sodium') && extension_loaded('openssl'), 'ext-sodium and OpenSSL are required.');
         $record('streaming_transport', extension_loaded('curl'), 'ext-curl is required for OpenAI requests.');
         $record('admin_assets', (new AdminAssetPublisher($this->root))->manifest()['ready'] === true, 'Published SPA files and manifest must match VERSION.');

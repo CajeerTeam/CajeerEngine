@@ -42,7 +42,7 @@ final class ContentTypeRepository
         }
 
         usort($items, static fn (array $a, array $b): int => strcmp((string) $a['handle'], (string) $b['handle']));
-        return array_values($items);
+        return $items;
     }
 
     /** @return array<string, mixed>|null */
@@ -172,7 +172,7 @@ final class ContentTypeRepository
         $this->file->writeObject([
             'version' => 1,
             'updated_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
-            'content_types' => array_values($items),
+            'content_types' => $items,
         ]);
     }
 

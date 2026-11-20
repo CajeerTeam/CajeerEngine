@@ -167,10 +167,10 @@ final class ExtensionRuntime
         }
 
         return [
-            'ok' => !array_filter($deliveries, static fn (array $d): bool => ($d['status'] ?? '') === 'failed'),
+            'ok' => !array_filter($deliveries, static fn (array $d): bool => $d['status'] === 'failed'),
             'event' => $event,
-            'delivered' => count(array_filter($deliveries, static fn (array $d): bool => ($d['status'] ?? '') === 'delivered')),
-            'failed' => count(array_filter($deliveries, static fn (array $d): bool => ($d['status'] ?? '') === 'failed')),
+            'delivered' => count(array_filter($deliveries, static fn (array $d): bool => $d['status'] === 'delivered')),
+            'failed' => count(array_filter($deliveries, static fn (array $d): bool => $d['status'] === 'failed')),
             'deliveries' => $deliveries,
         ];
     }
@@ -337,9 +337,6 @@ final class ExtensionRuntime
             }
              $reflection=new \ReflectionClass($class); $file=$reflection->getFileName(); if (!is_string($file)||!str_starts_with(realpath($file)?:'',realpath((string)$manifest->path).DIRECTORY_SEPARATOR)) throw new \RuntimeException('Provider class outside package: '.$class);
             $instance = new $class();
-            if (!is_object($instance)) {
-                throw new \RuntimeException('Provider должен быть объектом: ' . $class);
-            }
             $providers[] = $instance;
         }
         if ($providers === [] && is_file($manifest->path . '/bootstrap.php')) {

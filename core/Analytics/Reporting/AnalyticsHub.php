@@ -73,7 +73,7 @@ final readonly class AnalyticsHub
         if($jobKey!==null&&(!is_string($jobKey)||$jobKey===''||strlen($jobKey)>256))throw new \InvalidArgumentException('Invalid analytics job key');
         // A hash keeps queue keys out of the report API. Unkeyed internal calls are new attempts.
         $key=hash('sha256',$jobKey??bin2hex(random_bytes(32)));$lease=bin2hex(random_bytes(16));$now=time();
-        $claimed=$this->db->transaction(function()use($id,$revision,$r,$lease,$now,$key,$jobKey,$from,$to){
+        $claimed=$this->db->transaction(function()use($id,$revision,$lease,$now,$key,$jobKey,$from,$to){
             $s=$this->query('UPDATE analytics_connections SET lease_token=?,lease_until=? WHERE id=? AND revision=? AND enabled=1 AND lease_until<=?',[$lease,$now+300,$id,$revision,$now]);
             if($s->rowCount()!==1){$current=$this->query('SELECT revision,enabled FROM analytics_connections WHERE id=?',[$id])->fetch(PDO::FETCH_ASSOC);if(!$current||(int)$current['revision']!==$revision||!(bool)$current['enabled'])return false;throw new \RuntimeException('Analytics sync busy');}
             // Check AFTER acquiring the lease, not using the stale row read before it.
@@ -124,6 +124,7 @@ final readonly class AnalyticsHub
         $provider=$this->provider($r['provider']);
         $credential=json_decode($this->vault->open($this->context($id,$r['provider'],$r['resource_id']),$r['credential']),true,32,JSON_THROW_ON_ERROR);
         $this->hostPolicy($r['provider'],$credential,$action);
+        if (!$provider instanceof SearchReports) throw new \RuntimeException('Invalid search reporting backend');
         return $provider->action($r['resource_id'],$credential,$action,$url);
     }
     public function report(string $id,?string $from=null,?string $to=null): array {

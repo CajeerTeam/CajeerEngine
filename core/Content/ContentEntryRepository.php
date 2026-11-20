@@ -433,7 +433,7 @@ final class ContentEntryRepository
 
         $snapshot = null;
         foreach ($this->revisions($typeHandle, $idOrSlug) as $item) {
-            if (is_array($item) && (int) ($item['revision'] ?? 0) === $revision) {
+            if ((int) ($item['revision'] ?? 0) === $revision) {
                 $snapshot = $item;
                 break;
             }
@@ -540,7 +540,7 @@ final class ContentEntryRepository
         return $result;
     }
 
-    /** @return array<string, mixed> */
+    /** Assert typed media references before persisting an entry. */
     private function assertMediaReferences(array $type,array $data): void
     {
         $catalog=null;
@@ -578,7 +578,7 @@ final class ContentEntryRepository
             'version' => 1,
             'type' => $typeHandle,
             'updated_at' => $this->now(),
-            'entries' => array_values($items),
+            'entries' => $items,
         ]);
     }
 

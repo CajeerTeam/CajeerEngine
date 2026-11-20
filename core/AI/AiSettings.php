@@ -25,7 +25,6 @@ final readonly class AiSettings
             if (!flock($handle, $exclusive ? LOCK_EX : LOCK_SH)) throw new \RuntimeException('AI settings lock failed.');
             $path = $this->path();
             $data = is_file($path) ? Files::read($path) : [];
-            if (!is_array($data)) throw new \RuntimeException('AI settings corrupted.');
             $result = $callback($data);
             if ($exclusive) Files::json($path, $data, 0600);
             return $result;

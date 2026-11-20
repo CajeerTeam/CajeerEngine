@@ -484,7 +484,7 @@ PHP_STUB;
     private static function extensionInstall(string $rootPath, ConfigRepository $config, array $argv): array
     {
         $target = self::option($argv, 'target') ?: ($argv[2] ?? '');
-        if (!is_string($target) || trim($target) === '') {
+        if (trim($target) === '') {
             throw new \RuntimeException('Укажите расширение: php bin/cajeer extension:install vendor/name --json');
         }
         $item = self::extensionRuntime($rootPath, $config)->install($target, self::has($argv, 'enable'), !self::has($argv, 'no-lifecycle'), !self::has($argv, 'no-assets'), !self::has($argv, 'no-migrations'));
@@ -495,7 +495,7 @@ PHP_STUB;
     private static function extensionEventDispatch(string $rootPath, ConfigRepository $config, array $argv): array
     {
         $event = self::option($argv, 'event') ?: ($argv[2] ?? '');
-        if (!is_string($event) || trim($event) === '') {
+        if (trim($event) === '') {
             throw new \RuntimeException('Укажите событие: php bin/cajeer extension:event:dispatch content.saved --json');
         }
         $payloadJson = self::option($argv, 'payload') ?: '{}';
@@ -647,8 +647,5 @@ PHP_STUB;
         }
     }
 
-    private static function version(string $rootPath): string
-    {
-        return trim((string) @file_get_contents($rootPath . '/VERSION')) ?: '1.5.0';
-    }
+
 }

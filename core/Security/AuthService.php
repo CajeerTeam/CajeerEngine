@@ -133,7 +133,7 @@ final readonly class AuthService
         if ($record === null) {
             return null;
         }
-        $user = isset($record['user_id']) && $record['user_id'] !== null ? $this->users->findById((string) $record['user_id']) : null;
+        $user = isset($record['user_id']) ? $this->users->findById((string) $record['user_id']) : null;
         if ($user === null || ($user['status'] ?? '') !== 'active') { return null; }
         if ($cookie && $record['name'] !== 'admin-session') { return null; }
         // Never accept an opaque browser session as an ordinary API token if the
@@ -152,8 +152,7 @@ final readonly class AuthService
         $scopes = self::intersectScopes(is_array($scopes) ? $scopes : [], $this->users->permissionsForUser((string) $user['id']));
         // Optional operator-maintained ceiling for OIDC browser sessions. External realm/group
         // role claims are intentionally NEVER used to grant local CMS permissions.
-        if ($record['name'] === 'admin-session' && $this->sessions !== null
-            && ($this->sessions->find((string)$record['id'])['provider'] ?? null) === 'skif4er') {
+        if ($record['name'] === 'admin-session' && ($this->sessions->find((string)$record['id'])['provider'] ?? null) === 'skif4er') {
             $ceiling = getenv('SKIF4ER_ID_SESSION_MAX_PERMISSIONS');
             if (is_string($ceiling) && trim($ceiling) !== '') {
                 $allowed = array_values(array_unique(array_filter(array_map('trim', explode(',', $ceiling)),
@@ -167,9 +166,9 @@ final readonly class AuthService
             'session' => $record['name'] === 'admin-session',
             'cookie' => $cookie,
             'csrf_token' => $cookie ? self::csrfToken($token) : null,
-            'user' => $user !== null ? $this->publicUser($user) : null,
+            'user' => $this->publicUser($user),
             'user_id' => $record['user_id'] ?? null,
-            'scopes' => is_array($scopes) ? array_values($scopes) : [],
+            'scopes' => array_values($scopes),
         ];
     }
 

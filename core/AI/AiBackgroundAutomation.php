@@ -223,7 +223,7 @@ final readonly class AiBackgroundAutomation
     {
         $count=0;
         foreach ($this->queue->failed() as $job) {
-            if (!is_array($job) || ($job['name']??null)!=='ai.automation.execute') continue;
+            if (($job['name']??null)!=='ai.automation.execute') continue;
             $payload=$job['payload']??null;
             if (is_string($payload)) $payload=json_decode($payload,true);
             if (!is_array($payload) || !is_string($payload['run_id']??null)) continue;

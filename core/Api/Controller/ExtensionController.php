@@ -52,8 +52,8 @@ final readonly class ExtensionController
         if ($this->runtime === null) {
             return new JsonResponse(['data' => ['ok' => false, 'booted' => false, 'message' => 'ExtensionRuntime не зарегистрирован.']], Response::HTTP_SERVICE_UNAVAILABLE);
         }
-        $boot = false; // GET is read-only
-        return new JsonResponse(['data' => $boot ? $this->runtime->boot(true) : $this->runtime->diagnostics()]);
+        // GET is strictly read-only; only diagnostics may be requested here.
+        return new JsonResponse(['data' => $this->runtime->diagnostics()]);
     }
 
     /** @param array<string, mixed> $parameters */

@@ -16,13 +16,13 @@ final readonly class UpdateResolver
         return (string) ($this->config['core']['channel'] ?? 'stable');
     }
 
-    public function releasesUrl(): ?string
+    public function releasesUrl(): string
     {
         $value = $this->config['core']['releases_url'] ?? GitHubEndpoints::RELEASES_URL;
         return is_string($value) && $value !== '' ? $value : GitHubEndpoints::RELEASES_URL;
     }
 
-    public function registryUrl(): ?string
+    public function registryUrl(): string
     {
         $value = $this->config['registry']['url'] ?? GitHubEndpoints::REGISTRY_URL;
         return is_string($value) && $value !== '' ? $value : GitHubEndpoints::REGISTRY_URL;

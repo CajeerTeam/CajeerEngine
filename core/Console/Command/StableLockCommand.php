@@ -23,7 +23,7 @@ final class StableLockCommand extends BaseCommand
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $service = new StableReleaseService($this->rootPath, new ConfigRepository($this->rootPath));
-        $result = $service->writeReleaseLock([]);
+        $result = $service->writeReleaseLock();
         $json = json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
         $target = $input->getOption('output');
         if (is_string($target) && $target !== '') {

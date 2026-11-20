@@ -33,7 +33,7 @@ final readonly class PublicController
     public function sitemapXml(Request $request, array $parameters = []): Response
     {
         $page=$request->query->get('page');
-        if($page!==null&&(!is_string($page)||!ctype_digit($page)||strlen($page)>7))return $this->publicError(404);
+        if($page!==null&&(!ctype_digit($page)||strlen($page)>7))return $this->publicError(404);
         try{$xml=$this->renderer->sitemapXml($this->baseUrl($request),$page===null?null:(int)$page);}catch(\InvalidArgumentException){return $this->publicError(404);}
         return new Response($xml,200,['Content-Type'=>'application/xml; charset=UTF-8']);
     }

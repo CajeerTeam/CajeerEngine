@@ -15,7 +15,7 @@ final readonly class SchedulerRunner
         private string $rootPath,
         private SearchIndexer $searchIndexer,
         private WebhookRepository $webhooks,
-        private WebhookDispatcher $dispatcher,
+        WebhookDispatcher $dispatcher,
         private ManagedQueueDriverInterface $queue,
         private ?\CajeerEngine\Extension\Runtime\PlatformServices $platform = null,
         private ?TaskRunStore $runStore = null,

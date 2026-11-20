@@ -9,7 +9,7 @@ use CajeerEngine\Security\PublicHttpClient;
 /** TLS-verified, DNS-pinned OpenAI Responses transport; supports stateless function calling. */
 class OpenAiClient
 {
-    /** @return array{text:string,usage:array{input_tokens:int,output_tokens:int},response_id:string} */
+    /** @return array{text:string,usage:array{input_tokens:int,output_tokens:int,cached_input_tokens?:int},response_id:string} */
     public function complete(#[\SensitiveParameter] string $key, string $model, array $input, int $maxOutput, ?callable $onDelta = null): array
     {
         $response = $this->request($key, $model, $input, $maxOutput, [], $onDelta);
@@ -23,7 +23,7 @@ class OpenAiClient
      * can execute; each tool invocation and result is bounded, verified and re-sent to
      * the model as a function_call_output. No previous_response_id or provider storage.
      * @param list<array<string,mixed>> $tools
-     * @return array{text:string,usage:array{input_tokens:int,output_tokens:int},response_id:string,tools:list<array<string,mixed>>}
+     * @return array{text:string,usage:array{input_tokens:int,output_tokens:int,cached_input_tokens?:int},response_id:string,tools:list<array<string,mixed>>}
      */
     public function completeWithTools(
         #[\SensitiveParameter] string $key, string $model, array $input, int $maxOutput,
@@ -52,7 +52,7 @@ class OpenAiClient
                 if (trim($response['text']) === '') throw new AiProviderException('OpenAI returned no final answer.', 502);
                 if ($onDelta !== null) {
                     foreach (str_split($response['text'], 1024) as $part) {
-                        if ($part !== '') $onDelta($part);
+                        $onDelta($part);
                     }
                 }
                 return ['text'=>$response['text'],'usage'=>$total,'response_id'=>$response['response_id'],'tools'=>$trace];
@@ -103,7 +103,7 @@ class OpenAiClient
         throw new AiProviderException('AI function-call loop incomplete.', 502);
     }
 
-    /** @return array{text:string,calls:list<array<string,mixed>>,usage:array{input_tokens:int,output_tokens:int},response_id:string} */
+    /** @return array{text:string,calls:list<array<string,mixed>>,usage:array{input_tokens:int,output_tokens:int,cached_input_tokens?:int},response_id:string} */
     protected function request(string $key, string $model, array $input, int $maxOutput, array $tools, ?callable $onDelta = null, bool $forceText = false): array
     {
         AiOutboundSafety::assertNoCredentials($input);

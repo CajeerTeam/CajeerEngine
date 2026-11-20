@@ -36,7 +36,7 @@ final readonly class ApiTokenController
             || array_filter($scopes, static fn (mixed $scope): bool => !is_string($scope) || preg_match('/^(?:\*|[a-z0-9][a-z0-9_.:-]{0,63})$/D', $scope) !== 1)) {
             return new JsonResponse(['error' => ['code' => 'validation_failed', 'message' => 'Некорректное имя или список прав токена.']], 422);
         }
-        if ($name === 'admin-session' || $userId === null || !is_array($identity)
+        if ($name === 'admin-session' || $userId === null
             || \CajeerEngine\Security\AuthService::intersectScopes($scopes, $identity['scopes'] ?? []) !== $scopes) {
             return new JsonResponse(['error' => ['code' => 'forbidden', 'message' => 'Недопустимое имя или права токена.']], 403);
         }

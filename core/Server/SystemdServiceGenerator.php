@@ -165,7 +165,7 @@ UNIT;
     private function detectPhpBinary(): string
     {
         foreach (['/www/server/php/84/bin/php', PHP_BINARY, '/usr/bin/php8.4', '/usr/bin/php'] as $binary) {
-            if (is_string($binary) && $binary !== '' && is_file($binary)) {
+            if (is_file($binary)) {
                 return $binary;
             }
         }

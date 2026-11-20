@@ -157,7 +157,7 @@ final readonly class UserSessionRepository
         $jtiHash = hash('sha256', $issuer."\0".(string)$claims['jti']);
         $subHash = is_string($sub) ? hash('sha256', $sub) : null;
         $sidHash = is_string($sid) ? hash('sha256', $sid) : null;
-        return $this->database->transaction(function (PDO $pdo) use ($issuer, $sub, $sid, $subHash, $sidHash, $jtiHash, $claims): array {
+        return $this->database->transaction(function (PDO $pdo) use ($issuer, $subHash, $sidHash, $jtiHash, $claims): array {
             $pdo->prepare('DELETE FROM ce_oidc_logout_replay WHERE expires_at < :now')->execute(['now'=>time()]);
             $probe = $pdo->prepare('SELECT jti_hash FROM ce_oidc_logout_replay WHERE jti_hash = :jti');
             $probe->execute(['jti'=>$jtiHash]);

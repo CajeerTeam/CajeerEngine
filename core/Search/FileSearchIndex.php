@@ -84,7 +84,7 @@ final readonly class FileSearchIndex implements SearchEngineInterface
             unset($doc['tokens']);
             $results[] = $doc;
         }
-        usort($results, static fn (array $a, array $b): int => (($b['score'] ?? 0) <=> ($a['score'] ?? 0)) ?: strcmp((string) ($b['updated_at'] ?? ''), (string) ($a['updated_at'] ?? '')));
+        usort($results, static fn (array $a, array $b): int => ($b['score'] <=> $a['score']) ?: strcmp((string) ($b['updated_at'] ?? ''), (string) ($a['updated_at'] ?? '')));
         return array_slice($results, 0, max(1, $limit));
     }
 

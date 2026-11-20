@@ -29,6 +29,11 @@ final readonly class StorageManager
         };
     }
 
+    public function s3Disk(): S3CompatibleDisk
+    {
+        return new S3CompatibleDisk((array) $this->config->get('storage.disks.s3', []));
+    }
+
     public function localRoot(): string
     {
         $configured = $this->config->string('storage.disks.local.root', 'storage/app');
@@ -81,7 +86,7 @@ final readonly class StorageManager
     public function makeRelativeUploadPath(string $filename): string
     {
         $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-        $extension = preg_replace('/[^a-z0-9]+/', '', $extension ?? '') ?: 'bin';
+        $extension = preg_replace('/[^a-z0-9]+/', '', $extension) ?: 'bin';
         $date = gmdate('Y/m');
 
         return $date . '/' . Uuid::v4() . '.' . $extension;

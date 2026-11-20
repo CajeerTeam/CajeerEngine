@@ -137,7 +137,7 @@ final readonly class AiCmsDiagnostics
         }
         if (($checks['queue']['counts']['failed'] ?? 0) > 0)
             $add('queue_failed', 'queue', 'high', 'Ошибки фоновых задач', 'В очереди зарегистрированы задачи со статусом failed.', 'Исследуйте причину каждой ошибки, затем решайте вопрос повтора.', 'php bin/cajeer queue:failed');
-        if (($checks['queue']['oldest_ready_age_seconds'] ?? 0) > 300)
+        if (($checks['queue']['oldest_ready_age_seconds']) > 300)
             $add('queue_stale', 'queue', 'medium', 'Задания ожидают слишком долго', 'Возраст самого старого готового задания превышает пять минут.', 'Проверьте число рабочих процессов и способность backend выдавать задания.', 'php bin/cajeer queue:failed');
         if ($metrics['requests'] >= 20 && $metrics['errors_5xx'] / max(1, $metrics['requests']) >= 0.05)
             $add('http_errors', 'http', 'high', 'Повышенная доля HTTP 5xx', 'По накопленным метрикам не менее 5% запросов завершились серверной ошибкой.', 'Сопоставьте период с runtime-журналом; метрики HTTP могут отражать больший период, чем выборка журнала.');

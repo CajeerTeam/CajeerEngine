@@ -46,7 +46,7 @@ final readonly class RenderCache
             if (!flock($lock, LOCK_EX)) return $render();
             $cached = self::read($file, $key);
             if ($cached !== null) return $cached;
-            if (self::oversized($file, $key)) {
+            if (self::oversizedAfterLock($file, $key)) {
                 // A peer discovered an uncacheable oversized render while we
                 // waited. Drop the advisory lock BEFORE rendering this request.
                 flock($lock, LOCK_UN);
@@ -63,6 +63,13 @@ final readonly class RenderCache
                 fclose($lock);
             }
         }
+    }
+
+    private static function oversizedAfterLock(string $file, string $key): bool
+    {
+        // Recheck after another process may have replaced the cache entry.
+        clearstatcache(true, $file);
+        return self::oversized($file, $key);
     }
 
     private static function read(string $file, string $key): ?string

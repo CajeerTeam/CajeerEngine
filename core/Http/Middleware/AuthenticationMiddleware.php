@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 final readonly class AuthenticationMiddleware implements MiddlewareInterface
 {
-    public function __construct(private ConfigRepository $config, private AuthService $auth, private Router $router, private ?AuthenticationAssurance $assurance = null) {}
+    public function __construct(ConfigRepository $config, private AuthService $auth, private Router $router, private ?AuthenticationAssurance $assurance = null) {}
 
     public function process(Request $request, callable $next): Response
     {

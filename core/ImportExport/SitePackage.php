@@ -101,7 +101,7 @@ final class SitePackage
         $copy=$this->dir.'/input.'.$ext; F::copy($source,$copy); $this->digest=F::hash($copy);
         if($ext==='json') {
             $p=F::read($copy); $this->manifest=$p['manifest']??[]; $this->data=$p['data']??[];
-            if(($this->manifest['format']??null)!=='cajeerengine.export.v2'||!is_array($this->data)||!hash_equals((string)($this->manifest['checksum']??''),hash('sha256',self::encode($this->data))))throw new \InvalidArgumentException('Invalid legacy v2 checksum or format');
+            if(($this->manifest['format']??null)!=='cajeerengine.export.v2'||!hash_equals((string)($this->manifest['checksum']??''),hash('sha256',self::encode($this->data))))throw new \InvalidArgumentException('Invalid legacy v2 checksum or format');
             foreach($this->data['media']['files']??[] as $file) {
                 $hash=$file['checksum']??''; $bytes=base64_decode((string)($file['content_base64']??''),true);
                 if(!is_string($bytes)||!is_string($hash)||!hash_equals($hash,hash('sha256',$bytes)))throw new \InvalidArgumentException('Invalid legacy media');

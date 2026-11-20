@@ -60,7 +60,12 @@ trait AiBudgetLease
 
     private function aiCostModule(): string
     {
-        return match (static::class) {
+        return self::costModuleForClass(static::class);
+    }
+
+    private static function costModuleForClass(string $class): string
+    {
+        return match ($class) {
             AiContentEditor::class => 'editor',
             AiTranslationStudio::class => 'translation',
             AiKnowledgeChat::class => 'knowledge_chat',

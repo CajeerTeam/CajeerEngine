@@ -10,7 +10,7 @@ use CajeerEngine\Content\ContentTypeRepository;
 final readonly class SearchIndexer
 {
     public function __construct(
-        private ContentTypeRepository $types,
+        ContentTypeRepository $types,
         private ContentEntryRepository $entries,
         private SearchEngineInterface $index,
     ) {
