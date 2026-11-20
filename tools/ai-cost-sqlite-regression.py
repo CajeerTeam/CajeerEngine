@@ -16,6 +16,10 @@ for amount in [7000,4000]:
     with c:
         c.execute('UPDATE ce_ai_cost_balances SET reserved_micro_usd=reserved_micro_usd+? WHERE scope=? AND period=? AND used_micro_usd+reserved_micro_usd+?<=?',(amount,scope,period,amount,10000))
 assert c.execute('SELECT reserved_micro_usd FROM ce_ai_cost_balances WHERE scope=?',(scope,)).fetchone()[0]==7000
+# SQLite compares a numeric arithmetic expression to a TEXT-bound threshold by
+# storage class, accepting an over-budget reservation. PDO must bind PARAM_INT.
+assert c.execute('SELECT (7000 + ?) <= ?', ('4000', '10000')).fetchone()[0] == 1
+assert c.execute('SELECT (7000 + ?) <= ?', (4000, 10000)).fetchone()[0] == 0
 # Atomic ledger settlement, no partial records after failure.
 try:
     with c:

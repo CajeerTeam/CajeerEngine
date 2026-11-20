@@ -105,6 +105,22 @@ try {
     $row=$db->connection()->query('SELECT used_tokens, reserved_tokens FROM ce_ai_usage')->fetch(PDO::FETCH_ASSOC);
     $assert((int)$row['used_tokens']>0 && (int)$row['reserved_tokens']===0, 'actual token usage charged and reservations released');
     $assert($calls>=6, 'real generation path invoked rather than manifest-only feature');
+    // A long, valid request must hit the shared monthly cap before contacting
+    // OpenAI, even on SQLite (where text-bound limits can bypass numeric CAS).
+    $settings->update(['monthly_token_limit'=>1000]);
+    $callsBeforeLimit = $calls;
+    $blockedByTokens = false;
+    try {
+        $editor->propose($uid, ['type'=>'pages', 'entry_id'=>$entry['id'], 'field'=>'lead',
+            'mode'=>'rewrite', 'instructions'=>str_repeat('x', 1800)]);
+    } catch (DomainException $error) {
+        $blockedByTokens = $error->getMessage() === 'Monthly AI token budget reached.';
+    }
+    $assert($blockedByTokens && $calls === $callsBeforeLimit,
+        'editor monthly budget rejects oversized request before provider call');
+    $assert((int)$db->connection()->query('SELECT SUM(reserved_tokens) FROM ce_ai_usage')->fetchColumn() === 0
+        && (int)$db->connection()->query('SELECT COUNT(*) FROM ce_ai_editor_jobs')->fetchColumn() === 0,
+        'blocked editor request leaves no budget or worker lease');
     echo "AI Content Editor real PHP/PDO acceptance PASSED\n";
 } finally {
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST) as $f) {

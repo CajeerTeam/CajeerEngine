@@ -53,7 +53,13 @@ try {
     });}catch(RuntimeException){}
     $check($pdo->query('SELECT COUNT(*) FROM ce_ai_cost_reservations')->fetchColumn()==0,'reservation rollback and balances unchanged');
     $settings->update(['user_daily_limit_cents'=>1]);$strict=$settings->status();
-    $reject(fn()=>$db->transaction(fn(PDO $p)=>$service->hold($p,$id(),$user,'chat',$strict,200000,$expiry)),'hard daily cost limit blocks before OpenAI');
+    $blockedByCap=false;
+    try {
+        $db->transaction(fn(PDO $p)=>$service->hold($p,$id(),$user,'chat',$strict,200000,$expiry));
+    } catch (DomainException $error) {
+        $blockedByCap=str_contains($error->getMessage(),'AI spending limit reached');
+    }
+    $check($blockedByCap,'hard daily cost limit blocks before OpenAI');
     $check($pdo->query('SELECT COUNT(*) FROM ce_ai_cost_reservations')->fetchColumn()==0,'blocked request leaves no reservation');
     $settings->update(['user_daily_limit_cents'=>100]);$status=$settings->status();
     $late=$id();$db->transaction(fn(PDO $p)=>$service->hold($p,$late,$user,'rag',$status,100000,time()-1));

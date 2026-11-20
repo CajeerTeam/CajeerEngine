@@ -51,11 +51,12 @@ try {
     $db->connection()->exec((string)file_get_contents($root . '/migrations/sqlite/0031_ai_chat.sql'));
     $db->connection()->exec((string)file_get_contents($root.'/migrations/sqlite/0040_ai_cost_control.sql'));
     $db->connection()->exec((string)file_get_contents($root . '/migrations/sqlite/0037_ai_tools.sql'));
-    $failNext = false;
-    $client = new class($failNext) extends OpenAiClient {
-        public function __construct(private bool &$failNext) {}
+    $failNext = false; $providerCalls = 0;
+    $client = new class($failNext, $providerCalls) extends OpenAiClient {
+        public function __construct(private bool &$failNext, private int &$calls) {}
         public function complete(string $key, string $model, array $input, int $maxOutput, ?callable $onDelta = null): array
         {
+            ++$this->calls;
             if ($this->failNext) { $this->failNext = false; throw new \CajeerEngine\AI\AiProviderException('Simulated upstream failure', 503); }
             if ($key === '' || $model === '' || $maxOutput < 128) throw new RuntimeException('Invalid provider arguments.');
             if ($onDelta !== null) { $onDelta('Ответ'); $onDelta(' AI'); }
@@ -86,7 +87,17 @@ try {
     $chat->rename($one, $id, 'Новое название');
     $assert($chat->list($one)[0]['title'] === 'Новое название', 'rename persisted');
     $settings->update(['monthly_token_limit'=>1000]);
-    $reject(fn() => $chat->send($one, $id, str_repeat('x', 2000)), 'monthly token budget enforced before network');
+    $providerCallsBefore = $providerCalls;
+    $budgetRejected = false;
+    try {
+        $chat->send($one, $id, str_repeat('x', 2000));
+    } catch (\DomainException $error) {
+        $budgetRejected = $error->getMessage() === 'Monthly AI token budget reached.';
+    }
+    $assert($budgetRejected && $providerCalls === $providerCallsBefore,
+        'monthly token budget enforced before network');
+    $assert((int)$db->connection()->query('SELECT SUM(reserved_tokens) FROM ce_ai_usage')->fetchColumn() === 0,
+        'rejected over-budget request leaves no token reservation');
     $chat->delete($one, $id);
     $assert(count($chat->list($one)) === 0 && (int)$db->connection()->query('SELECT count(*) FROM ce_ai_messages')->fetchColumn() === 0, 'delete cascades messages');
     $settings->update(['remove_key'=>true]);

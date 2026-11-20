@@ -72,7 +72,14 @@ final readonly class AiCostControl
             if ($limit > 0) $query .= ' AND used_micro_usd + reserved_micro_usd + ? <= ?';
             $values = [$amount, $scope, $period];
             if ($limit > 0) array_push($values, $amount, $limit * 10000);
-            $stmt = $pdo->prepare($query); $stmt->execute($values);
+            $stmt = $pdo->prepare($query);
+            // SQLite cannot infer numeric affinity for the RHS of an arithmetic
+            // comparison. PDO execute(array) binds it as text and bypasses caps.
+            // Preserve 64-bit money values by binding all integer inputs as ints.
+            foreach ($values as $index => $value) {
+                $stmt->bindValue($index + 1, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+            }
+            $stmt->execute();
             if ($stmt->rowCount() !== 1) throw new \DomainException('AI spending limit reached for ' . ($scope === 'global' ? 'the installation' : 'this user') . ' (' . $period . ').');
         }
         $pdo->prepare('INSERT INTO ce_ai_cost_reservations (id, user_id, module, model, day_period, month_period, reserved_micro_usd, input_rate_cents, cached_rate_cents, output_rate_cents, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')

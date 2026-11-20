@@ -116,7 +116,15 @@ final readonly class AiChat
                 : 'INSERT INTO ce_ai_usage (user_id, period, used_tokens, reserved_tokens) VALUES (?, ?, 0, 0) ON CONFLICT (user_id, period) DO NOTHING';
             $stmt = $pdo->prepare($insert); $stmt->execute([$userId, $month]);
             $usage = $pdo->prepare('UPDATE ce_ai_usage SET reserved_tokens = reserved_tokens + ? WHERE user_id = ? AND period = ? AND used_tokens + reserved_tokens + ? <= ?');
-            $usage->execute([$reservation, $userId, $month, $reservation, $settings['monthly_token_limit']]);
+            // SQLite arithmetic expressions have no column affinity: binding the cap as
+            // text makes an over-budget numeric sum compare LESS than the text cap.
+            // Bind numeric operands explicitly on all supported PDO drivers.
+            $usage->bindValue(1, $reservation, PDO::PARAM_INT);
+            $usage->bindValue(2, $userId, PDO::PARAM_STR);
+            $usage->bindValue(3, $month, PDO::PARAM_STR);
+            $usage->bindValue(4, $reservation, PDO::PARAM_INT);
+            $usage->bindValue(5, (int)$settings['monthly_token_limit'], PDO::PARAM_INT);
+            $usage->execute();
             if ($usage->rowCount() !== 1) throw new \DomainException('Monthly AI token budget reached.');
             $reserve = $pdo->prepare('UPDATE ce_ai_conversations SET reserved_tokens = ?, reservation_period = ? WHERE id = ? AND user_id = ?');
             $reserve->execute([$reservation, $month, $id, $userId]);

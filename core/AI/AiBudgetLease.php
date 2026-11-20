@@ -32,7 +32,14 @@ trait AiBudgetLease
                 $pdo->prepare('DELETE FROM ce_ai_editor_jobs WHERE id = ?')->execute([$pending['id']]);
             }
             $stmt = $pdo->prepare('UPDATE ce_ai_usage SET reserved_tokens = reserved_tokens + ? WHERE user_id = ? AND period = ? AND used_tokens + reserved_tokens + ? <= ?');
-            $stmt->execute([$tokens, $uid, $period, $tokens, $limit]);
+            // Bind the budget as an integer. In SQLite an arithmetic expression
+            // compared to a text-bound limit can silently bypass the hard cap.
+            $stmt->bindValue(1, $tokens, PDO::PARAM_INT);
+            $stmt->bindValue(2, $uid, PDO::PARAM_STR);
+            $stmt->bindValue(3, $period, PDO::PARAM_STR);
+            $stmt->bindValue(4, $tokens, PDO::PARAM_INT);
+            $stmt->bindValue(5, $limit, PDO::PARAM_INT);
+            $stmt->execute();
             if ($stmt->rowCount() !== 1) throw new \DomainException('Monthly AI token budget reached.');
             $pdo->prepare('INSERT INTO ce_ai_editor_jobs (id, user_id, period, reserved_tokens, expires_at) VALUES (?, ?, ?, ?, ?)')
                 ->execute([$job, $uid, $period, $tokens, $lease]);
