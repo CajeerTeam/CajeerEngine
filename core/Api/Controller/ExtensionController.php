@@ -97,7 +97,7 @@ final readonly class ExtensionController
                 : $this->extensions->install($target, !empty($payload['enable']));
             return new JsonResponse(['data' => $item], Response::HTTP_CREATED);
         } catch (\Throwable $e) {
-            return $this->error('extension_install_failed', $e->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->error('extension_install_failed', 'Extension installation failed.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
     }
 
@@ -109,7 +109,7 @@ final readonly class ExtensionController
             $name = $this->nameFromRequest($request);
             return new JsonResponse(['data' => $this->extensions->enable($name)]);
         } catch (\Throwable $e) {
-            return $this->error('extension_enable_failed', $e->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->error('extension_enable_failed', 'Extension enable failed.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
     }
 
@@ -119,7 +119,7 @@ final readonly class ExtensionController
         try {
             return new JsonResponse(['data' => $this->extensions->disable($this->nameFromRequest($request))]);
         } catch (\Throwable $e) {
-            return $this->error('extension_disable_failed', $e->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->error('extension_disable_failed', 'Extension disable failed.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
     }
 
@@ -135,7 +135,7 @@ final readonly class ExtensionController
                 : ['deleted' => $this->extensions->uninstall($name)];
             return new JsonResponse(['data' => $data]);
         } catch (\Throwable $e) {
-            return $this->error('extension_uninstall_failed', $e->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->error('extension_uninstall_failed', 'Extension removal failed.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
     }
 
@@ -151,7 +151,7 @@ final readonly class ExtensionController
             }
             return new JsonResponse(['data' => $this->extensions->updateConfig($name, $config)]);
         } catch (\Throwable $e) {
-            return $this->error('extension_config_failed', $e->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->error('extension_config_failed', 'Extension configuration failed.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
     }
 

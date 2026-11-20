@@ -26,7 +26,7 @@ final class TwoFactorTotp
         return $secret;
     }
 
-    public function code(string $secret, ?int $time = null, int $digits = 6, int $period = 30): string
+    public function code(#[\SensitiveParameter] string $secret, ?int $time = null, int $digits = 6, int $period = 30): string
     {
         $time ??= time();
         $counter = intdiv($time, $period);
@@ -41,7 +41,7 @@ final class TwoFactorTotp
         return str_pad((string) ($value % (10 ** $digits)), $digits, '0', STR_PAD_LEFT);
     }
 
-    public function verify(string $secret, string $code, int $window = 1): bool
+    public function verify(#[\SensitiveParameter] string $secret, #[\SensitiveParameter] string $code, int $window = 1): bool
     {
         $code = preg_replace('/\s+/', '', $code) ?? '';
         if (!preg_match('/^\d{6}$/', $code)) {

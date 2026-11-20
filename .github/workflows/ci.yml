@@ -57,7 +57,10 @@ jobs:
       - name: Runtime and queue fault-injection acceptance
         run: php tools/runtime-queue-resilience-regression.php
       - name: Security hardening acceptance
-        run: php tools/security-hardening-regression.php
+        run: |
+          php tools/security-hardening-regression.php
+          php tools/security-privacy-production-regression.php
+          php tools/security-privacy-production-integration.php --require-db
       - name: SkiF4er ID production OIDC protocol and introspection acceptance
         run: |
           php tools/oidc-regression.php

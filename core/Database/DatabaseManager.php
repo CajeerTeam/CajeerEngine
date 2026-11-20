@@ -139,7 +139,7 @@ final class DatabaseManager
                 'latency_ms' => round((microtime(true) - $startedAt) * 1000, 2),
                 'error' => [
                     'class' => $e::class,
-                    'message' => $e->getMessage(),
+                    'message' => 'Database health check failed.',
                 ],
             ];
         }

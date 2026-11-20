@@ -179,41 +179,44 @@ final readonly class UserRepository
         $this->database->connection()->prepare($sql)->execute(['id' => $userId]);
     }
 
-    public function consumeRecoveryCode(string $userId, string $code): bool
+    /**
+     * Recovery codes are single-use credentials. Lock the user row on server
+     * databases before comparing any hash; on SQLite the write compares the
+     * exact original value, so a second concurrent consumer cannot succeed.
+     * Never retry a failed compare-and-swap with a stale verified code.
+     */
+    public function consumeRecoveryCode(string $userId, #[\SensitiveParameter] string $code): bool
     {
-        $record = $this->findByIdWithRecoveryCodes($userId);
-        if ($record === null) {
-            return false;
-        }
-        $codes = $record['two_factor_recovery_codes'];
-        if (!is_array($codes)) {
-            return false;
-        }
-        foreach ($codes as $index => $hash) {
-            if (is_string($hash) && password_verify($code, $hash)) {
+        if (!preg_match('/^[A-Fa-f0-9]{10}$/D', $code)) return false;
+        return $this->database->transaction(function (\PDO $pdo) use ($userId, $code): bool {
+            $driver = $this->database->driver();
+            $sql = 'SELECT two_factor_recovery_codes FROM ce_users WHERE id = :id';
+            if (in_array($driver, ['pgsql', 'mysql'], true)) $sql .= ' FOR UPDATE';
+            $read = $pdo->prepare($sql);
+            $read->execute(['id' => $userId]);
+            $original = $read->fetchColumn();
+            if (!is_string($original)) return false;
+            $codes = $this->decodeList($original);
+            foreach ($codes as $index => $hash) {
+                if (!password_verify($code, $hash)) continue;
                 unset($codes[$index]);
-                $json = json_encode(array_values($codes), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-                $sql = $this->database->driver() === 'pgsql'
+                $next = json_encode(array_values($codes), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+                $sql = $driver === 'pgsql'
                     ? 'UPDATE ce_users SET two_factor_recovery_codes = CAST(:codes AS jsonb), updated_at = CURRENT_TIMESTAMP WHERE id = :id'
                     : 'UPDATE ce_users SET two_factor_recovery_codes = :codes, updated_at = CURRENT_TIMESTAMP WHERE id = :id';
-                $this->database->connection()->prepare($sql)->execute(['id' => $userId, 'codes' => $json]);
-                return true;
+                $params = ['id' => $userId, 'codes' => $next];
+                // SQLite lacks SELECT FOR UPDATE. Compare the full original JSON
+                // in the UPDATE to guarantee exactly one successful redemption.
+                if ($driver === 'sqlite') {
+                    $sql .= ' AND two_factor_recovery_codes = :original';
+                    $params['original'] = $original;
+                }
+                $write = $pdo->prepare($sql);
+                $write->execute($params);
+                return $write->rowCount() === 1;
             }
-        }
-        return false;
-    }
-
-    /** @return array<string, mixed>|null */
-    private function findByIdWithRecoveryCodes(string $id): ?array
-    {
-        $stmt = $this->database->connection()->prepare('SELECT id, two_factor_recovery_codes FROM ce_users WHERE id = :id');
-        $stmt->execute(['id' => $id]);
-        $row = $stmt->fetch();
-        if (!is_array($row)) {
-            return null;
-        }
-        $row['two_factor_recovery_codes'] = $this->decodeList((string) ($row['two_factor_recovery_codes'] ?? '[]'));
-        return $row;
+            return false;
+        });
     }
 
     /** @return array<string, mixed> */

@@ -22,7 +22,8 @@ final readonly class AuthController
         $payload = $this->json($request);
         $email = trim((string) ($payload['email'] ?? ''));
         $password = (string) ($payload['password'] ?? '');
-        if ($email === '' || $password === '') {
+        if ($email === '' || $password === '' || strlen($email) > 254 || strlen($password) > 1024
+            || (isset($payload['two_factor_code']) && (!is_string($payload['two_factor_code']) || strlen($payload['two_factor_code']) > 64))) {
             return $this->error('validation_failed', 'Укажите email и password.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 

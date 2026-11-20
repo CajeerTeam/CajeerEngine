@@ -12,7 +12,7 @@ final readonly class PasswordHasher
     {
     }
 
-    public function hash(string $plain): string
+    public function hash(#[\SensitiveParameter] string $plain): string
     {
         $this->assertStrong($plain);
         $algorithm = $this->algorithm();
@@ -24,7 +24,7 @@ final readonly class PasswordHasher
         return $hash;
     }
 
-    public function verify(string $plain, string $hash): bool
+    public function verify(#[\SensitiveParameter] string $plain, #[\SensitiveParameter] string $hash): bool
     {
         return password_verify($plain, $hash);
     }
@@ -34,7 +34,7 @@ final readonly class PasswordHasher
         return password_needs_rehash($hash, $this->algorithm(), $this->options());
     }
 
-    public function assertStrong(string $plain): void
+    public function assertStrong(#[\SensitiveParameter] string $plain): void
     {
         if (mb_strlen($plain) < $this->config->int('security.password.min_length', 12)) {
             throw new \InvalidArgumentException('Пароль должен быть не короче ' . $this->config->int('security.password.min_length', 12) . ' символов.');

@@ -1,4 +1,4 @@
-# CajeerEngine 1.9.4 — Security Operations & Secret Rotation
+# CajeerEngine 1.9.5 — Security Operations & Secret Rotation
 
 ## Границы доверия
 
@@ -17,6 +17,8 @@ UPDATE_WEB_UPGRADE_ENABLED=false
 EXTENSIONS_REQUIRE_SIGNATURE=true
 SKIF4ER_ID_AUTO_PROVISION=false
 ```
+
+Подробнее об атомарном расходовании recovery-кодов, приватных audit-событиях и защите runtime-логов: [Security & Privacy Production](security-privacy-production-1.9.5.md).
 
 Подробности: [Security Hardening](security-hardening-1.8.2.md), [Identity & RBAC](identity-rbac-authentication-assurance.md), [OIDC Resource Server](oidc-api-authentication.md), [Security Resilience](security-resilience-1.5.8.md).
 

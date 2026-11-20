@@ -31,7 +31,11 @@ final readonly class ErrorHandlerMiddleware implements MiddlewareInterface
         } catch (\CajeerEngine\Content\RevisionConflict $e) {
             return $this->jsonError($request, 'revision_conflict', $e->getMessage(), Response::HTTP_CONFLICT);
         } catch (\InvalidArgumentException|\DomainException $e) {
-            return $this->jsonError($request, 'validation_failed', $e->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+            // Service validation errors sometimes contain SQL identifiers, local
+            // paths or submitted data. Production responses must not echo them.
+            $safe = in_array(strtolower($this->config->string('app.env', 'production')), ['local','dev','testing'], true);
+            return $this->jsonError($request, 'validation_failed',
+                $safe ? $e->getMessage() : 'Проверьте параметры запроса.', Response::HTTP_UNPROCESSABLE_ENTITY);
         } catch (\RuntimeException $e) {
             $message = $e->getMessage();
             if ($e instanceof \PDOException) { return $this->jsonError($request, 'internal_error', 'Внутренняя ошибка базы данных.', 500); }

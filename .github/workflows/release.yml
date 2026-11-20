@@ -235,8 +235,11 @@ jobs:
           php tools/unified-sessions-regression.php --require-db
       - name: Security & Resilience real encrypted data rotation with PDO SQLite
         run: php tools/security-resilience-regression.php --require-db
-      - name: Security hardening 1.8.2 acceptance
-        run: php tools/security-hardening-regression.php
+      - name: Security hardening 1.8.2 and 1.9.5 production privacy acceptance
+        run: |
+          php tools/security-hardening-regression.php
+          php tools/security-privacy-production-regression.php
+          php tools/security-privacy-production-integration.php --require-db
       - run: php tools/security-regression.php
       - run: php tools/integration-regression.php
       - run: php tools/consent-regression.php

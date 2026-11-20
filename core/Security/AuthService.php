@@ -14,6 +14,9 @@ use Symfony\Component\HttpFoundation\Request;
 
 final readonly class AuthService
 {
+    // Fixed Argon2id hash to equalize the expensive password-verification path
+    // when an email is not registered. No secret or usable account is involved.
+    private const UNKNOWN_USER_HASH = '$argon2id$v=19$m=65536,t=4,p=1$bHNHMzBqRmJ1elBCQUM4Wg$B5KAcMbRe1SzFwjsl0MEMkLkgiGAw/naNMTOuahzBXY';
     public function __construct(
         private ConfigRepository $config,
         private UserRepository $users,
@@ -27,24 +30,27 @@ final readonly class AuthService
     }
 
     /** @return array<string, mixed> */
-    public function login(string $email, string $password, ?string $twoFactorCode, Request $request): array
+    public function login(#[\SensitiveParameter] string $email, #[\SensitiveParameter] string $password, #[\SensitiveParameter] ?string $twoFactorCode, Request $request): array
     {
         $user = $this->users->findByEmailForAuth($email);
-        if ($user === null || !$this->passwords->verify($password, (string) $user['password_hash'])) {
-            $this->audit->record('auth.login_failed', null, ['email' => mb_strtolower($email), 'reason' => 'invalid_credentials'], $request->getClientIp(), $request->headers->get('User-Agent'));
-            throw new \RuntimeException('Неверный email или пароль.');
-        }
-
-        if (($user['status'] ?? 'active') !== 'active') {
-            $this->audit->record('auth.login_failed', (string) $user['id'], ['email' => $user['email'], 'reason' => 'disabled_user'], $request->getClientIp(), $request->headers->get('User-Agent'));
-            throw new \RuntimeException('Пользователь отключён.');
+        $validPassword = $this->passwords->verify($password,
+            is_array($user) ? (string)$user['password_hash'] : self::UNKNOWN_USER_HASH);
+        $emailHash = hash('sha256', mb_strtolower(trim($email)));
+        if (!$validPassword || $user === null || ($user['status'] ?? 'active') !== 'active') {
+            $this->audit->record('auth.login_failed', is_array($user) ? (string)$user['id'] : null,
+                ['email_sha256' => $emailHash, 'reason' => $user !== null && !$validPassword ? 'invalid_credentials'
+                    : ($user === null ? 'invalid_credentials' : 'disabled_user')],
+                $request->getClientIp(), $request->headers->get('User-Agent'));
+            throw new \RuntimeException('Неверные учётные данные или код подтверждения.');
         }
 
         if ((bool) ($user['two_factor_enabled'] ?? false)) {
             $secret = (string) ($user['two_factor_secret'] ?? '');
             if ($secret === '' || $twoFactorCode === null || !$this->verifyTwoFactorCode((string) $user['id'], $secret, $twoFactorCode)) {
-                $this->audit->record('auth.login_failed', (string) $user['id'], ['email' => $user['email'], 'reason' => 'two_factor_failed'], $request->getClientIp(), $request->headers->get('User-Agent'));
-                throw new \RuntimeException('Требуется корректный 2FA-код.');
+                $this->audit->record('auth.login_failed', (string) $user['id'],
+                    ['email_sha256' => $emailHash, 'reason' => 'two_factor_failed'],
+                    $request->getClientIp(), $request->headers->get('User-Agent'));
+                throw new \RuntimeException('Неверные учётные данные или код подтверждения.');
             }
         }
 
@@ -52,7 +58,7 @@ final readonly class AuthService
         $ttlDays = max(1, $this->config->int('security.sessions.ttl_days', 14));
         $token = $this->issueSession((string) $user['id'], $scopes, $ttlDays, 'local', $request);
         $this->users->markLogin((string) $user['id']);
-        $this->audit->record('auth.login_success', (string) $user['id'], ['email' => $user['email'], 'token_id' => $token['id']], $request->getClientIp(), $request->headers->get('User-Agent'));
+        $this->audit->record('auth.login_success', (string) $user['id'], ['email_sha256' => $emailHash, 'token_id' => $token['id']], $request->getClientIp(), $request->headers->get('User-Agent'));
 
         return [
             'access_token' => $token['plain_token'],
@@ -295,7 +301,7 @@ final readonly class AuthService
         return true;
     }
 
-    public function confirmSensitiveAction(array $identity, string $password, ?string $code): bool
+    public function confirmSensitiveAction(array $identity, #[\SensitiveParameter] string $password, #[\SensitiveParameter] ?string $code): bool
     {
         if (!($identity['session'] ?? false) || empty($identity['user']['email']) || $password === '') { return false; }
         $user = $this->users->findByEmailForAuth((string) $identity['user']['email']);
@@ -330,7 +336,7 @@ final readonly class AuthService
         return $user;
     }
 
-    private function verifyTwoFactorCode(string $userId, string $secret, string $code): bool
+    private function verifyTwoFactorCode(string $userId, #[\SensitiveParameter] string $secret, #[\SensitiveParameter] string $code): bool
     {
         if ($this->totp->verify($secret, $code)) {
             return true;
