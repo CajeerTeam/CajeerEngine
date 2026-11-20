@@ -454,6 +454,8 @@ jobs:
           test -s composer.lock
           composer audit --locked --no-dev --format=json --abandoned=fail > "$RUNNER_TEMP/release/dependency-audit.json"
       - run: bash tools/release-pipeline.sh "$RUNNER_TEMP/release"
+        env:
+          RELEASE_BROWSER_PYTHON: /tmp/ce-consent-browser/bin/python
       - run: bash tools/release-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip" sqlite
       - run: bash tools/release-smoke.sh "$RUNNER_TEMP/release/cajeerengine-$(cat VERSION)-dist.zip" pgsql
         env:
