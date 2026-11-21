@@ -179,13 +179,16 @@ expect_status 403 -H "Authorization: Bearer $viewertoken" -H 'Content-Type: appl
 expect_status 200 -b "$root/cookies" -H "X-CSRF-Token: $csrf" -X DELETE "$base/api/v1/users/$viewerid"
 expect_status 401 -H "Authorization: Bearer $viewertoken" "$base/api/v1/auth/me"
 expect_status 200 -b "$root/cookies" "$base/api/v1/auth/me"
+# Maintenance changes require an assured browser session with CSRF, never a Bearer token.
+stage maintenance
+expect_status 403 "${auth[@]}" -X POST "$base/api/v1/updates/maintenance/on"
+expect_status 201 -b "$root/cookies" -H "X-CSRF-Token: $csrf" -X POST "$base/api/v1/updates/maintenance/on"
+expect_status 503 "$base/release-smoke"
+expect_status 200 -b "$root/cookies" -H "X-CSRF-Token: $csrf" -X POST "$base/api/v1/updates/maintenance/off"
+expect_status 200 "$base/release-smoke"
+stage auth-rbac-csrf
 expect_status 403 -b "$root/cookies" -X POST "$base/api/v1/auth/logout"
 expect_status 200 -b "$root/cookies" -H "X-CSRF-Token: $csrf" -X POST "$base/api/v1/auth/logout"
 expect_status 401 -b "$root/cookies" "$base/api/v1/auth/me"
 expect_status 422 "${auth[@]}" -d '{"filename":"fake.png","mime_type":"image/png","content_base64":"PGh0bWw+YmFkPC9odG1sPg=="}' "$base/api/v1/media"
-stage maintenance
-expect_status 201 "${auth[@]}" -X POST "$base/api/v1/updates/maintenance/on"
-expect_status 503 "$base/release-smoke"
-expect_status 200 "${auth[@]}" -X POST "$base/api/v1/updates/maintenance/off"
-expect_status 200 "$base/release-smoke"
 echo "Dist smoke passed ($driver)"
