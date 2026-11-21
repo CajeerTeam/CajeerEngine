@@ -59,6 +59,7 @@ jobs:
         run: |
           php tools/compatibility-upgrade-regression.php
           php tools/github-release-regression.php
+          php tools/automatic-release-discovery-regression.php
       - name: Deployment and disaster recovery acceptance (actual SQLite)
         run: |
           php tools/deployment-recovery-acceptance.php

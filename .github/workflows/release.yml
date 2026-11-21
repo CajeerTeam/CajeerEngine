@@ -352,7 +352,9 @@ jobs:
         run: node tools/sdk-client-compatibility-regression.mjs
       - run: php tools/generate-api-sdk.php --check
       - run: php bin/cajeer api:lint --strict --json
-      - run: php tools/github-release-regression.php
+      - run: |
+          php tools/github-release-regression.php
+          php tools/automatic-release-discovery-regression.php
       - run: python3 tools/github-publish-regression.py
       - run: python3 tools/release-promotion-regression.py
       - run: php tools/release-regression.php

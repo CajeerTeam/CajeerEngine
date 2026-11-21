@@ -1,4 +1,4 @@
-# CajeerEngine 2.0.0 — Monitoring, Workers & Scheduler
+# CajeerEngine 2.0.1 — Monitoring, Workers & Scheduler
 
 ## Endpoints и режим доступа
 
@@ -60,3 +60,7 @@ php bin/cajeer doctor --json --no-report
 ```
 
 Если Prometheus/collector недоступен: проверьте DNS/TLS/токен и настройки экспортёра; не отключайте авторизацию `/metrics` ради диагностики. Перед очисткой логов убедитесь в retention и наличии внешнего хранилища. После исправления — обязательно проверьте `ops:check` и пример реального HTTP запроса.
+
+## GitHub Release Discovery 2.0.1
+
+В `scheduler:due` доступна задача `updates.discover_releases`: по умолчанию запускается один раз за шесть часов (при запущенном scheduler). Проверяйте `storage/app/updates/last-check.json` и статус `github_reachable`; `stale`, `fallback` и `unavailable` означают, что свежие метаданные GitHub не получены. Подробности: [Automatic Release Discovery](automatic-release-discovery-2.0.1.md).

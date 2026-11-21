@@ -36,7 +36,8 @@ $work = sys_get_temp_dir() . '/cajeer-2-ga-' . bin2hex(random_bytes(8));
 mkdir($work, 0700);
 try {
     $builder = new ReleaseBuilder($root);
-    assertGa(trim((string) file_get_contents($root . '/VERSION')) === '2.0.0', 'GA product version is 2.0.0');
+    $currentVersion = trim((string) file_get_contents($root . '/VERSION'));
+    assertGa(version_compare($currentVersion, '2.0.0', '>='), 'GA baseline is preserved after patch releases');
     $plan = $builder->plan('source');
     assertGa($plan['release_requirements']['ready'] && in_array('tools/production-release-regression.php', $plan['files'], true), 'real source build requires GA regression');
     $support = new StableReleaseService($work, new ConfigRepository($work));

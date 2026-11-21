@@ -6,6 +6,8 @@ namespace CajeerEngine\Security;
 /** Public-only outbound transport. DNS is validated and the selected address is pinned to the connection. */
 final class PublicHttpClient implements OutboundHttpTransport
 {
+    public function __construct(private readonly int $timeoutSeconds = 10) {}
+
     public static function isPublicIp(string $ip): bool
     {
         // Reject mapped/transition addresses and non-global networks, including CGNAT and link-local.
@@ -64,11 +66,11 @@ final class PublicHttpClient implements OutboundHttpTransport
             $headerLines[] = $name . ': ' . $value;
         }
         $options = [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => $headerLines, CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_PROXY => '', CURLOPT_CONNECTTIMEOUT => 4, CURLOPT_TIMEOUT => 10,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS, CURLOPT_PROXY => '', CURLOPT_CONNECTTIMEOUT => min(4, max(1, $this->timeoutSeconds)), CURLOPT_TIMEOUT => max(1, min(30, $this->timeoutSeconds)),
             CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_HEADERFUNCTION => static function ($ch,string $line) use (&$responseHeaders):int {
                 if (str_starts_with($line,'HTTP/')) $responseHeaders=[];
-                elseif (str_contains($line,':')) {[$name,$value]=explode(':',$line,2);$name=strtolower(trim($name));if(in_array($name,['x-wp-total','x-wp-totalpages'],true))$responseHeaders[$name]=trim($value);}
+                elseif (str_contains($line,':')) {[$name,$value]=explode(':',$line,2);$name=strtolower(trim($name));if(in_array($name,['x-wp-total','x-wp-totalpages','etag','retry-after','x-ratelimit-remaining','x-ratelimit-reset'],true))$responseHeaders[$name]=trim($value);}
                 return strlen($line);
             },
             CURLOPT_WRITEFUNCTION => static function ($ch, string $chunk) use (&$response, $maxBytes): int {

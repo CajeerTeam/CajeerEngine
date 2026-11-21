@@ -7,7 +7,7 @@ namespace CajeerEngine\Update;
 final readonly class UpdateResolver
 {
     /** @param array<string, mixed> $config */
-    public function __construct(private array $config, private ?string $rootPath = null)
+    public function __construct(private array $config, private ?string $rootPath = null, private ?GitHubReleaseMonitor $githubMonitor = null)
     {
     }
 
@@ -67,6 +67,11 @@ final readonly class UpdateResolver
             'current_version' => $currentVersion,
             'channel' => $channel,
             'metadata_source' => $metadata['_source'] ?? 'none',
+            'metadata_status' => $metadata['_status'] ?? 'unknown',
+            'metadata_fetched_at' => $metadata['_fetched_at'] ?? null,
+            'metadata_failure' => $metadata['_failure'] ?? null,
+            'retry_at' => $metadata['_retry_at'] ?? null,
+            'github_reachable' => $this->releasesUrl() === GitHubEndpoints::RELEASES_URL && in_array($metadata['_status'] ?? '', ['fresh', 'not_modified'], true),
             'metadata_ready' => ($metadata['_source'] ?? 'empty') !== 'empty',
             'checked_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
             'update_available' => $updateAvailable,
@@ -82,7 +87,8 @@ final readonly class UpdateResolver
     public function diagnostics(string $currentVersion): array
     {
         $last = $this->lastCheck();
-        $metadata = $this->metadata();
+        // Diagnostics are read-only: opening the admin panel must not issue GitHub requests.
+        $metadata = $this->metadata(false);
         return [
             'channel' => $this->channel(),
             'current_version' => $currentVersion,
@@ -90,6 +96,12 @@ final readonly class UpdateResolver
             'registry_url' => $this->registryUrl(),
             'signature_required' => (bool) ($this->config['registry']['signature_required'] ?? true),
             'metadata_source' => $metadata['_source'] ?? 'empty',
+            'metadata_status' => $last['metadata_status'] ?? $metadata['_status'] ?? 'unknown',
+            'metadata_failure' => $last['metadata_failure'] ?? null,
+            'retry_at' => $last['retry_at'] ?? null,
+            'metadata_fetched_at' => $metadata['_fetched_at'] ?? null,
+            'last_checked_at' => $last['checked_at'] ?? null,
+            'github_reachable' => $last['github_reachable'] ?? null,
             'metadata_ready' => ($metadata['_source'] ?? 'empty') !== 'empty',
             'release_count' => is_array($metadata['releases'] ?? null) ? count($metadata['releases']) : 0,
             'last_check' => $last,
@@ -99,20 +111,37 @@ final readonly class UpdateResolver
     }
 
     /** @return array<string, mixed> */
-    private function metadata(): array
+    private function metadata(bool $remote = true): array
     {
         $url = $this->releasesUrl();
-        $data = $this->readJson($url, $url === GitHubEndpoints::RELEASES_URL);
-        if ($data !== null) { $data['_source'] = $url; return $data; }
+        if ($url === GitHubEndpoints::RELEASES_URL) {
+            $monitor = $this->githubMonitor ?? new GitHubReleaseMonitor($this->rootPath, null, (int) ($this->config['core']['timeout'] ?? 5));
+            $data = $remote ? $monitor->fetch() : $monitor->snapshot();
+            if ($data !== null && ($data['_source'] ?? '') !== 'empty') return $data;
+            if ($remote && $data !== null && ($data['_status'] ?? '') === 'unavailable') {
+                $failure = $data['_failure'] ?? null;
+                $retryAt = $data['_retry_at'] ?? null;
+            }
+        } elseif ($remote) {
+            $data = $this->readJson($url);
+            if ($data !== null) { $data['_source'] = $url; $data['_status'] = 'fresh'; return $data; }
+            $failure = 'network_error';
+        }
 
         foreach ([$this->localMetadataPath(), $this->bundledMetadataPath()] as $path) {
             if ($path !== null && is_file($path)) {
                 $data = $this->readJson($path);
-                if ($data !== null) { $data['_source'] = $path; return $data; }
+                if ($data !== null) {
+                    $data['_source'] = $path;
+                    $data['_status'] = 'fallback';
+                    $data['_failure'] = $failure ?? null;
+                    $data['_retry_at'] = $retryAt ?? null;
+                    return $data;
+                }
             }
         }
 
-        return ['releases' => [], '_source' => 'empty'];
+        return ['releases' => [], '_source' => 'empty', '_status' => 'unavailable', '_failure' => $failure ?? null, '_retry_at' => $retryAt ?? null];
     }
 
     /** @return array<string, mixed>|null */
@@ -152,18 +181,18 @@ final readonly class UpdateResolver
     private function writeLastCheck(array $result): void
     {
         if ($this->rootPath === null) { return; }
-        $path = $this->rootPath . '/storage/app/updates/last-check.json';
-        if (!is_dir(dirname($path))) { mkdir(dirname($path), 0775, true); }
-        file_put_contents($path, json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL, LOCK_EX);
+        $path = OperationFiles::path($this->rootPath, 'storage/app/updates/last-check.json');
+        (new \CajeerEngine\Support\JsonFile($path))->writeObject($result);
     }
 
     /** @return array<string, mixed>|null */
     private function lastCheck(): ?array
     {
         if ($this->rootPath === null) { return null; }
-        $path = $this->rootPath . '/storage/app/updates/last-check.json';
-        if (!is_file($path)) { return null; }
-        $decoded = json_decode((string) file_get_contents($path), true);
-        return is_array($decoded) ? $decoded : null;
+        try {
+            $path = OperationFiles::path($this->rootPath, 'storage/app/updates/last-check.json');
+            $decoded = (new \CajeerEngine\Support\JsonFile($path))->readObject();
+            return $decoded === [] ? null : $decoded;
+        } catch (\Throwable) { return null; }
     }
 }

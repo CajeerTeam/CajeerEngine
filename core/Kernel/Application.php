@@ -385,6 +385,7 @@ final class Application
             \CajeerEngine\Scheduler\TaskRunStore::fromConfig($rootPath,$c->get(ConfigRepository::class),$c->get(DatabaseManager::class)),
             $c->get(\CajeerEngine\Analytics\Reporting\AnalyticsHub::class),
             $c->get(\CajeerEngine\AI\AiBackgroundAutomation::class),
+            new \CajeerEngine\Update\AutomaticReleaseDiscovery($c->get(ConfigRepository::class)),
         ));
 
         $container->set('controller.health', fn (): HealthController => new HealthController($rootPath));

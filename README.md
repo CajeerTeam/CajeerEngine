@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## Automatic Release Discovery 2.0.1
+
+Встроенная задача `updates.discover_releases` проверяет GitHub Releases каждые шесть часов через штатный scheduler, сохраняет ETag, метаданные и результат, сообщает о недоступности GitHub и не выполняет установку. Для работы требуется запущенный scheduler и HTTPS-доступ к GitHub. [Руководство](docs/automatic-release-discovery-2.0.1.md).
+
 ## Production Release 2.0.0
 
 CajeerEngine 2.0.0 включает CMS Core, External Analytics, Migration Center, SkiF4er ID и AI Assistant. При подготовке релизных ZIP source/dist индекс теперь публикуется только при наличии обоих артефактов; служебные support-архивы не включают персональные данные логов и значения `.env`. Рабочие инструкции: [2.0 production release](docs/production-release-2.0.0.md). Перед объявлением установки сертифицированной требуются подписанный dist, успешный полный CI и staging-приёмка конкретного артефакта.

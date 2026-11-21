@@ -30,6 +30,7 @@ final class UpdateCheckCommand extends BaseCommand
         $output->writeln('Current: ' . $result['current_version']);
         $output->writeln('Channel: ' . $result['channel']);
         $output->writeln('Source: ' . $result['metadata_source']);
+        $output->writeln('GitHub status: ' . $result['metadata_status']);
         $output->writeln('Update: ' . ($result['update_available'] ? 'yes' : 'no'));
         if (is_array($result['latest'] ?? null)) {
             $output->writeln('Latest: ' . $result['latest']['version']);
