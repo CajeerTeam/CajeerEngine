@@ -138,6 +138,48 @@ class Safety(unittest.TestCase):
                 p.root_controlled_parents(link/'release.zip')
             p.root_controlled_parents(package)
 
+    @unittest.skipUnless(shutil.which('php'), 'PHP CLI unavailable')
+    def test_host_smoke_patch_fixture_metadata(self):
+        # Execute the actual inlined fixture-preparation PHP on a disposable
+        # copy. A successful same-version deployment is not sufficient: the
+        # later signed patch upgrade must pass embedded metadata and Doctor.
+        root=Path(__file__).resolve().parent.parent
+        script=(root/'deploy/host-smoke.sh').read_text()
+        marker="php -r '\n$root=$argv[1];$old=$argv[2];$new=$argv[3];"
+        self.assertIn(marker,script)
+        program="$root=$argv[1];$old=$argv[2];$new=$argv[3];"+script.split(marker,1)[1].split("\n' \"$fixture\" \"$old\" \"$new\"",1)[0]
+        old=(root/'VERSION').read_text().strip()
+        major,minor,patch_num=map(int,old.split('.'))
+        new=f'{major}.{minor}.{patch_num+1}'
+        runbooks=sorted((root/'docs').glob('operations-*.md'))
+        self.assertEqual(len(runbooks),7)
+        with tempfile.TemporaryDirectory() as temp:
+            fixture=Path(temp)
+            files=['VERSION','release.json','api/openapi.yaml',
+                   'public/admin/assets/admin-manifest.json',
+                   'core/Rc/OperationsDocsVerifier.php']
+            files += [str(path.relative_to(root)) for path in runbooks]
+            for relative in files:
+                target=fixture/relative
+                target.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copy2(root/relative,target)
+            (fixture/'VERSION').write_text(new+'\n')
+            result=subprocess.run(['php','-r',program,str(fixture),old,new],
+                                  text=True,capture_output=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            for relative in ('release.json','public/admin/assets/admin-manifest.json'):
+                self.assertEqual(json.loads((fixture/relative).read_text())['version'],new)
+            self.assertEqual(json.loads((fixture/'api/openapi.yaml').read_text())['info']['version'],new)
+            for path in runbooks:
+                text=(fixture/path.relative_to(root)).read_text()
+                self.assertTrue(text.startswith('# CajeerEngine '+new+' '),path.name)
+            # A second transformation from the original release must fail
+            # closed rather than silently producing a misversioned package.
+            result=subprocess.run(['php','-r',program,str(fixture),old,new],
+                                  text=True,capture_output=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('Fixture metadata version mismatch',result.stderr)
+
     @unittest.skipUnless(shutil.which('php'),'PHP CLI unavailable')
     def test_php_preflight(self):
         # Exercise the actual PHP probe, including Phar's mixed-case module name.

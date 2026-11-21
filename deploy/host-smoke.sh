@@ -78,7 +78,42 @@ mkdir "$work/fixture"; unzip -q "$artifact" -d "$work/fixture"
 fixture="$work/fixture/cajeerengine"
 new=$(php -r '$v=explode(".",$argv[1]); echo $v[0].".".$v[1].".".((int)$v[2]+1);' "$old")
 printf '%s\n' "$new" > "$fixture/VERSION"
-php -r 'foreach (["release.json","public/admin/assets/admin-manifest.json"] as $p) {$f=$argv[1]."/".$p;$j=json_decode(file_get_contents($f),true,512,JSON_THROW_ON_ERROR);$j["version"]=$argv[2];file_put_contents($f,json_encode($j,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n");}' "$fixture" "$new"
+# This synthetic patch release must satisfy the *same* artifact and Doctor
+# checks as a genuine release. Do not relax verification for the smoke fixture.
+# Keep OpenAPI, release/admin metadata and operational runbooks aligned to VERSION.
+php -r '
+$root=$argv[1];$old=$argv[2];$new=$argv[3];
+if (trim((string)file_get_contents($root."/VERSION"))!==$new) throw new RuntimeException("Fixture VERSION mismatch");
+foreach (["release.json","public/admin/assets/admin-manifest.json","api/openapi.yaml"] as $relative) {
+    $path=$root."/".$relative;
+    $document=json_decode(file_get_contents($path),true,512,JSON_THROW_ON_ERROR);
+    if (!is_array($document)) throw new RuntimeException("Invalid fixture document: ".$relative);
+    if ($relative==="api/openapi.yaml") {
+        if (!is_array($document["info"]??null) || ($document["info"]["version"]??null)!==$old) {
+            throw new RuntimeException("Fixture OpenAPI version mismatch");
+        }
+        $document["info"]["version"]=$new;
+    } else {
+        if (($document["version"]??null)!==$old) throw new RuntimeException("Fixture metadata version mismatch: ".$relative);
+        $document["version"]=$new;
+    }
+    if (file_put_contents($path,json_encode($document,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)."\n")===false) {
+        throw new RuntimeException("Cannot write fixture document: ".$relative);
+    }
+}
+require $root."/core/Rc/OperationsDocsVerifier.php";
+foreach (\CajeerEngine\Rc\OperationsDocsVerifier::RUNBOOKS as $relative) {
+    $path=$root."/".$relative;
+    $contents=file_get_contents($path);
+    $prefix="# CajeerEngine ".$old;
+    if (!is_string($contents) || !str_starts_with($contents,$prefix." ")) {
+        throw new RuntimeException("Fixture runbook version mismatch: ".$relative);
+    }
+    if (file_put_contents($path,"# CajeerEngine ".$new.substr($contents,strlen($prefix)))===false) {
+        throw new RuntimeException("Cannot write fixture runbook: ".$relative);
+    }
+}
+' "$fixture" "$old" "$new"
 printf 'CREATE TABLE ce_deploy_probe(id INTEGER PRIMARY KEY); INVALID SQL;\n' > "$fixture/migrations/pgsql/9999_deploy_probe.sql"
 (cd "$fixture"; php tools/build-release.php --dist --target-dir="$work/broken" --json >/dev/null)
 broken="$work/broken/cajeerengine-$new-dist.zip"
