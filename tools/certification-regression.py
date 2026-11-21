@@ -194,4 +194,57 @@ class EvidenceTests(unittest.TestCase):
                 with self.assertRaises(ssl.SSLCertVerificationError): a.Client('wrong.invalid',cert,server.server_port).request('/ok')
             finally: server.shutdown(); server.server_close(); thread.join()
 
+class BrowserAssuranceAcceptanceTests(unittest.TestCase):
+    def test_production_admin_mutation_requires_real_browser_step_up(self):
+        class ProtectedClient:
+            def __init__(self):
+                self.calls = []
+                self.assured = False
+
+            def request(self, path, method='GET', data=None, headers=None, raw=None):
+                headers = headers or {}
+                self.calls.append((method, path, headers, data))
+                cookie = headers.get('Cookie') == 'ce_session=private-session'
+                csrf = headers.get('X-CSRF-Token') == 'f'*64
+                if path == '/api/v1/auth/login' and method == 'POST':
+                    if headers.get('X-Cajeer-Browser') != '1':
+                        return 403, {}, b'{}'
+                    return 201, {'set-cookie': 'ce_session=private-session; Secure; HttpOnly; SameSite=Strict'}, json.dumps({'data':{'csrf_token':'f'*64}}).encode()
+                if path == '/api/v1/auth/assurance' and cookie:
+                    return 200, {}, json.dumps({'data':{'fresh':self.assured}}).encode()
+                if path == '/api/v1/users' and cookie and csrf and method == 'POST':
+                    return (201 if self.assured else 403), {}, b'{}'
+                if path == '/api/v1/auth/assurance/confirm' and cookie and csrf and method == 'POST':
+                    if data != {'password':'test-password'}:
+                        return 403, {}, b'{}'
+                    self.assured = True
+                    return 200, {}, b'{"data":{"fresh":true}}'
+                return 401, {}, b'{}'
+
+        client = ProtectedClient()
+        payload = {'email':'viewer@example.invalid','roles':['viewer']}
+        headers = a.assured_browser_headers(client,'admin@example.invalid','test-password',payload)
+        self.assertEqual(headers,{'Cookie':'ce_session=private-session','X-CSRF-Token':'f'*64})
+        self.assertEqual([path for method,path,_,_ in client.calls],[
+            '/api/v1/auth/login','/api/v1/auth/assurance','/api/v1/users',
+            '/api/v1/auth/assurance/confirm'])
+        self.assertEqual(a.expect(client,'/api/v1/users',201,method='POST',headers=headers,data=payload)[0],{})
+
+    def test_reject_implicitly_assured_or_invalid_browser_session(self):
+        class UnexpectedClient:
+            def __init__(self, unexpected): self.unexpected=unexpected
+            def request(self,path,method='GET',data=None,headers=None,raw=None):
+                if path == '/api/v1/auth/login':
+                    if self.unexpected == 'cookie':
+                        return 201, {}, b'{"data":{"csrf_token":"' + b'f'*64 + b'"}}'
+                    return 201, {'set-cookie':'ce_session=test; Secure; HttpOnly'}, b'{"data":{"csrf_token":"' + b'f'*64 + b'"}}'
+                if path == '/api/v1/auth/assurance':
+                    return 200, {}, b'{"data":{"fresh":true}}'
+                return 401, {}, b'{}'
+        for case in ('cookie','already-assured'):
+            with self.subTest(case=case):
+                with self.assertRaises(RuntimeError):
+                    a.assured_browser_headers(UnexpectedClient(case),'admin@example.invalid','password',{})
+
+
 if __name__=='__main__': unittest.main(verbosity=2)

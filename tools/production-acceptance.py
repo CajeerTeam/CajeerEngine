@@ -136,6 +136,33 @@ def load_pass(report):
                     and nonnegative_number(r['p95_ms']) and r['p95_ms'] <= MAX_P95_MS for r in report['routes'].values()))
 
 
+def assured_browser_headers(client, email, password, privileged_payload):
+    """Obtain a real cookie-bound, CSRF-protected and freshly assured admin session.
+
+    High-risk mutations deliberately reject bearer sessions and fresh browser
+    logins until the current password has been re-verified. Do not bypass those
+    gates in production certification just to make a smoke test pass.
+    """
+    headers, body = expect(client, '/api/v1/auth/login', 201, method='POST',
+                           headers={'X-Cajeer-Browser': '1'},
+                           data={'email': email, 'password': password})
+    session = data(body)
+    cookie = headers.get('set-cookie', '').split(';', 1)[0]
+    csrf = session.get('csrf_token')
+    require(cookie.startswith('ce_session=') and 'access_token' not in session
+            and isinstance(csrf, str) and len(csrf) == 64,
+            'protected browser session not issued')
+    protected = {'Cookie': cookie, 'X-CSRF-Token': csrf}
+    _, body = expect(client, '/api/v1/auth/assurance', 200, headers=protected)
+    require(data(body).get('fresh') is False, 'new browser session is already assured')
+    expect(client, '/api/v1/users', 403, method='POST', headers=protected,
+           data=privileged_payload)
+    _, body = expect(client, '/api/v1/auth/assurance/confirm', 200,
+                     method='POST', headers=protected, data={'password': password})
+    require(data(body).get('fresh') is True, 'browser step-up did not establish fresh assurance')
+    return protected
+
+
 def run(client, version, email, password, report):
     checks = report['checks']
     def passed(name): checks[name] = True; print('PASS', name, flush=True)
@@ -166,10 +193,14 @@ def run(client, version, email, password, report):
     call('/api/v1/auth/logout',method='POST',headers={**browser,'X-CSRF-Token':csrf})
     call('/api/v1/auth/me',401,headers=browser); passed('cookie_csrf')
     viewer_email='acceptance-viewer@example.invalid'
-    _,b=call('/api/v1/users',201,method='POST',headers=auth,data={'email':viewer_email,'name':'Acceptance Viewer','password':password,'roles':['viewer']})
+    viewer_payload={'email':viewer_email,'name':'Acceptance Viewer','password':password,'roles':['viewer']}
+    # Even an administrator's bearer token cannot satisfy interactive assurance.
+    call('/api/v1/users',403,method='POST',headers=auth,data=viewer_payload)
+    protected=assured_browser_headers(client,email,password,viewer_payload)
+    _,b=call('/api/v1/users',201,method='POST',headers=protected,data=viewer_payload)
     viewer_id=data(b)['id']; _,b=login(viewer_email,password); viewer={'Authorization':'Bearer '+data(b)['access_token']}
     call('/api/v1/content/pages',403,method='POST',headers=viewer,data={'title':'denied','data':{}}); passed('viewer_rbac')
-    call('/api/v1/users/'+viewer_id,method='DELETE',headers=auth)
+    call('/api/v1/users/'+viewer_id,method='DELETE',headers=protected)
     call('/api/v1/auth/me',401,headers=viewer); passed('revocation')
     call('/api/v1/media',422,method='POST',headers=auth,data={'filename':'fake.png','mime_type':'image/png','content_base64':'PGh0bWw+YmFkPC9odG1sPg=='})
     passed('media_validation')
