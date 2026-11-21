@@ -1,0 +1,83 @@
+# This workflow MUST be dispatched at a verified tag. The environment's
+# branch/tag protection is evaluated before a job gets its runner. Never use a
+# main-branch ref here, even if this workflow creates a tag later.
+name: Publish certified release
+on:
+  workflow_dispatch:
+    inputs:
+      certified_run_id:
+        description: GitHub Actions run that successfully certified this exact tag commit
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: publish-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: sodium, zip, mbstring
+      - name: Verify certified run provenance before downloading artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CERTIFIED_RUN_ID: ${{ inputs.certified_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REPOSITORY,,}" == cajeerteam/cajeerengine ]]
+          [[ "$GITHUB_REF" == "refs/tags/v$(cat VERSION)" ]]
+          [[ "$CERTIFIED_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          run="repos/$GITHUB_REPOSITORY/actions/runs/$CERTIFIED_RUN_ID"
+          [[ "$(gh api "$run" --jq '.head_sha')" == "$GITHUB_SHA" ]]
+          [[ "$(gh api "$run" --jq '.path')" == '.github/workflows/release.yml' ]]
+          event=$(gh api "$run" --jq '.event')
+          [[ "$event" == push ]]
+          # The upstream release job must have completed successfully, not merely
+          # started or uploaded an unrelated artifact in a failed run.
+          gh api "$run/jobs?per_page=100" --jq '.jobs[] | select(.name == "release" and .conclusion == "success") | .id' | grep -Eq '^[0-9]+$'
+      - uses: actions/download-artifact@v7
+        with:
+          name: cajeerengine-verified-release
+          path: ${{ runner.temp }}/verified-release
+          run-id: ${{ inputs.certified_run_id }}
+          github-token: ${{ github.token }}
+      - name: Verify production certification before accessing signing key
+        run: python3 tools/certification-evidence.py verify "$RUNNER_TEMP/verified-release"
+      - name: Sign verified artifacts
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          RELEASE_DIR: ${{ runner.temp }}/verified-release
+        run: |
+          set -euo pipefail
+          version=$(cat VERSION)
+          [[ "$GITHUB_REF" == "refs/tags/v$version" ]]
+          [[ "${GITHUB_REPOSITORY,,}" == cajeerteam/cajeerengine ]]
+          [[ -n "$RELEASE_SIGNING_KEY" ]]
+          key=$(mktemp)
+          trap 'rm -f "$key"' EXIT
+          chmod 600 "$key"
+          printf '%s\n' "$RELEASE_SIGNING_KEY" > "$key"
+          unset RELEASE_SIGNING_KEY
+          for mode in source dist; do
+            name="cajeerengine-$version-$mode.zip"
+            (cd "$RELEASE_DIR" && sha256sum --strict --check "$name.sha256")
+            php bin/cajeer release:verify --"$mode" --strict --artifact="$RELEASE_DIR/$name" --json
+            php bin/cajeer release:sign --package="$RELEASE_DIR/$name" --secret-key="$key"
+          done
+      - name: Publish signed GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_DIR: ${{ runner.temp }}/verified-release
+        run: bash tools/github-publish-release.sh "$RELEASE_DIR" "v$(cat VERSION)" "$GITHUB_REPOSITORY"

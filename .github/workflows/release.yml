@@ -354,6 +354,7 @@ jobs:
       - run: php bin/cajeer api:lint --strict --json
       - run: php tools/github-release-regression.php
       - run: python3 tools/github-publish-regression.py
+      - run: python3 tools/release-promotion-regression.py
       - run: php tools/release-regression.php
       - name: Deployment recovery replay, timeout and isolated restore acceptance
         run: php tools/deployment-recovery-acceptance.php
@@ -500,80 +501,25 @@ jobs:
             ${{ runner.temp }}/release/dependency-audit.json
           if-no-files-found: error
 
-  publish:
+  # Main branch is qualified, but its ref is not eligible for the protected
+  # `release` environment. Promote the *certified commit* to an immutable tag
+  # before requesting a separate tag-ref publication workflow.
+  promote:
     needs: release
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
-    environment: release
     permissions:
       contents: write
-    concurrency:
-      group: publish-${{ github.ref }}
-      cancel-in-progress: false
+      actions: write
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          extensions: sodium, zip, mbstring
       - uses: actions/download-artifact@v7
         with:
           name: cajeerengine-verified-release
           path: ${{ runner.temp }}/verified-release
-      - name: Verify production certification before accessing signing key
-        run: python3 tools/certification-evidence.py verify "$RUNNER_TEMP/verified-release"
-      - name: Sign verified artifacts
-        env:
-          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
-          RELEASE_DIR: ${{ runner.temp }}/verified-release
-        run: |
-          set -euo pipefail
-          version=$(cat VERSION)
-          if [[ "$GITHUB_REF" == "refs/tags/v$version" ]]; then
-            : # Existing immutable tag
-          elif [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
-            : # Certified on-demand release request validated by the release job
-          else
-            echo "Publishing from an unexpected Git ref is forbidden" >&2
-            exit 1
-          fi
-          [[ "${GITHUB_REPOSITORY,,}" == cajeerteam/cajeerengine ]]
-          [[ -n "$RELEASE_SIGNING_KEY" ]]
-          key=$(mktemp)
-          trap 'rm -f "$key"' EXIT
-          chmod 600 "$key"
-          printf '%s\n' "$RELEASE_SIGNING_KEY" > "$key"
-          unset RELEASE_SIGNING_KEY
-          for mode in source dist; do
-            name="cajeerengine-$version-$mode.zip"
-            (cd "$RELEASE_DIR" && sha256sum --strict --check "$name.sha256")
-            php bin/cajeer release:verify --"$mode" --strict --artifact="$RELEASE_DIR/$name" --json
-            php bin/cajeer release:sign --package="$RELEASE_DIR/$name" --secret-key="$key"
-          done
-      - name: Create immutable tag for verified on-demand release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Reverify certified bytes and promote to immutable release tag
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          [[ "${GITHUB_REPOSITORY,,}" == cajeerteam/cajeerengine ]]
-          version=$(cat VERSION)
-          tag="v$version"
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
-            echo "Tag $tag already exists; refusing to replace it" >&2
-            exit 1
-          fi
-          tag_sha=$(gh api --method POST "repos/$GITHUB_REPOSITORY/git/tags" \
-            -f "tag=$tag" \
-            -f "message=CajeerEngine $version verified release" \
-            -f "object=$GITHUB_SHA" \
-            -f "type=commit" --jq .sha)
-          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
-            -f "ref=refs/tags/$tag" -f "sha=$tag_sha" >/dev/null
-      - name: Publish signed GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_DIR: ${{ runner.temp }}/verified-release
-        run: bash tools/github-publish-release.sh "$RELEASE_DIR" "v$(cat VERSION)" "$GITHUB_REPOSITORY"
+        run: bash tools/promote-certified-release.sh "$RUNNER_TEMP/verified-release"

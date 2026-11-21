@@ -48,6 +48,7 @@ jobs:
         run: |
           python3 tools/certification-regression.py
           python3 tools/github-publish-regression.py
+          python3 tools/release-promotion-regression.py
           php tools/release-regression.php
       - name: External analytics and tracking HTTP regressions
         run: |
