@@ -129,7 +129,7 @@ final readonly class GitHubReleaseMonitor
                     !preg_match('/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/D', $release['version']) ||
                     !is_array($release['artifacts']['dist'] ?? null)) return null;
             }
-            if (isset($cache['etag']) && $cache['etag'] !== null && !self::validEtag($cache['etag'])) unset($cache['etag']);
+            if (array_key_exists('etag', $cache) && !self::validEtag($cache['etag'])) unset($cache['etag']);
             $cache['rate_limited_until'] = max(0, (int) ($cache['rate_limited_until'] ?? 0));
             return $cache;
         } catch (\Throwable) {

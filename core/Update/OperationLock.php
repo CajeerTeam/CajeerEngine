@@ -23,7 +23,13 @@ final class OperationLock
                 if (!chmod($path, $mode)) throw new \RuntimeException('Cannot protect new lock');
             } catch (\Throwable $e) { fclose($handle); throw $e; }
         } else {
-            if (is_link($path)) throw new \RuntimeException('Unsafe lock path');
+            // x+ may fail because another process has created the entry. Recheck
+            // its type with lstat before opening it; the inode check follows below.
+            clearstatcache(true, $path);
+            $existing = @lstat($path);
+            if (!is_array($existing) || ($existing['mode'] & 0170000) !== 0100000) {
+                throw new \RuntimeException('Unsafe lock path');
+            }
             $handle = @fopen($path, 'r+');
             if (!is_resource($handle)) throw new \RuntimeException('Cannot access lock');
         }

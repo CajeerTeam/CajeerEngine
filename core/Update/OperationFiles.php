@@ -31,7 +31,12 @@ final class OperationFiles
             $current .= ($current === '' || $current === '/' ? '' : '/') . $component;
             if (is_link($current)) throw new \RuntimeException('Symlink directory component');
             if (!is_dir($current) && !@mkdir($current, $mode) && !is_dir($current)) throw new \RuntimeException('Cannot create directory');
-            if (is_link($current) || !is_dir($current)) throw new \RuntimeException('Unsafe directory component');
+            // Re-stat after creation: a concurrent replacement must not be accepted as a directory.
+            clearstatcache(true, $current);
+            $entry = @lstat($current);
+            if (!is_array($entry) || ($entry['mode'] & 0170000) !== 0040000) {
+                throw new \RuntimeException('Unsafe directory component');
+            }
         }
     }
 

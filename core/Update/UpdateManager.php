@@ -532,7 +532,7 @@ final class UpdateManager
             if ($event !== null) (new UpdateHistory($this->rootPath))->record($event,
                 ['transaction_id'=>$j['id'], 'version'=>$j['target_version']??null,
                  'previous_version'=>$j['previous_version']??null, 'sha256'=>$j['sha256']??null,
-                 'backup_id'=>$j['backup']??null, 'state'=>$report['state']??null],
+                 'backup_id'=>$j['backup']??null, 'state'=>$report['state']],
                 'transaction:'.$j['id'].':'.$report['state'].':'.(($report['ok']??false)?'ok':'failed'));
         } catch (\Throwable) { /* recovered by UpdateHistory::reconcile() */ }
     }
