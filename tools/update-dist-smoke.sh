@@ -21,8 +21,24 @@ new=$(php -r '$p=explode(".",$argv[1]); echo $p[0].".".$p[1].".".((int)$p[2]+1);
 unzip -q "$artifact" -d "$work/target"
 target="$work/target/cajeerengine"
 printf '%s\n' "$new" > "$target/VERSION"
-php -r 'foreach (["release.json","public/admin/assets/admin-manifest.json"] as $p) {$f=$argv[1]."/".$p;$j=json_decode(file_get_contents($f),true,512,JSON_THROW_ON_ERROR);$j["version"]=$argv[2];file_put_contents($f,json_encode($j,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n");}' "$target" "$new"
-# Only the version metadata and a test migration differ; all production dependencies remain genuine.
+# A synthetic patch release must keep every embedded version in sync: the
+# artifact verifier rejects stale OpenAPI contracts just as it rejects stale
+# release/admin metadata. No production code or dependency is changed here.
+php -r '
+$root=$argv[1];$version=$argv[2];
+foreach (["release.json","public/admin/assets/admin-manifest.json"] as $p) {
+    $file=$root."/".$p;
+    $data=json_decode(file_get_contents($file),true,512,JSON_THROW_ON_ERROR);
+    $data["version"]=$version;
+    file_put_contents($file,json_encode($data,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR)."\n");
+}
+$file=$root."/api/openapi.yaml";
+$contract=json_decode(file_get_contents($file),true,512,JSON_THROW_ON_ERROR);
+if (!is_array($contract["info"]??null)) throw new RuntimeException("Missing embedded OpenAPI info");
+$contract["info"]["version"]=$version;
+file_put_contents($file,json_encode($contract,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)."\n");
+' "$target" "$new"
+# Only synthetic release metadata and a test migration differ; production dependencies remain genuine.
 printf 'CREATE TABLE ce_update_smoke (id INTEGER PRIMARY KEY); INSERT INTO ce_update_smoke VALUES (1);\n' > "$target/migrations/sqlite/9999_update_smoke.sql"
 (cd "$target"; php tools/build-release.php --dist --target-dir="$work/artifacts" --json >/dev/null)
 package="$work/artifacts/cajeerengine-$new-dist.zip"
