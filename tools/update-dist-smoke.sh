@@ -44,6 +44,20 @@ if (!is_array($contract["info"]??null)) throw new RuntimeException("Missing embe
 $contract["info"]["version"]=$version;
 file_put_contents($file,json_encode($contract,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)."\n");
 ' "$target" "$new"
+# Operational runbooks are versioned release metadata too. The production
+# Doctor requires their titles to match VERSION; keep the synthetic fixture
+# consistent without changing the actual 2.0.0 runbooks.
+php -r '
+$root=$argv[1];$old=$argv[2];$new=$argv[3];
+$files=glob($root."/docs/operations-*.md") ?: [];
+if (count($files)<7) throw new RuntimeException("Missing operational runbooks in update fixture");
+foreach ($files as $file) {
+    $content=file_get_contents($file);
+    $prefix="# CajeerEngine ".$old." ";
+    if (!str_starts_with($content,$prefix)) throw new RuntimeException("Unexpected runbook title: ".basename($file));
+    file_put_contents($file,"# CajeerEngine ".$new.substr($content,strlen("# CajeerEngine ".$old)));
+}
+' "$target" "$old" "$new"
 # Only synthetic release metadata and a test migration differ; production dependencies remain genuine.
 printf 'CREATE TABLE ce_update_smoke (id INTEGER PRIMARY KEY); INSERT INTO ce_update_smoke VALUES (1);\n' > "$target/migrations/sqlite/9999_update_smoke.sql"
 phase=build-fixture
