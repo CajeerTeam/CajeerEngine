@@ -283,7 +283,19 @@ final class UpdateManager
             $data['transaction']=$candidate['transaction'];
         }
         else throw new \RuntimeException('Invalid operation');
-        OperationFiles::json($this->requestDir().'/request-'.$id.'.json',$data,0640); return $data;
+        $requestFile=$this->requestDir().'/request-'.$id.'.json';
+        OperationFiles::json($requestFile,$data,0640);
+        try {
+            (new UpdateHistory($this->rootPath))->record('update.requested', [
+                'actor'=>$actor, 'action'=>$action, 'request_id'=>$id, 'version'=>$data['version']??null,
+                'sha256'=>$data['sha256']??null,
+            ], 'request:'.$id.':pending');
+        } catch (\Throwable $e) {
+            // Do not leave a runnable unlogged request when durable audit storage fails.
+            OperationFiles::remove($requestFile);
+            throw $e;
+        }
+        return $data;
         } finally { flock($queueGuard, LOCK_UN); fclose($queueGuard); }
     }
     public function pending(): array
@@ -347,6 +359,11 @@ final class UpdateManager
         if (!in_array($r['action']??null,['apply','download','rollback','backup'],true)) throw new \RuntimeException('Unknown request');
         $r['state']='running'; $r['started_at']=gmdate(DATE_ATOM);
         OperationFiles::json($path,$r,0640);
+        // The durable request journal is the authoritative recovery source.
+        // The scheduler reconciles any audit event interrupted after this write.
+        try { (new UpdateHistory($this->rootPath))->record('update.started',
+            ['actor'=>$r['actor']??null,'action'=>$r['action'],'request_id'=>$id,'version'=>$r['version']??null],
+            'request:'.$id.':started'); } catch (\Throwable) { /* reconcile later */ }
         try {
         // Only a manually selected ID or the dedicated non-root 2.0.3 operator
         // may consume this confirmed request; neither accepts browser-selected commands.
@@ -371,11 +388,27 @@ final class UpdateManager
         } elseif ($r['action']==='backup') $result=(new BackupManager($this->rootPath,$this->config))->create();
         else throw new \RuntimeException('Unknown request');
         $r['state']=($result['ok']??false)?'completed':'failed'; $r['finished_at']=gmdate(DATE_ATOM);
-        OperationFiles::json($path,$r,0640); return $result;
+        OperationFiles::json($path,$r,0640);
+        try {
+            $event = match ($r['action']) {
+                'download' => 'update.downloaded', 'backup' => 'update.backup_created', default => null,
+            };
+            if ($event !== null) (new UpdateHistory($this->rootPath))->record($event,
+                ['actor'=>$r['actor']??null,'action'=>$r['action'],'request_id'=>$id,
+                 'version'=>$r['version']??($result['version']??null),
+                 'transaction_id'=>$r['transaction']??null,
+                 'backup_id'=>$result['id']??($result['backup']['id']??null),
+                 'sha256'=>$r['sha256']??($result['sha256']??null)],
+                'request:'.$id.':completed');
+        } catch (\Throwable) { /* authoritative journal is reconciled by scheduler */ }
+        return $result;
         } catch (\Throwable $e) {
             $r['state']='failed'; $r['finished_at']=gmdate(DATE_ATOM);
             $r['failure']='Operator operation failed; inspect the update/backup journal before retrying';
             OperationFiles::json($path,$r,0640);
+            try { (new UpdateHistory($this->rootPath))->record('update.failed',
+                ['actor'=>$r['actor']??null,'action'=>$r['action'],'request_id'=>$id,'version'=>$r['version']??null,
+                 'reason_code'=>'operation_failed'], 'request:'.$id.':failed'); } catch (\Throwable) { /* reconcile */ }
             throw $e;
         }
         } finally { OperationLock::release($guard); }
@@ -476,7 +509,26 @@ final class UpdateManager
         OperationFiles::json($dir.'/recovery.json',['root'=>$this->rootPath,'backup'=>$backup]);
     }
     private function journal(array $j): void { $j['updated_at']=gmdate(DATE_ATOM); OperationFiles::json($this->transactionDir($j['id']).'/journal.json',$j); OperationFiles::json($this->path('active.json'),$j); }
-    private function finish(array $j,array $report): void { $this->report($report); if (!$j['maintenance_was_enabled']) OperationFiles::remove($this->rootPath.'/storage/app/maintenance.json'); elseif (is_array($j['maintenance_before']??null)) OperationFiles::json($this->rootPath.'/storage/app/maintenance.json',$j['maintenance_before'],0644); OperationFiles::remove($this->path('active.json')); }
+    private function finish(array $j,array $report): void
+    {
+        $this->report($report);
+        if (!$j['maintenance_was_enabled']) OperationFiles::remove($this->rootPath.'/storage/app/maintenance.json');
+        elseif (is_array($j['maintenance_before']??null)) OperationFiles::json($this->rootPath.'/storage/app/maintenance.json',$j['maintenance_before'],0644);
+        OperationFiles::remove($this->path('active.json'));
+        // Update reporting is non-destructive; a crash between the committed
+        // journal and this event is backfilled from last-update.json.
+        try {
+            $event = match ($report['state']??'') {
+                'committed' => 'update.installed', 'rolled_back' => ($report['ok']??false) ? 'update.rolled_back' : 'update.failed',
+                'recovery_required' => 'update.recovery_required', default => null,
+            };
+            if ($event !== null) (new UpdateHistory($this->rootPath))->record($event,
+                ['transaction_id'=>$j['id'], 'version'=>$j['target_version']??null,
+                 'previous_version'=>$j['previous_version']??null, 'sha256'=>$j['sha256']??null,
+                 'backup_id'=>$j['backup']??null, 'state'=>$report['state']??null],
+                'transaction:'.$j['id'].':'.$report['state'].':'.(($report['ok']??false)?'ok':'failed'));
+        } catch (\Throwable) { /* recovered by UpdateHistory::reconcile() */ }
+    }
     private function report(array $report): void { OperationFiles::json($this->path('last-update.json'),$report,0600); OperationFiles::json($this->requestDir().'/last-report.json',array_intersect_key($report,array_flip(['ok','id','state','previous_version','target_version','version'])),0644); }
     private function setMaintenance(string $message): void { OperationFiles::json($this->rootPath.'/storage/app/maintenance.json',['enabled'=>true,'message'=>$message,'since'=>gmdate(DATE_ATOM)],0644); }
     private function transactionDir(string $id): string { if (!preg_match('/^\d{8}-\d{6}-[a-f0-9]{16}$/D',$id)) throw new \RuntimeException('Invalid transaction ID'); return $this->path('transactions/'.$id); }

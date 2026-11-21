@@ -2487,10 +2487,34 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'get_UpdatesHistory' => 
+  array (
+    'method' => 'GET',
+    'path' => '/updates/history',
+    'parameters' => 
+    array (
+      0 => 
+      array (
+        'name' => 'before',
+        'in' => 'query',
+        'required' => false,
+      ),
+    ),
+    'bodyRequired' => false,
+  ),
   'get_UpdatesMaintenance' => 
   array (
     'method' => 'GET',
     'path' => '/updates/maintenance',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'get_UpdatesNotifications' => 
+  array (
+    'method' => 'GET',
+    'path' => '/updates/notifications',
     'parameters' => 
     array (
     ),
@@ -3496,6 +3520,15 @@ final class Operations {
   array (
     'method' => 'POST',
     'path' => '/updates/maintenance/on',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => false,
+  ),
+  'post_UpdatesNotificationsRead' => 
+  array (
+    'method' => 'POST',
+    'path' => '/updates/notifications/read',
     'parameters' => 
     array (
     ),

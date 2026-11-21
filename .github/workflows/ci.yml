@@ -63,6 +63,7 @@ jobs:
           php tools/secure-release-downloader-regression.php
           php tools/update-execution-service-regression.php
           php tools/admin-update-center-regression.php
+          php tools/update-history-notifications-regression.php
           php tools/update-regression.php
       - name: Deployment and disaster recovery acceptance (actual SQLite)
         run: |

@@ -7,6 +7,7 @@ namespace CajeerEngine\Api\Controller;
 use CajeerEngine\Runtime\ConfigRepository;
 use CajeerEngine\Update\UpdateManager;
 use CajeerEngine\Update\UpdateResolver;
+use CajeerEngine\Update\UpdateHistory;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -21,6 +22,30 @@ final readonly class UpdateController
     {
         $resolver = new UpdateResolver($this->config->get('updates', []), $this->config->rootPath());
         return new JsonResponse(['data' => $resolver->diagnostics($this->config->string('app.version', '1.5.0')) + ['wizard'=>$this->manager()->wizardState(),'staged'=>$this->manager()->staged(),'requests'=>$this->manager()->recentRequests(),'backups'=>array_slice((new \CajeerEngine\Backup\BackupManager($this->config->rootPath(), $this->config))->list()['backups'],0,20),'downloads'=>$this->manager()->downloaded(),'web_upgrade_enabled'=>$this->config->bool('updates.web_upgrade.enabled')]]);
+    }
+
+    /** Paginated persistent update audit (not just the 20 latest queue records). */
+    public function history(Request $request, array $parameters): JsonResponse
+    {
+        $before = $request->query->get('before');
+        $before = is_string($before) && $before !== '' ? $before : null;
+        try { $items = (new UpdateHistory($this->config->rootPath()))->recent(50, $before); }
+        catch (\InvalidArgumentException $e) { return new JsonResponse(['error'=>['code'=>'invalid_cursor','message'=>$e->getMessage()]],422); }
+        return new JsonResponse(['data'=>$items, 'meta'=>['next_cursor'=>count($items)===50 ? end($items)['id'] : null]], 200, ['Cache-Control'=>'no-store']);
+    }
+
+    public function notifications(Request $request, array $parameters): JsonResponse
+    {
+        $identity = $request->attributes->get('auth');
+        $actor = (string) ($identity['user_id'] ?? 'api-token');
+        return new JsonResponse(['data'=>(new UpdateHistory($this->config->rootPath()))->notifications($actor)], 200, ['Cache-Control'=>'no-store']);
+    }
+
+    public function readNotifications(Request $request, array $parameters): JsonResponse
+    {
+        $identity = $request->attributes->get('auth');
+        $actor = (string) ($identity['user_id'] ?? 'api-token');
+        return new JsonResponse(['data'=>(new UpdateHistory($this->config->rootPath()))->markRead($actor)], 200, ['Cache-Control'=>'no-store']);
     }
 
     /** @param array<string, mixed> $parameters */

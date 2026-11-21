@@ -249,13 +249,28 @@ final readonly class WebhookRepository
         return $this->locked('outbox',fn()=> $this->pushOutboxLocked($event,$payload));
     }
 
-    private function pushOutboxLocked(string $event, array $payload): string
+    /** Idempotent durable hand-off from update history; retries never duplicate an outbox event. */
+    public function pushOutboxOnce(string $event, array $payload, string $stableKey): string
+    {
+        if ($stableKey === '' || strlen($stableKey) > 200) throw new \InvalidArgumentException('Invalid event deduplication key');
+        $digest = hash('sha256', 'cajeerengine.update.event.v1:' . $stableKey);
+        $id = substr($digest, 0, 8) . '-' . substr($digest, 8, 4) . '-' . substr($digest, 12, 4) . '-' . substr($digest, 16, 4) . '-' . substr($digest, 20, 12);
+        return $this->locked('outbox', fn () => $this->pushOutboxLocked($event, $payload, $id));
+    }
+
+    private function pushOutboxLocked(string $event, array $payload, ?string $fixedId = null): string
     {
         if($event===''||strlen($event)>200||preg_match('/[\x00-\x1f\x7f]/',$event))throw new \InvalidArgumentException('Invalid event name');
         if(strlen(json_encode($payload,JSON_THROW_ON_ERROR))>900000)throw new \InvalidArgumentException('Event payload too large');
         $data = $this->outboxData();
         $items = is_array($data['events'] ?? null) ? $data['events'] : [];
-        $id = Uuid::v4();
+        $id = $fixedId ?? Uuid::v4();
+        foreach ($items as $existing) {
+            if (($existing['id'] ?? null) === $id) {
+                if (($existing['event'] ?? null) !== $event) throw new \RuntimeException('Webhook event ID conflict');
+                return $id;
+            }
+        }
         $items[] = [
             'id' => $id,
             'event' => $event,

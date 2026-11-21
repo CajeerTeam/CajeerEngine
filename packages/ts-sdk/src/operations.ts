@@ -1912,9 +1912,27 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "get_UpdatesHistory": {
+        "method": "GET",
+        "path": "/updates/history",
+        "parameters": [
+            {
+                "name": "before",
+                "in": "query",
+                "required": false
+            }
+        ],
+        "bodyRequired": false
+    },
     "get_UpdatesMaintenance": {
         "method": "GET",
         "path": "/updates/maintenance",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "get_UpdatesNotifications": {
+        "method": "GET",
+        "path": "/updates/notifications",
         "parameters": [],
         "bodyRequired": false
     },
@@ -2654,6 +2672,12 @@ export const operations = {
     "post_UpdatesMaintenanceOn": {
         "method": "POST",
         "path": "/updates/maintenance/on",
+        "parameters": [],
+        "bodyRequired": false
+    },
+    "post_UpdatesNotificationsRead": {
+        "method": "POST",
+        "path": "/updates/notifications/read",
         "parameters": [],
         "bodyRequired": false
     },

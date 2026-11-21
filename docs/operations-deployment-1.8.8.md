@@ -1,4 +1,4 @@
-# CajeerEngine 2.0.5 — Installation, Upgrade & Rollback Runbook
+# CajeerEngine 2.0.6 — Installation, Upgrade & Rollback Runbook
 
 ## 1. Требования до начала работ
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 type UpdateRequest = { id: string; action: string; version?: string; state: string; requested_at: string }
+type HistoryEntry = { id: string; event: string; at: string; details: Record<string,string>; read?: boolean }
 type RecoveryBackup = { id: string; version?: string; created_at?: string; complete: boolean }
 type UpdateState = {
   current_version?: string; channel?: string; web_upgrade_enabled?: boolean
@@ -15,6 +16,10 @@ const api = useAdminApi()
 const state = ref<UpdateState>({})
 const loading = ref(false)
 const error = ref<string | null>(null)
+const history = ref<HistoryEntry[]>([])
+const nextCursor = ref<string | null>(null)
+const notifications = ref<HistoryEntry[]>([])
+const unreadCount = ref(0)
 const notice = ref('')
 const latest = computed(() => state.value.last_check?.latest?.version || '')
 const pending = computed(() => (state.value.requests || []).some(r => ['pending','running'].includes(r.state)))
@@ -26,9 +31,34 @@ const canInstall = computed(() => ready.value && state.value.wizard?.installed =
 let timer: ReturnType<typeof setInterval> | undefined
 const load = async (quiet = false) => {
   if (!quiet) loading.value = true
-  try { state.value = (await api.request<{data: UpdateState}>('/updates')).data || {} ; if (!quiet) error.value = null }
+  try {
+    const [diagnostics, audit, notices] = await Promise.all([
+      api.request<{data: UpdateState}>('/updates'),
+      api.request<{data: HistoryEntry[]; meta:{next_cursor:string|null}}>('/updates/history'),
+      api.request<{data:{items:HistoryEntry[];unread_count:number}}>('/updates/notifications')
+    ])
+    state.value = diagnostics.data || {}
+    history.value = audit.data || []
+    nextCursor.value = audit.meta?.next_cursor || null
+    notifications.value = notices.data?.items || []
+    unreadCount.value = notices.data?.unread_count || 0
+    if (!quiet) error.value = null
+  }
   catch (e) { if (!quiet) error.value = e instanceof Error ? e.message : String(e) }
   finally { if (!quiet) loading.value = false }
+}
+const moreHistory = async () => {
+  if (!nextCursor.value || loading.value) return
+  loading.value = true
+  try {
+    const result = await api.request<{data:HistoryEntry[];meta:{next_cursor:string|null}}>(`/updates/history?before=${encodeURIComponent(nextCursor.value)}`)
+    history.value = [...history.value, ...(result.data || [])]
+    nextCursor.value = result.meta?.next_cursor || null
+  } catch(e) { error.value = e instanceof Error ? e.message : String(e) }
+  finally { loading.value = false }
+}
+const markNotificationsRead = async () => {
+  await action('/updates/notifications/read', {}, 'Уведомления отмечены прочитанными.')
 }
 const action = async (endpoint: string, data: Record<string, unknown>, message: string) => {
   if (loading.value) return
@@ -107,6 +137,22 @@ onUnmounted(() => {if(timer)clearInterval(timer)})
         <tbody><tr v-for="item in state.requests || []" :key="item.id"><td>{{ item.id.slice(0, 12) }}</td><td>{{ item.action }}</td><td>{{ item.version || '—' }}</td><td>{{ item.state }}</td><td>{{ item.requested_at }}</td></tr>
           <tr v-if="!state.requests?.length"><td colspan="5">Операций нет</td></tr>
         </tbody></table></div>
+    </div>
+    <div class="ce-panel">
+      <h2>Уведомления об обновлениях ({{ unreadCount }} непрочитанных)</h2>
+      <button :disabled="loading || unreadCount === 0" @click="markNotificationsRead">Отметить все прочитанными</button>
+      <p v-if="!notifications.length">Уведомлений пока нет.</p>
+      <ul v-else><li v-for="item in notifications" :key="item.id">
+        <strong>{{ item.read ? 'Прочитано' : 'Новое' }}</strong> · {{ item.event }} · {{ item.details.version || item.details.transaction_id || item.details.request_id || '—' }} · {{ item.at }}
+      </li></ul>
+      <p>Webhook-уведомления отправляются через очередь Event API; для доставки должен работать scheduler и queue worker.</p>
+    </div>
+    <div class="ce-panel">
+      <h2>История и журнал действий</h2>
+      <div class="ce-table-wrap"><table><thead><tr><th>Дата</th><th>Событие</th><th>Действие</th><th>Инициатор</th><th>Версия</th><th>Идентификатор</th></tr></thead>
+      <tbody><tr v-for="item in history" :key="item.id"><td>{{ item.at }}</td><td>{{ item.event }}</td><td>{{ item.details.action || '—' }}</td><td>{{ item.details.actor || '—' }}</td><td>{{ item.details.version || '—' }}</td><td>{{ (item.details.request_id || item.details.transaction_id || item.id).slice(0,20) }}</td></tr>
+      <tr v-if="!history.length"><td colspan="6">Записей нет</td></tr></tbody></table></div>
+      <button :disabled="loading || !nextCursor" @click="moreHistory">Загрузить более ранние записи</button>
     </div>
     <div class="ce-panel">
       <h2>Обслуживание</h2>

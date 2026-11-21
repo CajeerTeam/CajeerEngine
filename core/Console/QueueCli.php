@@ -52,7 +52,7 @@ final class QueueCli
             $hub=new \CajeerEngine\Analytics\Reporting\AnalyticsHub($db,\CajeerEngine\Integration\SecretVault::fromEnvironment(),$q,$cfg);
             // Source distributions also process AI translation jobs without Composer.
             $translation=new \CajeerEngine\AI\AiTranslationStudio($db,new \CajeerEngine\AI\AiSettings($root),new \CajeerEngine\AI\OpenAiClient(),new ContentEntryRepository($root,$db),new ContentTypeRepository($root,$db));
-            $worker=new QueueWorker($q,$index,$wh,$wd,$platform,null,$hub,$translation);if($command==='queue:work')return $worker->work($name,isset($o['once'])?1:(int)($o['limit']??$cfg->int('queue.workers.default_limit',10)));$scheduler=new SchedulerRunner($root,$index,$wh,$q,$platform,\CajeerEngine\Scheduler\TaskRunStore::fromConfig($root,$cfg,$db), $hub, null, new \CajeerEngine\Update\AutomaticReleaseDiscovery($cfg));
+            $worker=new QueueWorker($q,$index,$wh,$wd,$platform,null,$hub,$translation);if($command==='queue:work')return $worker->work($name,isset($o['once'])?1:(int)($o['limit']??$cfg->int('queue.workers.default_limit',10)));$scheduler=new SchedulerRunner($root,$index,$wh,$q,$platform,\CajeerEngine\Scheduler\TaskRunStore::fromConfig($root,$cfg,$db), $hub, null, new \CajeerEngine\Update\AutomaticReleaseDiscovery($cfg), new \CajeerEngine\Update\UpdateNotificationPublisher($root,$wh));
         }
         if(str_ends_with($command,':due'))return ['ok'=>true,'data'=>$scheduler->tasks()];
         return $scheduler->run();

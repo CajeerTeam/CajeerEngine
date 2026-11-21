@@ -1,3 +1,11 @@
+# 2.0.6 — Update History & Notifications
+
+- Added persistent, atomic, append-only update history outside storage snapshots. Each record is durable and idempotent; no arbitrary error text, tokens or filesystem paths are logged. The audit covers approvals, execution start, download, backup, committed install, failures, rollback and recovery-required states.
+- Updated `UpdateResolver` to emit one `update.available` event per eligible GitHub Release, shared by manual and scheduled checks. Reconciliation repairs events after interrupted operator runs using durable request and transaction journals.
+- Integrated per-admin unread notifications, authenticated read acknowledgements and paginated operational history into both production static Admin SPA and Nuxt Admin Update Center.
+- Reused signed webhook Event API via an idempotent outbox push and minute-level scheduler retry task; delivery itself stays in the existing queue worker, never inside an install transaction.
+- Added executable regression tests for replay, concurrent deduplication, unread isolation, failure alerts, webhook queue handoff, audit input validation and unsafe symlink refusal. No schema migration; staging acceptance still required.
+
 # 2.0.5 — Backup & Rollback Integration
 
 - The operator can execute full backups and explicitly confirmed rollbacks of the exact latest committed update, with single-use requests and fail-closed interruption handling.

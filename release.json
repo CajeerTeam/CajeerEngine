@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-2.0.5-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-2.0.5-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-2.0.6-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-2.0.6-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-2.0.5-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-2.0.6-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,6 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
+    "2.0.6 Update History & Notifications: append-only atomic update event journal outside backup restore scope, persisted admin approvals and operator transitions, transaction recovery replay, per-admin read acknowledgements, deduplicated new GitHub release alerts, signed webhook outbox idempotence and scheduler delivery retries, searchable/scrollable history and notifications in static and Nuxt admin centers, and runnable crash/dedup/authorization-negative regressions. Real Linux staging and webhook delivery acceptance remain required.",
     "2.0.5 Backup & Rollback Integration: authenticated backup/rollback preflight with database recovery readiness, storage requirements and disk headroom, duplicate snapshot verification before live code replacement, exact-transaction browser-approved rollback and full backup through the dedicated operator, fail-closed queue and recovery markers, administrative backup/rollback controls in Nuxt and static SPA, and runnable SQLite fault-injection regression. Restoring an existing committed update discards subsequent writes; real staging acceptance remains required.",
     "2.0.4 Admin Update Center: production static SPA and Nuxt update management, read-only diagnostics, explicit check, browser-approved durable download+stage and install queues executed by dedicated non-root operator, 5-second status polling, bounded request history, server-side selected release validation, CSRF/RBAC/recent reauthentication, and fail-closed recovery behavior. Manual rollback remains until 2.0.5; live staging verification required.",
     "2.0.3 Update Execution Service: dedicated non-root, systemd-timer-driven one-shot operator consumes one browser-confirmed staged apply request at a time, reuses the existing transactional signed update/backup/recovery path, locks concurrent workers, records operator status, rejects malformed requests and fails closed on interrupted journals; backup and rollback approvals remain manual. Live deployment validation required.",

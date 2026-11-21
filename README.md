@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## Update History & Notifications 2.0.6
+
+The Admin Update Center (`/admin/#/updates`) shows a persistent audit of update decisions and outcomes, per-administrator notification read status, and automatically discovered GitHub releases. The normal CMS scheduler dispatches recorded notification events to the **existing signed webhook outbox** once per minute; configure Event API webhook destinations for events `update.available`, `update.downloaded`, `update.installed`, `update.failed`, `update.rolled_back`, `update.recovery_required`, `update.backup_created` and keep the queue worker running for delivery. Stored audit files live under `storage/app/updates/history` and intentionally remain outside database/application rollback snapshots. They require protected shared group write access between the web process and the separate updater. See [Update history and notifications operations](docs/update-history-notifications-2.0.6.md).
+
 ## Backup & Rollback Integration 2.0.5
 
 An authorized administrator can queue a full verified backup and explicitly approve a rollback of the latest committed update in `/admin/#/updates` or Nuxt `/updates`. The dedicated non-root operator authenticates the recovery snapshot and verifies database restoration readiness and local disk headroom before destructive writes. Rolling back a committed upgrade **discards all writes since that upgrade**. An interrupted restore stays in maintenance mode and requires recovery from the protected CLI journal. Set `BACKUP_KEY_FILE` and keep tested off-host backup bundles. [Operations guide](docs/backup-rollback-integration-2.0.5.md).

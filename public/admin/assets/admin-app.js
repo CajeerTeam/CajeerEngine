@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '2.0.5'
+const ADMIN_VERSION = '2.0.6'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -247,7 +247,7 @@ async function routeLoad(route) {
     if (route === 'privacy') await loadSilent('privacy', '/privacy/consent')
     if (route === 'integrations') await loadSilent('integrations', '/integrations')
     if (route === 'extensions') await Promise.allSettled([loadSilent('extensions', '/extensions'), loadSilent('extensionsRuntime', '/extensions/runtime'), loadSilent('extensionsDiagnostics', '/extensions/diagnostics')])
-    if (route === 'updates') await Promise.allSettled([loadSilent('updates', '/updates'), loadSilent('maintenance', '/updates/maintenance')])
+    if (route === 'updates') await Promise.allSettled([loadSilent('updates', '/updates'), loadSilent('maintenance', '/updates/maintenance'), loadSilent('updateHistory', '/updates/history'), loadSilent('updateNotifications', '/updates/notifications')])
     if (route === 'search') await loadSilent('searchDiagnostics', '/search/diagnostics')
     if (route === 'migration') { await loadSilent('migrationProjects','/migration/projects'); await loadSilent('migrationCatalog','/migration/catalog') }
     if (route === 'import-export') await Promise.allSettled([loadSilent('exports', '/import-export/exports'),loadSilent('importRequests','/import-export/requests')])
@@ -1385,6 +1385,10 @@ function updatesView() {
   const u = dataOf(raw, {}) || {}
   const w = u.wizard || {}, stage = u.staged || {}, check = u.last_check || {}, latest = check.latest || {}
   const requests = Array.isArray(u.requests) ? u.requests : []
+  const history = asArray(state.cache.updateHistory)
+  const noticeData = dataOf(state.cache.updateNotifications,{}) || {}
+  const noticeItems = Array.isArray(noticeData.items) ? noticeData.items : []
+  const unread = Number(noticeData.unread_count || 0)
   const pending = requests.some(r => ['pending', 'running'].includes(r.state))
   const enabled = u.web_upgrade_enabled === true && w.operator_ready === true && w.operator_status?.status !== 'recovery_required'
   const trust = w.production_apply_enabled === true
@@ -1421,6 +1425,13 @@ function updatesView() {
   </div>
   <div class="card"><h2>Последние операции</h2>${table(['Запрос','Операция','Версия','Состояние','Создано'], rows)}
     <p class="muted">Задачи выполняются последовательно, одна за запуск таймера; страница обновляется каждые 5 секунд.</p></div>
+  <div class="card"><h2>Уведомления об обновлениях · ${escapeHtml(unread)} непрочитанных</h2>
+    <div class="toolbar"><button class="btn secondary" data-update-notifications-read ${!unread || updatesWorking ? 'disabled' : ''}>Отметить прочитанными</button></div>
+    ${noticeItems.length ? table(['Дата','Событие','Версия','Статус'], noticeItems.map(e=>`<tr><td>${fmtTime(e.at)}</td><td>${escapeHtml(e.event)}</td><td>${escapeHtml(e.details?.version||e.details?.transaction_id||'—')}</td><td>${escapeHtml(e.read?'Прочитано':'Новое')}</td></tr>`)) : '<p>Уведомлений нет.</p>'}
+    <p class="muted">Подписанные webhook-события передаются через scheduler и очередь Event API.</p></div>
+  <div class="card"><h2>История обновлений и журнал действий</h2>
+    ${history.length ? table(['Дата','Событие','Действие','Инициатор','Версия','Запрос / транзакция'],history.map(e=>`<tr><td>${fmtTime(e.at)}</td><td>${escapeHtml(e.event)}</td><td>${escapeHtml(e.details?.action||'—')}</td><td>${escapeHtml(e.details?.actor||'—')}</td><td>${escapeHtml(e.details?.version||'—')}</td><td><code>${escapeHtml(String(e.details?.request_id||e.details?.transaction_id||e.id).slice(0,20))}</code></td></tr>`)) : '<p>История пуста.</p>'}
+    ${state.cache.updateHistory?.meta?.next_cursor ? '<button class="btn secondary" data-update-history-more>Показать более ранние записи</button>' : ''}</div>
   <div class="card"><h2>Резервное копирование и откат</h2><p>Режим обслуживания: ${flag(w.maintenance?.enabled === true, 'Включён', 'Выключен')}. Подготовка и восстановление выполняются фоновым оператором.</p>
     <div class="toolbar"><button class="btn secondary" data-update-backup ${safeRecovery?'':'disabled'}>Создать резервную копию</button><button class="btn" data-update-rollback ${safeRecovery && rollback.available && rollback.transaction ? '' : 'disabled'}>Откатить обновление</button></div>
     <p>${rollback.available ? `Доступен откат ${escapeHtml(rollback.from_version)} → ${escapeHtml(rollback.to_version)}. <strong>Записи после обновления будут потеряны.</strong>` : 'Нет завершённого обновления, подходящего для отката.'}</p>
@@ -1432,7 +1443,7 @@ function bindUpdates() {
   async function submit(path, body, label) {
     if (updatesWorking) return
     updatesWorking = true
-    document.querySelectorAll('[data-update-download],[data-update-install],[data-update-check],[data-update-backup],[data-update-rollback],[data-update-maintenance]').forEach(el=>el.disabled=true)
+    document.querySelectorAll('[data-update-download],[data-update-install],[data-update-check],[data-update-backup],[data-update-rollback],[data-update-maintenance],[data-update-notifications-read]').forEach(el=>el.disabled=true)
     try {
       const result=await api(path,{method:'POST',body:JSON.stringify(body)})
       await routeLoad('updates')
@@ -1440,6 +1451,17 @@ function bindUpdates() {
     } catch (error) { setNotice('error',error.message,error.payload) }
     finally {updatesWorking=false;render()}
   }
+  document.querySelector('[data-update-notifications-read]')?.addEventListener('click',()=>submit('/updates/notifications/read',{},'Уведомления отмечены прочитанными.'))
+  document.querySelector('[data-update-history-more]')?.addEventListener('click',async()=>{
+    const cursor=state.cache.updateHistory?.meta?.next_cursor
+    if(!cursor)return
+    try {
+      const page=await api('/updates/history?before='+encodeURIComponent(cursor))
+      const previous=asArray(state.cache.updateHistory)
+      state.cache.updateHistory={data:[...previous,...asArray(page)],meta:page.meta||{}}
+      render()
+    } catch(e){setNotice('error',e.message,e.payload)}
+  })
   document.querySelector('[data-update-check]')?.addEventListener('click',()=>submit('/updates/check',{},'Проверка GitHub Releases завершена.'))
   document.querySelector('[data-update-download]')?.addEventListener('click',()=>{
     const u=dataOf(state.cache.updates,{}) || {},version=u.last_check?.latest?.version

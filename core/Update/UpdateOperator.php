@@ -127,6 +127,12 @@ final class UpdateOperator
         if ($detail !== null) $result['detail'] = $detail;
         if ($transaction !== null) $result['transaction_id'] = $transaction;
         OperationFiles::json(OperationFiles::path($this->rootPath, 'storage/app/updates/operator-status.json'), $result, 0644);
+        if ($status === 'recovery_required') {
+            try { (new UpdateHistory($this->rootPath))->record('update.recovery_required',
+                ['request_id'=>$id, 'reason_code'=>'operator_recovery_required'],
+                'operator:recovery:'.($id??'active').':'.hash('sha256',$detail??''));
+            } catch (\Throwable) { /* blocking journal remains authoritative */ }
+        }
         return $result;
     }
 }

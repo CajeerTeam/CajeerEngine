@@ -1,4 +1,4 @@
-# CajeerEngine 2.0.5 — Backups, Recovery & DR
+# CajeerEngine 2.0.6 — Backups, Recovery & DR
 
 ## Что входит в копию
 
