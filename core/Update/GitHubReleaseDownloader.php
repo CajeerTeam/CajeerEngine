@@ -9,7 +9,7 @@ use CajeerEngine\Runtime\ConfigRepository;
 /** Download a fresh, advertised GitHub production dist and authenticate it before publication. */
 final readonly class GitHubReleaseDownloader
 {
-    /** @param null|\Closure(string,resource,int,int):int $transport */
+    /** @param null|\Closure(string,resource,int,int):mixed $transport */
     public function __construct(
         private string $rootPath,
         private ConfigRepository $config,
