@@ -31,11 +31,10 @@ final readonly class GitHubReleaseDownloader
             $directory = OperationFiles::path($this->rootPath, 'storage/app/updates/downloads');
             OperationFiles::dir($directory, 0700);
             $guardPath = OperationFiles::path($this->rootPath, 'storage/app/updates/downloads/.download.lock');
-            $downloadGuard = fopen($guardPath, 'c+');
+            $downloadGuard = OperationLock::openLockFile($guardPath, 0600);
             if (!is_resource($downloadGuard) || !flock($downloadGuard, LOCK_EX | LOCK_NB)) {
                 throw new \RuntimeException('Another release download is in progress');
             }
-            chmod($guardPath, 0600);
             if (OperationLock::active($this->rootPath) || is_file($this->rootPath . '/storage/app/backup-restore.json')) {
                 throw new \RuntimeException('Recovery in progress; do not download updates');
             }

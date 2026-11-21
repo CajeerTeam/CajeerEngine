@@ -25,6 +25,48 @@ final class UpdateOperator
         $this->execute = $execute ?? fn (string $id): array => (new UpdateManager($this->rootPath, $this->config))->runRequest($id);
     }
 
+    /** Validate the persisted approval at the point of execution, including direct CLI use.
+     * No approval may authorize a caller-supplied executable, URL or filesystem path.
+     *
+     * @param array<string,mixed> $record
+     */
+    public static function assertApproved(array $record, string $id): void
+    {
+        if (($record['id'] ?? null) !== $id || ($record['state'] ?? null) !== 'pending' ||
+            !preg_match('/^[a-f0-9]{32}$/D', $id) ||
+            !is_string($record['actor'] ?? null) || trim($record['actor']) === '' ||
+            strlen($record['actor']) > 160 || preg_match('/[\x00-\x1f\x7f]/', $record['actor'])) {
+            throw new \RuntimeException('Invalid approved request identity');
+        }
+        $times = [];
+        foreach (['requested_at', 'confirmed_at'] as $field) {
+            $value = $record[$field] ?? null;
+            if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$/D', $value)) {
+                throw new \RuntimeException('Invalid request approval timestamp');
+            }
+            $times[$field] = strtotime($value);
+            if ($times[$field] === false || $times[$field] > time() + 300) {
+                throw new \RuntimeException('Request approval timestamp is not valid');
+            }
+        }
+        if ($times['confirmed_at'] < $times['requested_at'] - 300) {
+            throw new \RuntimeException('Request approved before creation');
+        }
+        $valid = match ($record['action'] ?? null) {
+            'download' => is_string($record['version'] ?? null) && strlen($record['version']) <= 100 &&
+                (bool) preg_match('/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/D', $record['version']),
+            'apply' => is_string($record['stage'] ?? null) &&
+                (bool) preg_match('/^[a-f0-9]{32}$/D', $record['stage']) &&
+                is_string($record['sha256'] ?? null) &&
+                (bool) preg_match('/^[a-f0-9]{64}$/D', $record['sha256']),
+            'rollback' => is_string($record['transaction'] ?? null) &&
+                (bool) preg_match('/^\d{8}-\d{6}-[a-f0-9]{16}$/D', $record['transaction']),
+            'backup' => true,
+            default => false,
+        };
+        if (!$valid) throw new \RuntimeException('Invalid approved update action');
+    }
+
     /** One request per invocation: process exits before application PHP files are replaced again. */
     public function runOnce(): array
     {
@@ -37,13 +79,7 @@ final class UpdateOperator
 
         $lockPath = OperationFiles::path($this->rootPath, 'storage/app/updates/operator.lock');
         OperationFiles::dir(dirname($lockPath), 0770);
-        if (!is_file($lockPath)) {
-            $created = @fopen($lockPath, 'x+');
-            if (is_resource($created)) { chmod($lockPath, 0600); fclose($created); }
-        }
-        if (is_link($lockPath) || !is_file($lockPath)) throw new \RuntimeException('Invalid operator lock file');
-        $handle = fopen($lockPath, 'r+');
-        if (!is_resource($handle)) throw new \RuntimeException('Cannot access operator lease');
+        $handle = OperationLock::openLockFile($lockPath, 0600);
         if (!flock($handle, LOCK_EX | LOCK_NB)) {
             fclose($handle);
             return ['ok' => true, 'status' => 'busy', 'processed' => 0];
@@ -88,19 +124,8 @@ final class UpdateOperator
                 return $this->status('recovery_required', $id, false, 'Unfinished operator request: manual reconciliation required');
             }
             if ($record['state'] !== 'pending') continue;
-            $validPayload = match ($record['action'] ?? null) {
-                'download' => is_string($record['version'] ?? null) && preg_match('/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/D', $record['version']),
-                'apply' => preg_match('/^[a-f0-9]{32}$/D', (string) ($record['stage'] ?? '')) &&
-                    preg_match('/^[a-f0-9]{64}$/D', (string) ($record['sha256'] ?? '')),
-                'rollback' => preg_match('/^\d{8}-\d{6}-[a-f0-9]{16}$/D', (string)($record['transaction'] ?? '')),
-                'backup' => true,
-                default => false,
-            }; 
-            if (!$validPayload || !is_string($record['actor'] ?? null) || trim($record['actor']) === '' ||
-                !is_string($record['requested_at'] ?? null) || strtotime($record['requested_at']) === false ||
-                !is_string($record['confirmed_at'] ?? null) || strtotime($record['confirmed_at']) === false) {
-                return $this->status('recovery_required', $id, false, 'Invalid approved installation request');
-            }
+            try { self::assertApproved($record, $id); }
+            catch (\Throwable) { return $this->status('recovery_required', $id, false, 'Invalid approved installation request'); }
             $pending[] = ['id' => $id, 'at' => $record['requested_at']];
         }
         if ($pending === []) return $this->status('idle', null, true);
@@ -109,14 +134,43 @@ final class UpdateOperator
         $this->status('running', $id, true);
         try {
             $result = ($this->execute)($id);
+            // A return value is not a commit record. Verify the fsynced request
+            // journal before reporting success to administrators.
+            $requestPath = OperationFiles::path($this->rootPath, 'storage/app/update-requests/request-' . $id . '.json');
+            $after = OperationFiles::read($requestPath);
+            if (($after['id'] ?? null) !== $id || !in_array($after['state'] ?? null, ['completed', 'failed'], true) ||
+                (($result['ok'] ?? false) === true) !== ($after['state'] === 'completed')) {
+                // The executed operation may already have altered files/DB. Never
+                // replay an ambiguous request on the next scheduler tick.
+                if (($after['id'] ?? null) === $id && ($after['state'] ?? null) === 'pending') {
+                    $after['state'] = 'running';
+                    $after['started_at'] = gmdate(DATE_ATOM);
+                    OperationFiles::json($requestPath, $after, 0640);
+                }
+                return $this->status('recovery_required', $id, false, 'Executor result and durable request journal disagree');
+            }
             if (($result['ok'] ?? false) !== true) {
                 return $this->status('failed', $id, false, 'Update operation returned failure; inspect journal');
             }
-            return $this->status('completed', $id, true, null, $result['id'] ?? null);
+            return $this->status('completed', $id, true, null, is_string($result['id'] ?? null) ? $result['id'] : null);
         } catch (\Throwable $e) {
-            // UpdateManager::runRequest persists failed state before throwing.
-            // Only pre-existing pending requests can run; never make this one pending again.
-            return $this->status('failed', $id, false, 'Update failed; inspect protected operation and transaction journals');
+            // A throw before the request journal transition could otherwise leave
+            // the approval pending for unattended replay. Fail closed even if the
+            // executing process dies before persisting its failure state.
+            try {
+                $requestPath = OperationFiles::path($this->rootPath, 'storage/app/update-requests/request-' . $id . '.json');
+                $after = OperationFiles::read($requestPath);
+                if (($after['id'] ?? null) !== $id) throw new \RuntimeException('Request journal identity mismatch');
+                if (($after['state'] ?? null) === 'pending') {
+                    $after['state'] = 'running';
+                    $after['started_at'] = gmdate(DATE_ATOM);
+                    OperationFiles::json($requestPath, $after, 0640);
+                }
+                if (($after['state'] ?? null) === 'failed') {
+                    return $this->status('failed', $id, false, 'Update failed; inspect protected operation and transaction journals');
+                }
+            } catch (\Throwable) { /* unverifiable journal: manual intervention */ }
+            return $this->status('recovery_required', $id, false, 'Interrupted operation has no verified terminal journal');
         }
     }
 

@@ -1,3 +1,12 @@
+# 2.0.7 — Production Hardening
+
+- Rejected symbolic links in ancestor directories before creating files for backups, releases or recovery; write and copy operations now fail closed when a destination would traverse a symlink.
+- Removed permissive `c+` lock handling from the update operator, download worker and administrative approval queue; all privileged update locks verify regular-file identity, link count and safe permissions after opening, and do not follow symlinks.
+- Enforced explicit persisted approval validation at **actual execution** (including direct CLI request invocation), not only at browser request creation and scheduler polling. Invalid actor, action, payload or confirmation time cannot progress to `running`.
+- The update operator checks the durable request journal after execution. Ambiguous success or a mismatch between the reported result and fsynced state enters `recovery_required`; an unreconciled request cannot run again automatically.
+- Added real filesystem/CLI fault-injection regressions for lock substitution, unauthorized approvals, rejected download hosts, ambiguous executor success and one-shot worker recovery. Required them in baseline and release pipelines.
+- This patch does not claim real Linux staging deployment, PostgreSQL/MySQL restore, complete GitHub Actions, or third-party webhook acceptance; those remain release qualification gates.
+
 # 2.0.6 — Update History & Notifications
 
 - Added persistent, atomic, append-only update history outside storage snapshots. Each record is durable and idempotent; no arbitrary error text, tokens or filesystem paths are logged. The audit covers approvals, execution start, download, backup, committed install, failures, rollback and recovery-required states.

@@ -8,13 +8,45 @@ final class OperationLock
 {
     private static array $exclusive = [];
     public static function exclusiveHeld(string $root): bool { $h=self::$exclusive[realpath($root)?:$root]??null; return is_resource($h); }
+    /** Open an existing or newly created regular lock without following a symlink.
+     * A stream descriptor and its directory entry must identify the same inode.
+     * Never chmod an existing lock (which could be somebody else's file).
+     * @return resource
+     */
+    public static function openLockFile(string $path, int $mode = 0660): mixed
+    {
+        OperationFiles::dir(dirname($path));
+        if (is_link($path)) throw new \RuntimeException('Unsafe lock path');
+        $handle = @fopen($path, 'x+');
+        if (is_resource($handle)) {
+            try {
+                if (!chmod($path, $mode)) throw new \RuntimeException('Cannot protect new lock');
+            } catch (\Throwable $e) { fclose($handle); throw $e; }
+        } else {
+            if (is_link($path)) throw new \RuntimeException('Unsafe lock path');
+            $handle = @fopen($path, 'r+');
+            if (!is_resource($handle)) throw new \RuntimeException('Cannot access lock');
+        }
+        clearstatcache(true, $path);
+        $entry = @lstat($path);
+        $descriptor = fstat($handle);
+        if (!is_array($entry) || !is_array($descriptor) ||
+            ($entry['mode'] & 0170000) !== 0100000 ||
+            ($descriptor['mode'] & 0170000) !== 0100000 ||
+            $entry['ino'] !== $descriptor['ino'] || $entry['dev'] !== $descriptor['dev'] ||
+            $entry['nlink'] !== 1 || $descriptor['nlink'] !== 1 ||
+            ($entry['mode'] & 0002) !== 0) {
+            fclose($handle);
+            throw new \RuntimeException('Unsafe lock identity or permissions');
+        }
+        return $handle;
+    }
+
     public static function acquire(string $root, bool $exclusive, bool $wait = false): mixed
     {
         $path = OperationFiles::path($root, 'storage/app/operations.lock');
         OperationFiles::dir(dirname($path), 0775);
-        if (!is_file($path)) { $created=@fopen($path,'x+'); if (is_resource($created)) { chmod($path,0660); fclose($created); } }
-        $handle = fopen($path, $exclusive ? 'r+' : 'r');
-        if ($handle === false) throw new \RuntimeException('Cannot open operation lock');
+        $handle = self::openLockFile($path, 0660);
         if (!flock($handle, ($exclusive ? LOCK_EX : LOCK_SH) | ($wait ? 0 : LOCK_NB))) { fclose($handle); throw new \RuntimeException('Another operation is running; retry after drain'); }
         if ($exclusive) self::$exclusive[realpath($root)?:$root]=$handle;
         return $handle;
@@ -22,9 +54,8 @@ final class OperationLock
     /** Retain the old child lease through recovery. An orphaned subprocess holds it via util-linux flock. */
     public static function childGuard(string $path): mixed
     {
-        if (is_link($path)) throw new \RuntimeException('Invalid subprocess lease');
-        $h=fopen($path,'c+');
-        if ($h===false||!flock($h,LOCK_EX|LOCK_NB)) { if (is_resource($h)) fclose($h); throw new \RuntimeException('An update subprocess is still running; wait for it to exit before recovery'); }
+        $h = self::openLockFile($path, 0600);
+        if (!flock($h, LOCK_EX | LOCK_NB)) { fclose($h); throw new \RuntimeException('An update subprocess is still running; wait for it to exit before recovery'); }
         return $h;
     }
     public static function release(mixed $handle): void { if (is_resource($handle)) { foreach(self::$exclusive as $key=>$held) if($held===$handle) unset(self::$exclusive[$key]); flock($handle, LOCK_UN); fclose($handle); } }

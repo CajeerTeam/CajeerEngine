@@ -235,8 +235,7 @@ final class UpdateManager
         // Concurrent browser approvals must be serialized independently of the
         // activity lease, which may already be held shared by HTTP middleware.
         $queueLock = $this->requestDir() . '/queue.lock';
-        if (is_link($queueLock)) throw new \RuntimeException('Unsafe update request queue lock');
-        $queueGuard = fopen($queueLock, 'c+');
+        $queueGuard = OperationLock::openLockFile($queueLock, 0660);
         if (!is_resource($queueGuard) || !flock($queueGuard, LOCK_EX)) {
             if (is_resource($queueGuard)) fclose($queueGuard);
             throw new \RuntimeException('Could not lock update request queue');
@@ -353,6 +352,7 @@ final class UpdateManager
         try {
         $path=$this->requestDir().'/request-'.$id.'.json'; $r=OperationFiles::read($path);
         if (($r['id']??null)!==$id||($r['state']??null)!=='pending') throw new \RuntimeException('Request is not pending; inspect update:status and recover any active operation');
+        UpdateOperator::assertApproved($r, $id);
         // The durable state transition precedes every side effect. An interrupted
         // operator request is never replayed blindly: reconcile its update journal
         // or backup set before creating a new request.

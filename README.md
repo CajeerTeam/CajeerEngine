@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## Production Hardening 2.0.7
+
+The automatic GitHub updater now rejects symlinked ancestor paths during atomic backup/restore and update writes, prevents substituted hard-linked or symlinked lock files, revalidates persisted administrator approvals immediately before CLI execution, and independently confirms the durable operation journal before reporting success. An interrupted or ambiguous request is blocked from automatic replay and requires supervised recovery. Run `php tools/update-production-hardening-regression.php` as a non-root Linux user and see [Production hardening tests and recovery](docs/update-production-hardening-2.0.7.md). A passing local regression is **not** a production deployment certification.
+
 ## Update History & Notifications 2.0.6
 
 The Admin Update Center (`/admin/#/updates`) shows a persistent audit of update decisions and outcomes, per-administrator notification read status, and automatically discovered GitHub releases. The normal CMS scheduler dispatches recorded notification events to the **existing signed webhook outbox** once per minute; configure Event API webhook destinations for events `update.available`, `update.downloaded`, `update.installed`, `update.failed`, `update.rolled_back`, `update.recovery_required`, `update.backup_created` and keep the queue worker running for delivery. Stored audit files live under `storage/app/updates/history` and intentionally remain outside database/application rollback snapshots. They require protected shared group write access between the web process and the separate updater. See [Update history and notifications operations](docs/update-history-notifications-2.0.6.md).
