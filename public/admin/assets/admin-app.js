@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '2.0.4'
+const ADMIN_VERSION = '2.0.5'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -1391,6 +1391,8 @@ function updatesView() {
   const available = check.update_available === true && typeof latest.version === 'string'
   const downloadReady = enabled && trust && available && !pending && !w.maintenance?.update_active && !updatesWorking
   const installReady = enabled && trust && stage.ok === true && !!stage.id && !!stage.sha256 && !pending && !w.maintenance?.update_active && !updatesWorking && w.installed
+  const rollback = w.rollback || {}, backups = Array.isArray(u.backups) ? u.backups : []
+  const safeRecovery = enabled && !pending && !w.maintenance?.update_active && !updatesWorking
   const operator = w.operator_status || {}, current = u.current_version || w.current_version || '—'
   const flag = (ok, on, off) => `<span class="badge ${ok?'ok':'warning'}">${escapeHtml(ok?on:off)}</span>`
   const fmtTime = value => value ? escapeHtml(new Date(value).toLocaleString('ru-RU')) : '—'
@@ -1419,14 +1421,18 @@ function updatesView() {
   </div>
   <div class="card"><h2>Последние операции</h2>${table(['Запрос','Операция','Версия','Состояние','Создано'], rows)}
     <p class="muted">Задачи выполняются последовательно, одна за запуск таймера; страница обновляется каждые 5 секунд.</p></div>
-  <div class="card"><h2>Обслуживание и восстановление</h2><p>Режим обслуживания: ${flag(w.maintenance?.enabled === true, 'Включён', 'Выключен')}. Ручной откат и аварийное восстановление — через защищённый CLI/runbook до этапа Backup &amp; Rollback 2.0.5.</p>
+  <div class="card"><h2>Резервное копирование и откат</h2><p>Режим обслуживания: ${flag(w.maintenance?.enabled === true, 'Включён', 'Выключен')}. Подготовка и восстановление выполняются фоновым оператором.</p>
+    <div class="toolbar"><button class="btn secondary" data-update-backup ${safeRecovery?'':'disabled'}>Создать резервную копию</button><button class="btn" data-update-rollback ${safeRecovery && rollback.available && rollback.transaction ? '' : 'disabled'}>Откатить обновление</button></div>
+    <p>${rollback.available ? `Доступен откат ${escapeHtml(rollback.from_version)} → ${escapeHtml(rollback.to_version)}. <strong>Записи после обновления будут потеряны.</strong>` : 'Нет завершённого обновления, подходящего для отката.'}</p>
+    <h3>Последние резервные копии</h3>${table(['ID','Версия','Дата','Состояние'],backups.slice(0,10).map(b=>`<tr><td><code>${escapeHtml(b.id)}</code></td><td>${escapeHtml(b.version||'—')}</td><td>${fmtTime(b.created_at)}</td><td>${escapeHtml(b.complete?'создана':'неполная')}</td></tr>`))}
+    <p class="muted">Наличие записи не доказывает целостность: оператор перепроверяет MAC, контрольные суммы и БД перед восстановлением. При ошибке режим обслуживания сохраняется; используйте recovery runbook.</p>
     <div class="toolbar"><button class="btn secondary" data-update-maintenance="on" ${updatesWorking?'disabled':''}>Включить обслуживание</button><button class="btn ghost" data-update-maintenance="off" ${updatesWorking || w.maintenance?.update_active?'disabled':''}>Выключить обслуживание</button></div></div>`
 }
 function bindUpdates() {
   async function submit(path, body, label) {
     if (updatesWorking) return
     updatesWorking = true
-    document.querySelectorAll('[data-update-download],[data-update-install],[data-update-check],[data-update-maintenance]').forEach(el=>el.disabled=true)
+    document.querySelectorAll('[data-update-download],[data-update-install],[data-update-check],[data-update-backup],[data-update-rollback],[data-update-maintenance]').forEach(el=>el.disabled=true)
     try {
       const result=await api(path,{method:'POST',body:JSON.stringify(body)})
       await routeLoad('updates')
@@ -1444,6 +1450,16 @@ function bindUpdates() {
     const u=dataOf(state.cache.updates,{}) || {},stage=u.staged || {}
     if(!stage.id || !stage.sha256 || !confirm(`Установить CajeerEngine ${stage.version}? Сайт перейдёт в режим обслуживания; перед заменой файлов создаётся резервная копия.`))return
     submit('/updates/apply',{confirm:true,package:stage.id,sha256:stage.sha256},`Установка ${stage.version} подтверждена и поставлена в очередь.`)
+  })
+  document.querySelector('[data-update-backup]')?.addEventListener('click',()=>{
+    if(!confirm('Создать полную резервную копию файлов и базы данных?'))return
+    submit('/updates/backup',{confirm:true},'Создание резервной копии поставлено в очередь.')
+  })
+  document.querySelector('[data-update-rollback]')?.addEventListener('click',()=>{
+    const u=dataOf(state.cache.updates,{}) || {}, candidate=u.wizard?.rollback || {}
+    if(!candidate.available || !candidate.transaction || !confirm(`Откатить ${candidate.from_version} до ${candidate.to_version}? Изменения файлов и базы данных после установки будут удалены.`))return
+    if(prompt('Подтвердите потерю данных: введите ОТКАТ')!=='ОТКАТ')return
+    submit('/updates/rollback',{confirm:true,transaction:candidate.transaction},'Откат поставлен в очередь. Следите за восстановлением.')
   })
   document.querySelectorAll('[data-update-maintenance]').forEach(b=>b.addEventListener('click',()=>{
     const action=b.dataset.updateMaintenance

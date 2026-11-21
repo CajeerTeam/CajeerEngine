@@ -1,3 +1,11 @@
+# 2.0.5 — Backup & Rollback Integration
+
+- The operator can execute full backups and explicitly confirmed rollbacks of the exact latest committed update, with single-use requests and fail-closed interruption handling.
+- All installations now check recovery prerequisites, backup key, supported storage/queue, database recovery permissions and conservative free disk before maintenance, then independently verify the created snapshot before replacing executable files.
+- Before any destructive rollback, the recovery snapshot is fully authenticated (MAC, SHA-256, file inventory, database integrity), available disk headroom is checked, and the prior release is restored under the exclusive operation lock.
+- Nuxt and deployed static admin screens support create backup, browse recent snapshots, and restore the latest committed transaction only after warning about loss of post-update data; CSRF, RBAC and recent reauthentication apply.
+- No automatic rollback for completed updates is triggered without explicit approval; failures retain maintenance/recovery markers for manual intervention. Full Linux staging and PostgreSQL/MySQL restore drills remain mandatory for production qualification.
+
 # 2.0.4 — Admin Update Center
 
 - Real GitHub update control from both the production static SPA and Nuxt admin UI: inspect installed/discovered versions, check GitHub, view release notes and request a signed download/staging, then confirm a separate installation with operator status and recent request history.

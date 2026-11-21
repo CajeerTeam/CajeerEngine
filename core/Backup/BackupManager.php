@@ -20,6 +20,72 @@ final class BackupManager
         $this->db=new DatabaseBackup($root,$config);
         $this->base=F::path($root,'storage/app/backups/production');
     }
+    /** Check recovery prerequisites and conservative space before maintenance or live writes.
+     * No external-storage or unsupported-queue configuration is silently accepted.
+     * For remote SQL servers local disk figures do not cover remote DB capacity.
+     */
+    public function preflightUpdate(int $stageBytes = 0): array
+    {
+        if ($stageBytes < 0) throw new \RuntimeException('Invalid staged release size');
+        $this->assertStorage();
+        $key = $this->secretKey(); sodium_memzero($key);
+        $this->db->assertRecoveryReady();
+        $bytes = 0;
+        foreach (array_unique(array_merge($this->dataFiles(), $this->codeFiles())) as $relative) {
+            $file = F::path($this->root, $relative);
+            if (!is_file($file) || is_link($file)) throw new \RuntimeException('Unsafe backup source');
+            $size = filesize($file);
+            if ($size === false) throw new \RuntimeException('Unable to measure backup source');
+            $bytes += $size;
+        }
+        $env = F::path($this->root, '.env');
+        if (is_file($env)) $bytes += filesize($env) ?: 0;
+        $identity = $this->db->identity();
+        // VACUUM INTO may temporarily need a second SQLite database copy.
+        $databaseBytes = $identity['driver'] === 'sqlite' ? max(0, (int) @filesize($identity['database'])) * 2 : 0;
+        $reserve = max($this->minimumFreeBytes(), (int) ceil(($bytes + $databaseBytes + $stageBytes) * 0.25));
+        $required = $bytes + $databaseBytes + $stageBytes + $reserve;
+        $this->assertSpace($required);
+        return ['ok'=>true, 'estimated_backup_bytes'=>$bytes + $databaseBytes,
+            'staged_bytes'=>$stageBytes, 'required_free_bytes'=>$required, 'checked_at'=>gmdate(DATE_ATOM)];
+    }
+
+    /** Authenticate a specific rollback snapshot before entering maintenance or touching a DB. */
+    public function preflightRestore(string $id): array
+    {
+        $this->assertStorage();
+        $this->db->assertRecoveryReady();
+        $verified = $this->verify($id);
+        $manifest = F::read($this->directory($id) . '/manifest.json');
+        $maxFile = 0;
+        foreach (array_keys($manifest['files']) as $relative) {
+            $size = filesize(F::path($this->directory($id), 'files/' . $relative));
+            if ($size === false) throw new \RuntimeException('Cannot measure restore source');
+            $maxFile = max($maxFile, $size);
+        }
+        // Restores use atomic temporary copies in the installation filesystem.
+        $this->assertSpace(max($this->minimumFreeBytes(), $maxFile * 2));
+        return $verified + ['restore_preflight'=>true];
+    }
+
+    private function minimumFreeBytes(): int
+    {
+        $raw = getenv('BACKUP_MIN_FREE_BYTES');
+        if ($raw === false || $raw === '') return 134217728;
+        if (!ctype_digit($raw) || strlen($raw) > 15 || (float)$raw > PHP_INT_MAX || (int)$raw < 8388608) {
+            throw new \RuntimeException('BACKUP_MIN_FREE_BYTES must be an integer >= 8388608');
+        }
+        return (int)$raw;
+    }
+
+    private function assertSpace(int $required): void
+    {
+        $available = disk_free_space($this->root);
+        if ($available === false || $available < $required) {
+            throw new \RuntimeException('Insufficient free disk space for verified backup or rollback');
+        }
+    }
+
     public function create(): array
     {
         $lock=OperationLock::acquire($this->root,true);

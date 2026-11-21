@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## Backup & Rollback Integration 2.0.5
+
+An authorized administrator can queue a full verified backup and explicitly approve a rollback of the latest committed update in `/admin/#/updates` or Nuxt `/updates`. The dedicated non-root operator authenticates the recovery snapshot and verifies database restoration readiness and local disk headroom before destructive writes. Rolling back a committed upgrade **discards all writes since that upgrade**. An interrupted restore stays in maintenance mode and requires recovery from the protected CLI journal. Set `BACKUP_KEY_FILE` and keep tested off-host backup bundles. [Operations guide](docs/backup-rollback-integration-2.0.5.md).
+
 ## Admin Update Center 2.0.4
 
 The production `/admin/#/updates` and Nuxt `/updates` screens now let an authorized administrator check the current GitHub Releases catalog, request a background **Download and Stage** of the exact version, inspect operator status and request history, and confirm **Install** of the signed staging package. A dedicated non-root operator from 2.0.3 performs the actual work; the browser never downloads executable bytes or runs a CLI command. Enable `UPDATE_WEB_UPGRADE_ENABLED=true` and `UPDATE_OPERATOR_ENABLED=true`, configure the out-of-band trusted Ed25519 key, and deploy the systemd timer. Critical browser actions require recent reauthentication. [Operations guide](docs/admin-update-center-2.0.4.md).

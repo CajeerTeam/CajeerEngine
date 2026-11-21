@@ -20,7 +20,7 @@ final readonly class UpdateController
     public function diagnostics(Request $request, array $parameters): JsonResponse
     {
         $resolver = new UpdateResolver($this->config->get('updates', []), $this->config->rootPath());
-        return new JsonResponse(['data' => $resolver->diagnostics($this->config->string('app.version', '1.5.0')) + ['wizard'=>$this->manager()->wizardState(),'staged'=>$this->manager()->staged(),'requests'=>$this->manager()->recentRequests(),'downloads'=>$this->manager()->downloaded(),'web_upgrade_enabled'=>$this->config->bool('updates.web_upgrade.enabled')]]);
+        return new JsonResponse(['data' => $resolver->diagnostics($this->config->string('app.version', '1.5.0')) + ['wizard'=>$this->manager()->wizardState(),'staged'=>$this->manager()->staged(),'requests'=>$this->manager()->recentRequests(),'backups'=>array_slice((new \CajeerEngine\Backup\BackupManager($this->config->rootPath(), $this->config))->list()['backups'],0,20),'downloads'=>$this->manager()->downloaded(),'web_upgrade_enabled'=>$this->config->bool('updates.web_upgrade.enabled')]]);
     }
 
     /** @param array<string, mixed> $parameters */
@@ -46,6 +46,12 @@ final readonly class UpdateController
     public function download(Request $request, array $parameters): JsonResponse
     {
         return $this->requestOperation($request, 'download');
+    }
+
+    /** Queue a verified full backup with explicit administrator approval. */
+    public function backup(Request $request, array $parameters): JsonResponse
+    {
+        return $this->requestOperation($request, 'backup');
     }
 
     /** @param array<string, mixed> $parameters */
@@ -82,7 +88,7 @@ final readonly class UpdateController
     private function requestOperation(Request $request, string $action): JsonResponse
     {
         if (!$this->config->bool('updates.web_upgrade.enabled')) return new JsonResponse(['error'=>['code'=>'web_upgrade_disabled','message'=>'Enable UPDATE_WEB_UPGRADE_ENABLED or use CLI.']],403);
-        if (!$this->config->bool('updates.operator.enabled') && $action !== 'rollback') {
+        if (!$this->config->bool('updates.operator.enabled')) {
             return new JsonResponse(['error'=>['code'=>'operator_disabled','message'=>'Enable the dedicated UpdateOperator before queueing an update.']],409);
         }
         $identity=$request->attributes->get('auth');

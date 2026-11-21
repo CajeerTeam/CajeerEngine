@@ -112,6 +112,21 @@ try {
     assertOperator(OperationFiles::read($requests . '/request-' . $fail . '.json')['state'] === 'failed', 'real request consumer persists failed terminal state');
     assertOperator($operator->runOnce()['request_id'] === $blockedNext, 'failure does not cause replay or permanently stall later approved requests');
     assertOperator(count($executed) === 3, 'one-shot consumes only approved remaining request');
+    foreach (['backup','rollback'] as $action) {
+        $id=bin2hex(random_bytes(16));
+        $req=['ok'=>true,'id'=>$id,'action'=>$action,'actor'=>'admin-test',
+            'requested_at'=>gmdate(DATE_ATOM),'confirmed_at'=>gmdate(DATE_ATOM),'state'=>'pending'];
+        if ($action==='rollback') $req['transaction']='20261121-120000-'.str_repeat('a',16);
+        OperationFiles::json($requests.'/request-'.$id.'.json',$req);
+        $result=$operator->runOnce();
+        assertOperator($result['status']==='completed' && $result['request_id']===$id, 'operator accepts approved '.$action.' and consumes exactly once');
+        assertOperator($operator->runOnce()['status']==='idle','operator does not replay '.$action);
+    }
+    $id=bin2hex(random_bytes(16));
+    OperationFiles::json($requests.'/request-'.$id.'.json',[
+        'id'=>$id,'action'=>'rollback','actor'=>'admin-test','requested_at'=>gmdate(DATE_ATOM),
+        'confirmed_at'=>gmdate(DATE_ATOM),'state'=>'pending','transaction'=>'../attack']);
+    assertOperator($operator->runOnce()['status']==='recovery_required','malformed rollback transaction fails closed');
     echo 'Update Execution Service regression: PASS' . PHP_EOL;
 } finally {
     removeOperatorTestTree($root);

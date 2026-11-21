@@ -3456,6 +3456,15 @@ final class Operations {
     ),
     'bodyRequired' => true,
   ),
+  'post_UpdatesBackup' => 
+  array (
+    'method' => 'POST',
+    'path' => '/updates/backup',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
   'post_UpdatesCheck' => 
   array (
     'method' => 'POST',

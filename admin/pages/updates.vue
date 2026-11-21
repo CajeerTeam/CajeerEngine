@@ -1,13 +1,15 @@
 <script setup lang="ts">
 type UpdateRequest = { id: string; action: string; version?: string; state: string; requested_at: string }
+type RecoveryBackup = { id: string; version?: string; created_at?: string; complete: boolean }
 type UpdateState = {
   current_version?: string; channel?: string; web_upgrade_enabled?: boolean
   github_reachable?: boolean; metadata_status?: string; metadata_failure?: string
   last_check?: { update_available?: boolean; latest?: { version?: string; source?: string; notes?: string }; checked_at?: string }
   staged?: { ok?: boolean; id?: string; version?: string; sha256?: string; file_count?: number }
   wizard?: { operator_ready?: boolean; production_apply_enabled?: boolean; installed?: boolean
-    operator_status?: { status?: string; checked_at?: string }; maintenance?: { enabled?: boolean; update_active?: boolean } }
-  requests?: UpdateRequest[]; downloads?: Array<{version:string}>
+    operator_status?: { status?: string; checked_at?: string }; maintenance?: { enabled?: boolean; update_active?: boolean };
+    rollback?: { available: boolean; transaction?: string; from_version?: string; to_version?: string } }
+  requests?: UpdateRequest[]; backups?: RecoveryBackup[]; downloads?: Array<{version:string}>
 }
 const api = useAdminApi()
 const state = ref<UpdateState>({})
@@ -17,6 +19,8 @@ const notice = ref('')
 const latest = computed(() => state.value.last_check?.latest?.version || '')
 const pending = computed(() => (state.value.requests || []).some(r => ['pending','running'].includes(r.state)))
 const ready = computed(() => state.value.web_upgrade_enabled === true && state.value.wizard?.operator_ready === true && state.value.wizard?.production_apply_enabled === true && state.value.wizard?.operator_status?.status !== 'recovery_required' && !pending.value && !state.value.wizard?.maintenance?.update_active && !loading.value)
+const canBackup = computed(() => ready.value)
+const canRollback = computed(() => ready.value && state.value.wizard?.rollback?.available === true && !!state.value.wizard?.rollback?.transaction)
 const canDownload = computed(() => ready.value && state.value.last_check?.update_available === true && !!latest.value)
 const canInstall = computed(() => ready.value && state.value.wizard?.installed === true && state.value.staged?.ok === true && !!state.value.staged?.id && !!state.value.staged?.sha256)
 let timer: ReturnType<typeof setInterval> | undefined
@@ -46,6 +50,17 @@ const install = async () => {
   const stage = state.value.staged
   if (!stage?.id || !stage.sha256 || !window.confirm(`Установить CajeerEngine ${stage.version}? Сайт временно перейдёт в режим обслуживания и создаст backup.`))return
   await action('/updates/apply',{confirm:true,package:stage.id,sha256:stage.sha256},'Установка добавлена в очередь.')
+}
+const backup = async () => {
+  if (!window.confirm('Создать полную резервную копию кода, данных и базы? Операция выполняется фоновой службой.')) return
+  await action('/updates/backup', {confirm:true}, 'Создание резервной копии поставлено в очередь.')
+}
+const rollback = async () => {
+  const candidate = state.value.wizard?.rollback
+  if (!candidate?.available || !candidate.transaction) return
+  if (!window.confirm(`Откатить ${candidate.from_version} до ${candidate.to_version}? Все изменения сайта и базы данных после обновления будут утрачены.`)) return
+  if (window.prompt('Для подтверждения необратимой потери данных введите ОТКАТ') !== 'ОТКАТ') return
+  await action('/updates/rollback', {confirm:true,transaction:candidate.transaction}, 'Откат поставлен в очередь. Не отключайте обслуживание до завершения восстановления.')
 }
 const maintenance = async (enabled: boolean) => {
   if (!window.confirm(enabled?'Включить режим обслуживания?':'Отключить режим обслуживания?'))return
@@ -98,7 +113,15 @@ onUnmounted(() => {if(timer)clearInterval(timer)})
       <p>{{ state.wizard?.maintenance?.enabled ? 'Включено' : 'Выключено' }}</p>
       <button :disabled="loading" @click="maintenance(true)">Включить</button>
       <button :disabled="loading || state.wizard?.maintenance?.update_active" @click="maintenance(false)">Выключить</button>
-      <p>Ручной откат и аварийное восстановление — через CLI до этапа 2.0.5.</p>
+      <h3>Резервные копии</h3>
+      <button :disabled="!canBackup" @click="backup">Создать резервную копию</button>
+      <p v-if="!state.backups?.length">Сохранённых резервных копий пока нет.</p>
+      <ul v-else><li v-for="item in state.backups" :key="item.id">{{ item.id }} · {{ item.version || '—' }} · {{ item.complete ? 'создана' : 'неполная' }}</li></ul>
+      <h3>Откат последнего обновления</h3>
+      <p v-if="state.wizard?.rollback?.available">{{ state.wizard.rollback.from_version }} → {{ state.wizard.rollback.to_version }}. Изменения после установки будут потеряны.</p>
+      <p v-else>Нет последнего завершённого обновления, доступного для отката.</p>
+      <button :disabled="!canRollback" @click="rollback">Откатить обновление</button>
+      <p>Откат выполняет оператор с проверкой MAC, файлов и базы данных. При ошибке восстановления сайт остаётся в режиме обслуживания; аварийное восстановление — через CLI/runbook.</p>
     </div>
   </section>
 </template>

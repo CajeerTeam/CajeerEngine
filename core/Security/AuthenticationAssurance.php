@@ -33,7 +33,7 @@ final readonly class AuthenticationAssurance
         return in_array($route, ['api.v1.integrations.store','api.v1.integrations.update',
             'api.v1.integrations.delete','api.v1.integrations.secret','api.v1.ai.settings',
             'api.v1.ai.migration.remediation.apply','api.v1.ai.migration.remediation.rollback',
-            'api.v1.updates.download','api.v1.updates.apply','api.v1.updates.rollback',
+            'api.v1.updates.download','api.v1.updates.apply','api.v1.updates.rollback','api.v1.updates.backup',
             'api.v1.updates.maintenance.on','api.v1.updates.maintenance.off'], true);
     }
 

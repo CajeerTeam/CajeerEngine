@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "CajeerEngine REST API",
-    "version": "2.0.4",
+    "version": "2.0.5",
     "description": "Core REST API. JSON-compatible YAML; operation registry, request validation and permission policy are checked by api:lint --strict. Public pages outside /api/v1 are not part of this contract."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -9814,7 +9814,7 @@
             "CsrfToken": []
           }
         ],
-        "description": "Администратор с CSRF (для browser session) создаёт подтверждённый запрос. Оператор выполняет его отдельным CLI update:run; PHP-FPM не изменяет код.",
+        "description": "Queue rollback of the exact latest committed transaction. Before any destructive recovery the operator authenticates backup MAC/digests, validates DB recovery privileges and disk space. Rollback discards post-update writes.",
         "responses": {
           "503": {
             "description": "Maintenance / recovery in progress",
@@ -40035,6 +40035,152 @@
           }
         }
       }
+    },
+    "/updates/backup": {
+      "post": {
+        "tags": [
+          "Updates"
+        ],
+        "operationId": "post_UpdatesBackup",
+        "summary": "POST /updates/backup",
+        "x-cajeer-route": "api.v1.updates.backup",
+        "x-cajeer-required-scopes": [
+          "*"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiTokenAuth": []
+          },
+          {
+            "BrowserSession": [],
+            "CsrfToken": []
+          }
+        ],
+        "description": "Queue a full authenticated recovery snapshot with explicit administrative approval and recent reauthentication. The dedicated non-root operator executes the backup under the existing operation lock.",
+        "responses": {
+          "503": {
+            "description": "Maintenance / recovery in progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Требуется авторизация",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Недостаточно прав или CSRF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Слишком большой запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Неподдерживаемый Content-Type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Ошибка валидации",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Внутренняя ошибка",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Запрос принят, ожидает оператора",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/UpdateOperationRequest"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBackupRequest"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -41139,10 +41285,15 @@
           "confirm": {
             "type": "boolean",
             "const": true
+          },
+          "transaction": {
+            "type": "string",
+            "pattern": "^\\d{8}-\\d{6}-[a-f0-9]{16}$"
           }
         },
         "required": [
-          "confirm"
+          "confirm",
+          "transaction"
         ],
         "additionalProperties": false
       },
@@ -41160,13 +41311,15 @@
             "enum": [
               "apply",
               "rollback",
-              "backup"
+              "backup",
+              "download"
             ]
           },
           "state": {
             "type": "string",
             "enum": [
               "pending",
+              "running",
               "completed",
               "failed"
             ]
@@ -43709,6 +43862,19 @@
         },
         "required": [
           "version",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateBackupRequest": {
+        "type": "object",
+        "properties": {
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
           "confirm"
         ],
         "additionalProperties": false

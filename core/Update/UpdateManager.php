@@ -85,7 +85,13 @@ final class UpdateManager
             $report=['ok'=>true,'id'=>$id,'previous_version'=>$previous,'target_version'=>$v['version'],'sha256'=>$v['sha256'],'copy_plan'=>$plan,'dry_run'=>!empty($options['dry_run'])];
             if ($report['dry_run']) return $report;
             $backup=new BackupManager($this->rootPath,$this->config);
-            (new DatabaseBackup($this->rootPath,$this->config))->assertRecoveryReady();
+            $stageBytes = 0;
+            foreach ($plan['files'] as $relative) {
+                $size = filesize(OperationFiles::path($dir, 'stage/'.$relative));
+                if ($size === false) throw new \RuntimeException('Cannot size staged release');
+                $stageBytes += $size;
+            }
+            $backup->preflightUpdate($stageBytes);
             $this->postCheck(false);
             $journal=['id'=>$id,'state'=>'prepared','previous_version'=>$previous,'target_version'=>$v['version'],'sha256'=>$v['sha256'],'maintenance_was_enabled'=>$this->maintenanceState()['enabled'],'maintenance_before'=>is_file($this->rootPath.'/storage/app/maintenance.json')?OperationFiles::read($this->rootPath.'/storage/app/maintenance.json'):null,'backup'=>null,'child_lock'=>'child-'.bin2hex(random_bytes(8)).'.lock','at'=>gmdate(DATE_ATOM)];
             $this->journal($journal);
@@ -94,6 +100,7 @@ final class UpdateManager
                 $this->setMaintenance('Updating to '.$v['version']);
                 $journal['state']='backup'; $this->journal($journal);
                 $journal['backup']=$backup->capture()['id'];
+                $backup->verify($journal['backup']);
                 $journal['state']='backed_up'; $this->journal($journal);
                 // Recovery code is copied from the old release before any replacement.
                 $this->recoveryLauncher($dir,$backup->directory($journal['backup']));
@@ -148,6 +155,15 @@ final class UpdateManager
             if ($expectedTransaction!==null&&$expectedTransaction!==$j['id']) throw new \RuntimeException('Stale rollback request');
             if ($backup!==null && $backup!==($j['backup']??null)) throw new \RuntimeException('Backup must match active/latest update');
             $dir=$this->transactionDir($j['id']);
+            // Any committed or interrupted destructive operation requires an
+            // authenticated recovery set and working DB recovery permissions.
+            if (!in_array($j['state'], ['prepared','backup','backed_up'], true)) {
+                if (!is_string($j['backup'] ?? null)) throw new \RuntimeException('Missing rollback snapshot');
+                $recovery=(new BackupManager($this->rootPath,$this->config))->preflightRestore($j['backup']);
+                if (($recovery['version'] ?? null) !== ($j['previous_version'] ?? null)) {
+                    throw new \RuntimeException('Recovery snapshot version does not match update transaction');
+                }
+            }
             if (isset($j['child_lock'])) { if (!preg_match('/^child-[a-f0-9]{16}\.lock$/D',$j['child_lock'])) throw new \RuntimeException('Invalid child lease'); $child=OperationLock::childGuard($dir.'/'.$j['child_lock']); }
             $j['child_lock']='child-'.bin2hex(random_bytes(8)).'.lock';
             $this->journal($j); DatabaseBackup::useProcessLock($dir.'/'.$j['child_lock']);
@@ -184,7 +200,14 @@ final class UpdateManager
         $report=is_file($last)?OperationFiles::read($last):null;
         $operatorStatus=null; $operatorFile=$this->path('operator-status.json');
         if (is_file($operatorFile)) { try { $operatorStatus=OperationFiles::read($operatorFile); } catch (\Throwable) { $operatorStatus=['ok'=>false,'status'=>'unavailable']; } }
-        return ['ok'=>true,'current_version'=>$this->currentVersion(),'maintenance'=>$this->maintenanceState(),'last_report'=>$report===null?null:array_intersect_key($report,array_flip(['ok','id','state','previous_version','target_version','version'])),'installed'=>is_file($this->rootPath.'/storage/app/installed.lock'),'production_apply_enabled'=>$this->trustConfigured(),'operator_enabled'=>$this->config->bool('updates.operator.enabled'),'operator_ready'=>$this->config->bool('updates.operator.enabled') && $this->config->bool('updates.web_upgrade.enabled'),'operator_status'=>$operatorStatus];
+        $rollback = ['available'=>false];
+        if (($report['state'] ?? null) === 'committed' && !OperationLock::active($this->rootPath) &&
+            ($report['target_version'] ?? null) === $this->currentVersion() &&
+            preg_match('/^\\d{8}-\\d{6}-[a-f0-9]{16}$/D', (string)($report['id'] ?? ''))) {
+            $rollback = ['available'=>true,'transaction'=>$report['id'],
+                'from_version'=>$report['target_version'],'to_version'=>$report['previous_version'] ?? null];
+        }
+        return ['ok'=>true,'rollback'=>$rollback,'current_version'=>$this->currentVersion(),'maintenance'=>$this->maintenanceState(),'last_report'=>$report===null?null:array_intersect_key($report,array_flip(['ok','id','state','previous_version','target_version','version'])),'installed'=>is_file($this->rootPath.'/storage/app/installed.lock'),'production_apply_enabled'=>$this->trustConfigured(),'operator_enabled'=>$this->config->bool('updates.operator.enabled'),'operator_ready'=>$this->config->bool('updates.operator.enabled') && $this->config->bool('updates.web_upgrade.enabled'),'operator_status'=>$operatorStatus];
     }
     public function staged(): array
     {
@@ -226,7 +249,7 @@ final class UpdateManager
             }
             $existing = OperationFiles::read($entry->getPathname());
             if (($existing['id'] ?? '') !== substr($entry->getFilename(), 8, 32)) throw new \RuntimeException('Request journal ID mismatch');
-            if (in_array($existing['state'] ?? null, ['pending','running'], true) && in_array($existing['action'] ?? null, ['apply','download'], true)) {
+            if (in_array($existing['state'] ?? null, ['pending','running'], true)) {
                 throw new \RuntimeException('Another update operation is pending or running');
             }
         }
@@ -252,7 +275,13 @@ final class UpdateManager
             $stage=$this->staged();
             if (empty($stage['id'])||empty($stage['sha256'])||$stage['id']!==($payload['package']??null)||$stage['sha256']!==($payload['sha256']??null)) throw new \RuntimeException('Select the exact staged artifact and digest');
             $data['stage']=$stage['id']; $data['sha256']=$stage['sha256'];
-        } elseif ($action==='backup') { /* full backup, no arbitrary server path */ } elseif ($action==='rollback') { $last=$this->wizardState()['last_report']; if (($last['state']??null)!=='committed') throw new \RuntimeException('No committed update'); $data['transaction']=$last['id']; }
+        } elseif ($action==='backup') { /* full backup, no arbitrary server path */ } elseif ($action==='rollback') {
+            $candidate=$this->wizardState()['rollback'];
+            if (!$candidate['available'] || ($payload['transaction'] ?? null) !== $candidate['transaction']) {
+                throw new \RuntimeException('Select the exact latest committed update to roll back');
+            }
+            $data['transaction']=$candidate['transaction'];
+        }
         else throw new \RuntimeException('Invalid operation');
         OperationFiles::json($this->requestDir().'/request-'.$id.'.json',$data,0640); return $data;
         } finally { flock($queueGuard, LOCK_UN); fclose($queueGuard); }

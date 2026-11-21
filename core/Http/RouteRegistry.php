@@ -129,6 +129,7 @@ final class RouteRegistry
             ['POST', '/api/v1/updates/check', 'api.v1.updates.check', 'updates', 'check', ['updates:read']],
             ['POST', '/api/v1/updates/plan', 'api.v1.updates.plan', 'updates', 'plan', ['updates:read']],
             ['POST', '/api/v1/updates/prepare', 'api.v1.updates.prepare', 'updates', 'prepare', ['*']],
+            ['POST', '/api/v1/updates/backup', 'api.v1.updates.backup', 'updates', 'backup', ['*']],
             ['POST', '/api/v1/updates/download', 'api.v1.updates.download', 'updates', 'download', ['*']],
             ['POST', '/api/v1/updates/apply', 'api.v1.updates.apply', 'updates', 'apply', ['*']],
             ['POST', '/api/v1/updates/rollback', 'api.v1.updates.rollback', 'updates', 'rollback', ['*']],

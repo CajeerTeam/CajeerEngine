@@ -9,8 +9,8 @@ use CajeerEngine\Runtime\ConfigRepository;
 /** One-shot, single-node service consumer for explicitly approved installation requests.
  *
  * Invoke from a dedicated operator account via systemd timer. No browser request
- * can select a command, filesystem path, or executable. Rollbacks and backups remain
- * manual in 2.0.3. A killed running request is never replayed automatically.
+ * can select a command, filesystem path, or executable. Backups and committed
+ * rollbacks also require explicit approval. A killed request is never replayed.
  */
 final class UpdateOperator
 {
@@ -87,11 +87,15 @@ final class UpdateOperator
             if ($record['state'] === 'running') {
                 return $this->status('recovery_required', $id, false, 'Unfinished operator request: manual reconciliation required');
             }
-            if ($record['state'] !== 'pending' || !in_array($record['action'] ?? null, ['apply', 'download'], true)) continue;
-            $validPayload = $record['action'] === 'download'
-                ? is_string($record['version'] ?? null) && preg_match('/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/D', $record['version'])
-                : preg_match('/^[a-f0-9]{32}$/D', (string) ($record['stage'] ?? '')) &&
-                    preg_match('/^[a-f0-9]{64}$/D', (string) ($record['sha256'] ?? ''));
+            if ($record['state'] !== 'pending') continue;
+            $validPayload = match ($record['action'] ?? null) {
+                'download' => is_string($record['version'] ?? null) && preg_match('/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/D', $record['version']),
+                'apply' => preg_match('/^[a-f0-9]{32}$/D', (string) ($record['stage'] ?? '')) &&
+                    preg_match('/^[a-f0-9]{64}$/D', (string) ($record['sha256'] ?? '')),
+                'rollback' => preg_match('/^\d{8}-\d{6}-[a-f0-9]{16}$/D', (string)($record['transaction'] ?? '')),
+                'backup' => true,
+                default => false,
+            }; 
             if (!$validPayload || !is_string($record['actor'] ?? null) || trim($record['actor']) === '' ||
                 !is_string($record['requested_at'] ?? null) || strtotime($record['requested_at']) === false ||
                 !is_string($record['confirmed_at'] ?? null) || strtotime($record['confirmed_at']) === false) {

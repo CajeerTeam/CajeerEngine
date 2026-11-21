@@ -2627,6 +2627,12 @@ export const operations = {
         "parameters": [],
         "bodyRequired": true
     },
+    "post_UpdatesBackup": {
+        "method": "POST",
+        "path": "/updates/backup",
+        "parameters": [],
+        "bodyRequired": true
+    },
     "post_UpdatesCheck": {
         "method": "POST",
         "path": "/updates/check",
