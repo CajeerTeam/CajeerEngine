@@ -61,6 +61,7 @@ jobs:
           php tools/github-release-regression.php
           php tools/automatic-release-discovery-regression.php
           php tools/secure-release-downloader-regression.php
+          php tools/update-execution-service-regression.php
       - name: Deployment and disaster recovery acceptance (actual SQLite)
         run: |
           php tools/deployment-recovery-acceptance.php

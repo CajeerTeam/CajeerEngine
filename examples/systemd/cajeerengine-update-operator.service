@@ -1,0 +1,30 @@
+[Unit]
+Description=CajeerEngine verified update operator (one approved request)
+After=local-fs.target network-online.target
+Wants=network-online.target
+ConditionPathExists=/var/www/cajeerengine/bin/cajeer
+
+[Service]
+Type=oneshot
+User=cajeer-updater
+Group=cajeer-updater
+SupplementaryGroups=cajeer-update-requests
+WorkingDirectory=/var/www/cajeerengine
+ExecStart=/usr/bin/php /var/www/cajeerengine/bin/cajeer update:operator:once
+UMask=0027
+TimeoutStartSec=0
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+SystemCallArchitectures=native
+# Restrict the executable's filesystem access to the declared installation.
+ProtectSystem=strict
+ReadWritePaths=/var/www/cajeerengine
+# Never run this unit as root or as the PHP-FPM web user.

@@ -13,7 +13,7 @@ use CajeerEngine\Update\UpdateManager;
 /** Operational CLI remains available without Composer; never execute through HTTP. */
 final class OperationsCli
 {
-    public const COMMANDS=['backup:create','stable:backup','backup:list','backup:verify','backup:restore','backup:keygen','backup:export','backup:import','backup:drill','release:keygen','release:sign','update:verify-signature','update:download','update:apply','update:rollback','update:stage','update:requests','update:run','update:status','maintenance:on','maintenance:off','maintenance:status','import:execute','import:requests','keys:status','keys:rekey','keys:generate'];
+    public const COMMANDS=['backup:create','stable:backup','backup:list','backup:verify','backup:restore','backup:keygen','backup:export','backup:import','backup:drill','release:keygen','release:sign','update:verify-signature','update:download','update:operator:once','update:apply','update:rollback','update:stage','update:requests','update:run','update:status','maintenance:on','maintenance:off','maintenance:status','import:execute','import:requests','keys:status','keys:rekey','keys:generate'];
     public static function handles(array $argv): bool { return in_array($argv[1]??'',self::COMMANDS,true)||(($argv[1]??'')==='update'&&in_array('--apply',$argv,true)); }
     public static function run(string $root,array $argv): int
     {
@@ -55,6 +55,7 @@ final class OperationsCli
                     'backup:restore'=>isset($o['yes'])?(new BackupManager($root,$config))->restore($required('id')):throw new \RuntimeException('Restore replaces database and files; pass --yes'),
                     'update:verify-signature'=>$m->verifyPackage($required('package'),$o['sha256']??null,$o['signature']??null),
                     'update:download'=>(new \CajeerEngine\Update\GitHubReleaseDownloader($root,$config))->download(isset($o['version']) ? $required('version') : null),
+                    'update:operator:once'=>(new \CajeerEngine\Update\UpdateOperator($root,$config))->runOnce(),
                     'update:apply','update'=>$m->apply(array_combine(array_map(static fn($k)=>str_replace('-','_',$k),array_keys($o)),array_values($o))),
                     'update:rollback'=>$m->rollback($o['backup']??null,isset($o['yes'])),
                     'update:stage'=>$m->publish($required('package'),$o['signature']??null),

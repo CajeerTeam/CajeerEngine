@@ -14,6 +14,9 @@ return [
         'download_timeout_seconds' => (int) (getenv('UPDATE_DOWNLOAD_TIMEOUT_SECONDS') ?: 300),
         'download_max_bytes' => (int) (getenv('UPDATE_DOWNLOAD_MAX_BYTES') ?: 2147483648),
     ],
+    'operator' => [
+        'enabled' => filter_var(getenv('UPDATE_OPERATOR_ENABLED') ?: false, FILTER_VALIDATE_BOOLEAN),
+    ],
     'registry' => [
         'url' => GitHubEndpoints::REGISTRY_URL,
         'signature_required' => true,

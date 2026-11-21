@@ -37,7 +37,7 @@ The existing `update:apply` flow performs backup, compatibility validation, main
 - Asset delivery uses TLS verification, public-only pinned DNS, fixed host allowlist, no proxy, up to five validated HTTP redirects and byte/time limits. ZIPs are streamed to private temporary files instead of memory; download content is never executed.
 - A signed package is accepted only when `.sha256`, GitHub's digest (if present), detached Ed25519 signature and the ZIP manifest/inventory all agree. Metadata from GitHub alone never establishes trust.
 - A failed download or validation leaves no `verified.json` commit marker; temporary files are removed. Reuse of a cached package is conditional on renewed complete validation.
-- The downloader is explicitly CLI-only; it does not grant PHP-FPM code replacement privileges. Direct browser use and unattended installation are not part of 2.0.2.
+- The downloader is explicitly CLI-only; it does not grant PHP-FPM code replacement privileges. Direct browser use is not part of 2.0.2. The later 2.0.3 operator may execute a separately staged, administrator-approved update; it never downloads or approves a release itself.
 - `UPDATE_DOWNLOAD_TIMEOUT_SECONDS=300` controls the per-asset download timeout (bounded to 15–1800 seconds). `UPDATE_DOWNLOAD_MAX_BYTES=2147483648` limits ZIP size (1 MiB–2 GiB). A space reservation check uses the size GitHub advertises, but is not a disk quota guarantee.
 
 ## Verification

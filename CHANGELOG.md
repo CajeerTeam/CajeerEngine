@@ -1,3 +1,9 @@
+# 2.0.3 — Update Execution Service
+
+- Non-root, one-shot systemd operator consumes explicitly approved staged installation requests automatically.
+- Preserves single-use transactional update, backup, signed verification and fail-closed crash recovery.
+- Adds operator status, hardening against malformed requests and deployment/regression instructions.
+
 # 2.0.2 — Secure Release Downloader
 
 - Added `php bin/cajeer update:download` to fetch the latest eligible production distribution from CajeerTeam GitHub Releases using a streaming, bounded HTTPS transport; DNS is checked and pinned, only a small set of GitHub asset hosts is accepted across at most five explicit redirects.

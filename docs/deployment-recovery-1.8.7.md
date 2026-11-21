@@ -29,7 +29,7 @@ For a failed update, the updater attempts an authenticated automatic recovery. I
 
 ## Administrator requests and interruption
 
-Browser-generated operations require explicit CLI execution. `update:run --id=<request-id>` first persists `running`, before starting any update, rollback or backup. Success becomes `completed`; ordinary failures become `failed`. A killed process leaves `running` and is **not replayed**. This prevents a second restoration or update from executing on an unknown first result. Do not edit the request to `pending`. Instead inspect `storage/app/updates/active.json`, the corresponding transaction journal and any backup-restore marker, reconcile or roll back the interrupted transaction, then submit a new operator request.
+Browser-generated operations require explicit confirmation. As of 2.0.3, approved staged `apply` requests can execute via a separately provisioned non-root systemd timer (`UPDATE_OPERATOR_ENABLED=true`); without it, explicit CLI execution is still required. `update:run --id=<request-id>` first persists `running`, before starting any update, rollback or backup. Success becomes `completed`; ordinary failures become `failed`. A killed process leaves `running` and is **not replayed**. This prevents a second restoration or update from executing on an unknown first result. Do not edit the request to `pending`. Instead inspect `storage/app/updates/active.json`, the corresponding transaction journal and any backup-restore marker, reconcile or roll back the interrupted transaction, then submit a new operator request.
 
 ## Offsite disaster recovery
 

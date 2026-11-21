@@ -1,0 +1,12 @@
+[Unit]
+Description=Poll approved CajeerEngine installations without an open CLI session
+
+[Timer]
+OnBootSec=45s
+OnUnitInactiveSec=30s
+AccuracySec=5s
+Unit=cajeerengine-update-operator.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

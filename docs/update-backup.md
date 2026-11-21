@@ -80,7 +80,7 @@ Put the detached signature next to the ZIP as `next-dist.zip.sig` or specify `--
 1. Set `UPDATE_WEB_UPGRADE_ENABLED=true` only when needed.
 2. Operator runs `php bin/cajeer update:stage --package=/release/next-dist.zip` to verify and stage the artifact.
 3. Sign in at `/admin/` and open `/upgrade/`. Select the staged release/digest and confirm. The browser sends an authorized CSRF-protected request; API returns 202, not a claim that the update ran.
-4. Operator inspects `php bin/cajeer update:requests` and executes `php bin/cajeer update:run --id=<request-id>`. The request is bound to the signed artifact. No privileged web daemon consumes requests automatically.
+4. With `UPDATE_OPERATOR_ENABLED=true` and the dedicated non-root systemd timer from [Update Execution Service 2.0.3](update-execution-service-2.0.3.md), an approved `apply` request is consumed automatically. Without that service, the operator inspects `php bin/cajeer update:requests` and executes `php bin/cajeer update:run --id=<request-id>` manually. The request is bound to the signed artifact; an interrupted `running` request is never automatically replayed.
 5. Check the report and site. Disable the web upgrade flag when finished. The Admin UI backup button similarly queues a request for the operator.
 
 ### Failure / rollback

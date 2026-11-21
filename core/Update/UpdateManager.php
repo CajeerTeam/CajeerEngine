@@ -182,7 +182,9 @@ final class UpdateManager
     {
         $last=PHP_SAPI==='cli'?$this->path('last-update.json'):$this->requestDir().'/last-report.json';
         $report=is_file($last)?OperationFiles::read($last):null;
-        return ['ok'=>true,'current_version'=>$this->currentVersion(),'maintenance'=>$this->maintenanceState(),'last_report'=>$report===null?null:array_intersect_key($report,array_flip(['ok','id','state','previous_version','target_version','version'])),'installed'=>is_file($this->rootPath.'/storage/app/installed.lock'),'production_apply_enabled'=>$this->trustConfigured()];
+        $operatorStatus=null; $operatorFile=$this->path('operator-status.json');
+        if (is_file($operatorFile)) { try { $operatorStatus=OperationFiles::read($operatorFile); } catch (\Throwable) { $operatorStatus=['ok'=>false,'status'=>'unavailable']; } }
+        return ['ok'=>true,'current_version'=>$this->currentVersion(),'maintenance'=>$this->maintenanceState(),'last_report'=>$report===null?null:array_intersect_key($report,array_flip(['ok','id','state','previous_version','target_version','version'])),'installed'=>is_file($this->rootPath.'/storage/app/installed.lock'),'production_apply_enabled'=>$this->trustConfigured(),'operator_enabled'=>$this->config->bool('updates.operator.enabled'),'operator_ready'=>$this->config->bool('updates.operator.enabled') && $this->config->bool('updates.web_upgrade.enabled'),'operator_status'=>$operatorStatus];
     }
     public function staged(): array
     {
@@ -207,7 +209,7 @@ final class UpdateManager
     {
         if (($payload['confirm']??null)!==true) throw new \RuntimeException('Explicit confirmation required');
         if (OperationLock::active($this->rootPath)||is_file($this->rootPath.'/storage/app/backup-restore.json')) throw new \RuntimeException('Recovery is required from CLI');
-        $id=bin2hex(random_bytes(16)); $data=['ok'=>true,'id'=>$id,'action'=>$action,'actor'=>$actor,'requested_at'=>gmdate(DATE_ATOM),'state'=>'pending'];
+        $id=bin2hex(random_bytes(16)); $data=['ok'=>true,'id'=>$id,'action'=>$action,'actor'=>$actor,'requested_at'=>gmdate(DATE_ATOM),'confirmed_at'=>gmdate(DATE_ATOM),'state'=>'pending'];
         if ($action==='apply') {
             $stage=$this->staged();
             if (empty($stage['id'])||empty($stage['sha256'])||$stage['id']!==($payload['package']??null)||$stage['sha256']!==($payload['sha256']??null)) throw new \RuntimeException('Select the exact staged artifact and digest');
@@ -236,7 +238,8 @@ final class UpdateManager
         $r['state']='running'; $r['started_at']=gmdate(DATE_ATOM);
         OperationFiles::json($path,$r,0640);
         try {
-        // Operator explicitly selects ID, not a privileged daemon consuming arbitrary web requests.
+        // Only a manually selected ID or the dedicated non-root 2.0.3 operator
+        // may consume this confirmed request; neither accepts browser-selected commands.
         if ($r['action']==='apply') {
             if (!preg_match('/^[a-f0-9]{32}$/D',(string)($r['stage']??''))) throw new \RuntimeException('Invalid staged ID');
             $result=$this->apply(['package'=>$this->path('inbox/'.$r['stage'].'/package.zip'),'sha256'=>$r['sha256']]);

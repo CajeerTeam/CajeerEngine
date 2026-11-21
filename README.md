@@ -8,9 +8,13 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## Update Execution Service 2.0.3
+
+A dedicated, non-root systemd timer automatically consumes one explicitly confirmed staged update at a time using the verified transactional installer. Crash-interrupted requests cannot be replayed automatically. [Deployment and recovery guide](docs/update-execution-service-2.0.3.md).
+
 ## Secure Release Downloader 2.0.2
 
-`php bin/cajeer update:download` downloads and verifies only the newest eligible production `dist.zip` from the canonical GitHub Release, with SHA-256 and externally provisioned Ed25519 signature checks. Installation remains a separate, explicit operator operation. [Guide](docs/secure-release-downloader-2.0.2.md).
+`php bin/cajeer update:download` downloads and verifies only the newest eligible production `dist.zip` from the canonical GitHub Release, with SHA-256 and externally provisioned Ed25519 signature checks. Installation is separate: it requires an explicitly approved staged request for the 2.0.3 systemd operator (or manual CLI). [Guide](docs/secure-release-downloader-2.0.2.md).
 
 ## Automatic Release Discovery 2.0.1
 
