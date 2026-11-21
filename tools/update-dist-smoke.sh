@@ -38,7 +38,23 @@ if (!is_array($contract["info"]??null)) throw new RuntimeException("Missing embe
 $contract["info"]["version"]=$version;
 file_put_contents($file,json_encode($contract,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)."\n");
 ' "$target" "$new"
-# Only synthetic release metadata and a test migration differ; production dependencies remain genuine.
+# ServerDoctor verifies that every operational runbook heading matches VERSION.
+# Update only the titles of the synthetic patch release; do not change the
+# real release documentation or weaken the production checks.
+php -r '
+$root=$argv[1];$old=$argv[2];$new=$argv[3];
+require $root."/core/Rc/OperationsDocsVerifier.php";
+foreach (\CajeerEngine\Rc\OperationsDocsVerifier::RUNBOOKS as $relative) {
+    $file=$root."/".$relative;
+    $text=file_get_contents($file);
+    if ($text===false) throw new RuntimeException("Runbook missing: ".$relative);
+    $prefix="# CajeerEngine ".$old;
+    if (!str_starts_with($text,$prefix." ")) throw new RuntimeException("Runbook version mismatch: ".$relative);
+    $updated="# CajeerEngine ".$new.substr($text,strlen($prefix));
+    if (file_put_contents($file,$updated)===false) throw new RuntimeException("Unable to update runbook: ".$relative);
+}
+' "$target" "$old" "$new"
+# Only synthetic release metadata, runbook headings and a test migration differ; production dependencies remain genuine.
 printf 'CREATE TABLE ce_update_smoke (id INTEGER PRIMARY KEY); INSERT INTO ce_update_smoke VALUES (1);\n' > "$target/migrations/sqlite/9999_update_smoke.sql"
 (cd "$target"; php tools/build-release.php --dist --target-dir="$work/artifacts" --json >/dev/null)
 package="$work/artifacts/cajeerengine-$new-dist.zip"

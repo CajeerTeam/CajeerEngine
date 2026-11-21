@@ -25,7 +25,17 @@ try {
     }
     (new CajeerEngine\Public\RouteIndex($root,$db))->rebuild();
     if (!(new AdminAssetPublisher($root))->manifest()['ready']) throw new RuntimeException('Admin assets invalid');
-    $doctor=(new ServerDoctorService($root))->run(false); if (!($doctor['ok']??false)) throw new RuntimeException('Doctor failed');
+    $doctor=(new ServerDoctorService($root))->run(false);
+    if (!($doctor['ok']??false)) {
+        // Export only fixed check IDs, never diagnostics containing secrets or paths.
+        $failures=[];
+        foreach (($doctor['checks']??[]) as $check) {
+            if (($check['status']??null)!=='FAIL') continue;
+            $id=(string)($check['group']??'unknown').'.'.(string)($check['name']??'unknown');
+            $failures[]=substr(preg_replace('/[^a-zA-Z0-9_.:-]/','?', $id)??'unknown',0,120);
+        }
+        throw new RuntimeException('Doctor failed: '.implode(', ',array_slice($failures,0,12)));
+    }
     // The operation owner retains its exclusive lease until this child exits.
     // Public traffic MUST remain unready; never remove markers or unlock to test.
     $maintenance=OperationLock::maintenance($root);
