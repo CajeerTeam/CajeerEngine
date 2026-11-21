@@ -1,3 +1,10 @@
+# 2.0.4 — Admin Update Center
+
+- Real GitHub update control from both the production static SPA and Nuxt admin UI: inspect installed/discovered versions, check GitHub, view release notes and request a signed download/staging, then confirm a separate installation with operator status and recent request history.
+- Protected `download` requests are executed by the existing non-root systemd UpdateOperator: a fresh selected GitHub Release must be explicitly approved; the operator rechecks catalog identity, SHA-256, Ed25519 and ZIP manifest before publishing into the existing staging inbox.
+- Queued installation uses the same verified transactional UpdateManager with backup, maintenance, migrations and recovery; browser code never gains filesystem write/CLI privileges. Queue approvals serialize and reject duplicate pending or interrupted updates.
+- Critical admin mutations require recent reauthentication; OpenAPI/SDKs and bundled admin resources are synchronized. Includes negative and real CLI dispatcher regression tests. Manual rollback remains a separate 2.0.5 milestone; signed dist and live staging validation are required.
+
 # 2.0.3 — Update Execution Service
 
 - Non-root, one-shot systemd operator consumes explicitly approved staged installation requests automatically.

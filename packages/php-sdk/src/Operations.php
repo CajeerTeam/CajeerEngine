@@ -3465,6 +3465,15 @@ final class Operations {
     ),
     'bodyRequired' => false,
   ),
+  'post_UpdatesDownload' => 
+  array (
+    'method' => 'POST',
+    'path' => '/updates/download',
+    'parameters' => 
+    array (
+    ),
+    'bodyRequired' => true,
+  ),
   'post_UpdatesMaintenanceOff' => 
   array (
     'method' => 'POST',

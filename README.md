@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## Admin Update Center 2.0.4
+
+The production `/admin/#/updates` and Nuxt `/updates` screens now let an authorized administrator check the current GitHub Releases catalog, request a background **Download and Stage** of the exact version, inspect operator status and request history, and confirm **Install** of the signed staging package. A dedicated non-root operator from 2.0.3 performs the actual work; the browser never downloads executable bytes or runs a CLI command. Enable `UPDATE_WEB_UPGRADE_ENABLED=true` and `UPDATE_OPERATOR_ENABLED=true`, configure the out-of-band trusted Ed25519 key, and deploy the systemd timer. Critical browser actions require recent reauthentication. [Operations guide](docs/admin-update-center-2.0.4.md).
+
 ## Update Execution Service 2.0.3
 
 A dedicated, non-root systemd timer automatically consumes one explicitly confirmed staged update at a time using the verified transactional installer. Crash-interrupted requests cannot be replayed automatically. [Deployment and recovery guide](docs/update-execution-service-2.0.3.md).

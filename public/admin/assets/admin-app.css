@@ -10,3 +10,6 @@
 .ai-editor-compare{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:14px}
 .ai-editor-text{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;background:var(--surface-muted,#f1f5f9);padding:14px;border-radius:8px}
 @media(max-width:750px){.ai-editor-compare{grid-template-columns:1fr}}
+
+/* Admin Update Center v2.0.4 */
+.grid.cards .kpi-value{overflow-wrap:anywhere}.card code{overflow-wrap:anywhere}.card .toolbar{flex-wrap:wrap}.card .status-line{margin:12px 0}.card .muted{overflow-wrap:anywhere}

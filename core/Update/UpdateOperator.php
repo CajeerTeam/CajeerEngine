@@ -87,10 +87,12 @@ final class UpdateOperator
             if ($record['state'] === 'running') {
                 return $this->status('recovery_required', $id, false, 'Unfinished operator request: manual reconciliation required');
             }
-            if ($record['state'] !== 'pending' || ($record['action'] ?? null) !== 'apply') continue;
-            if (!preg_match('/^[a-f0-9]{32}$/D', (string) ($record['stage'] ?? '')) ||
-                !preg_match('/^[a-f0-9]{64}$/D', (string) ($record['sha256'] ?? '')) ||
-                !is_string($record['actor'] ?? null) || trim($record['actor']) === '' ||
+            if ($record['state'] !== 'pending' || !in_array($record['action'] ?? null, ['apply', 'download'], true)) continue;
+            $validPayload = $record['action'] === 'download'
+                ? is_string($record['version'] ?? null) && preg_match('/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/D', $record['version'])
+                : preg_match('/^[a-f0-9]{32}$/D', (string) ($record['stage'] ?? '')) &&
+                    preg_match('/^[a-f0-9]{64}$/D', (string) ($record['sha256'] ?? ''));
+            if (!$validPayload || !is_string($record['actor'] ?? null) || trim($record['actor']) === '' ||
                 !is_string($record['requested_at'] ?? null) || strtotime($record['requested_at']) === false ||
                 !is_string($record['confirmed_at'] ?? null) || strtotime($record['confirmed_at']) === false) {
                 return $this->status('recovery_required', $id, false, 'Invalid approved installation request');
@@ -100,6 +102,7 @@ final class UpdateOperator
         if ($pending === []) return $this->status('idle', null, true);
         usort($pending, static fn (array $a, array $b): int => ($a['at'] <=> $b['at']) ?: strcmp($a['id'], $b['id']));
         $id = $pending[0]['id'];
+        $this->status('running', $id, true);
         try {
             $result = ($this->execute)($id);
             if (($result['ok'] ?? false) !== true) {

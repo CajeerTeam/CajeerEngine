@@ -209,18 +209,99 @@ final class UpdateManager
     {
         if (($payload['confirm']??null)!==true) throw new \RuntimeException('Explicit confirmation required');
         if (OperationLock::active($this->rootPath)||is_file($this->rootPath.'/storage/app/backup-restore.json')) throw new \RuntimeException('Recovery is required from CLI');
+        // Concurrent browser approvals must be serialized independently of the
+        // activity lease, which may already be held shared by HTTP middleware.
+        $queueLock = $this->requestDir() . '/queue.lock';
+        if (is_link($queueLock)) throw new \RuntimeException('Unsafe update request queue lock');
+        $queueGuard = fopen($queueLock, 'c+');
+        if (!is_resource($queueGuard) || !flock($queueGuard, LOCK_EX)) {
+            if (is_resource($queueGuard)) fclose($queueGuard);
+            throw new \RuntimeException('Could not lock update request queue');
+        }
+        try {
+        foreach (new \DirectoryIterator($this->requestDir()) as $entry) {
+            if ($entry->isDot() || !str_starts_with($entry->getFilename(), 'request-')) continue;
+            if (!preg_match('/^request-[a-f0-9]{32}\.json$/D', $entry->getFilename()) || $entry->isLink() || !$entry->isFile()) {
+                throw new \RuntimeException('Unsafe update request journal');
+            }
+            $existing = OperationFiles::read($entry->getPathname());
+            if (($existing['id'] ?? '') !== substr($entry->getFilename(), 8, 32)) throw new \RuntimeException('Request journal ID mismatch');
+            if (in_array($existing['state'] ?? null, ['pending','running'], true) && in_array($existing['action'] ?? null, ['apply','download'], true)) {
+                throw new \RuntimeException('Another update operation is pending or running');
+            }
+        }
         $id=bin2hex(random_bytes(16)); $data=['ok'=>true,'id'=>$id,'action'=>$action,'actor'=>$actor,'requested_at'=>gmdate(DATE_ATOM),'confirmed_at'=>gmdate(DATE_ATOM),'state'=>'pending'];
-        if ($action==='apply') {
+        if ($action==='download') {
+            $version = $payload['version'] ?? null;
+            if (!is_string($version) || strlen($version) > 100 || !preg_match('/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/D', $version)) {
+                throw new \RuntimeException('Select a valid GitHub Release version');
+            }
+            // Queue submission never contacts GitHub from PHP-FPM: the administrator
+            // must first press Check, which persists the resolver snapshot. The
+            // operator downloads ONLY after a fresh independent GitHub check.
+            $check = (new UpdateResolver($this->config->get('updates', []), $this->rootPath))->diagnostics($this->currentVersion())['last_check'] ?? null;
+            if (!is_array($check) || !($check['update_available'] ?? false) || ($check['latest']['version'] ?? null) !== $version ||
+                !in_array($check['metadata_status'] ?? '', ['fresh', 'not_modified'], true) ||
+                ($check['metadata_source'] ?? '') !== GitHubEndpoints::RELEASES_URL ||
+                !is_string($check['checked_at'] ?? null) ||
+                ($checked = strtotime($check['checked_at'])) === false || $checked > time() + 60 || $checked < time() - 3600) {
+                throw new \RuntimeException('Check GitHub Releases first; a fresh eligible release must be selected');
+            }
+            $data['version'] = $version;
+        } elseif ($action==='apply') {
             $stage=$this->staged();
             if (empty($stage['id'])||empty($stage['sha256'])||$stage['id']!==($payload['package']??null)||$stage['sha256']!==($payload['sha256']??null)) throw new \RuntimeException('Select the exact staged artifact and digest');
             $data['stage']=$stage['id']; $data['sha256']=$stage['sha256'];
         } elseif ($action==='backup') { /* full backup, no arbitrary server path */ } elseif ($action==='rollback') { $last=$this->wizardState()['last_report']; if (($last['state']??null)!=='committed') throw new \RuntimeException('No committed update'); $data['transaction']=$last['id']; }
         else throw new \RuntimeException('Invalid operation');
         OperationFiles::json($this->requestDir().'/request-'.$id.'.json',$data,0640); return $data;
+        } finally { flock($queueGuard, LOCK_UN); fclose($queueGuard); }
     }
     public function pending(): array
     {
         $out=[]; foreach (glob($this->requestDir().'/request-*.json')?:[] as $file) { $data=OperationFiles::read($file); if (($data['state']??null)==='pending') $out[]=$data; } return $out;
+    }
+    /** Browser-safe, bounded status view; never return server paths or package bytes. */
+    public function recentRequests(int $limit = 20): array
+    {
+        $limit = max(1, min(50, $limit));
+        $items = [];
+        $dir = $this->requestDir();
+        foreach (new \DirectoryIterator($dir) as $entry) {
+            if ($entry->isDot()) continue;
+            $name = $entry->getFilename();
+            if (!str_starts_with($name, 'request-')) continue;
+            if (!preg_match('/^request-[a-f0-9]{32}\.json$/D', $name) || $entry->isLink() || !$entry->isFile()) {
+                throw new \RuntimeException('Unsafe update request journal');
+            }
+            $record = OperationFiles::read($entry->getPathname());
+            if (($record['id'] ?? '') !== substr($name, 8, 32)) throw new \RuntimeException('Request journal ID mismatch');
+            $items[] = array_intersect_key($record, array_flip([
+                'id', 'action', 'actor', 'state', 'version', 'requested_at', 'confirmed_at', 'started_at', 'finished_at', 'failure', 'sha256',
+            ]));
+        }
+        usort($items, static fn (array $a, array $b): int => strcmp((string) ($b['requested_at'] ?? ''), (string) ($a['requested_at'] ?? '')) ?: strcmp((string) ($b['id'] ?? ''), (string) ($a['id'] ?? '')));
+        return array_slice($items, 0, $limit);
+    }
+
+    /** Read the signed download receipt for UI; staging will independently verify it. */
+    public function downloaded(): array
+    {
+        $dir = $this->path('downloads');
+        if (!is_dir($dir) || is_link($dir)) return [];
+        $results = [];
+        foreach (new \DirectoryIterator($dir) as $entry) {
+            if ($entry->isDot() || !$entry->isDir() || $entry->isLink() ||
+                !preg_match('/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/D', $entry->getFilename())) continue;
+            $receiptPath = $entry->getPathname() . '/verified.json';
+            if (!is_file($receiptPath) || is_link($receiptPath)) continue;
+            $receipt = OperationFiles::read($receiptPath);
+            if (($receipt['format'] ?? '') !== 'cajeerengine.verified-release.v1' || ($receipt['version'] ?? null) !== $entry->getFilename() ||
+                !preg_match('/^[a-f0-9]{64}$/D', (string) ($receipt['sha256'] ?? ''))) continue;
+            $results[] = array_intersect_key($receipt, array_flip(['version', 'channel', 'sha256', 'size', 'downloaded_at', 'key_id']));
+        }
+        usort($results, static fn (array $a, array $b): int => version_compare((string) $b['version'], (string) $a['version']));
+        return array_slice($results, 0, 20);
     }
     public function runRequest(string $id): array
     {
@@ -234,13 +315,25 @@ final class UpdateManager
         // The durable state transition precedes every side effect. An interrupted
         // operator request is never replayed blindly: reconcile its update journal
         // or backup set before creating a new request.
-        if (!in_array($r['action']??null,['apply','rollback','backup'],true)) throw new \RuntimeException('Unknown request');
+        if (!in_array($r['action']??null,['apply','download','rollback','backup'],true)) throw new \RuntimeException('Unknown request');
         $r['state']='running'; $r['started_at']=gmdate(DATE_ATOM);
         OperationFiles::json($path,$r,0640);
         try {
         // Only a manually selected ID or the dedicated non-root 2.0.3 operator
         // may consume this confirmed request; neither accepts browser-selected commands.
-        if ($r['action']==='apply') {
+        if ($r['action']==='download') {
+            if (!is_string($r['version'] ?? null) || !preg_match('/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/D', $r['version'])) {
+                throw new \RuntimeException('Invalid approved GitHub Release version');
+            }
+            $download = (new GitHubReleaseDownloader($this->rootPath, $this->config))->download($r['version']);
+            // Browser approval always stages the exact verified ZIP and signature;
+            // the download path is never read from request payloads.
+            $result = $this->publish($download['package']);
+            if (!hash_equals((string) $download['sha256'], (string) ($result['sha256'] ?? '')) ||
+                ($result['version'] ?? null) !== $r['version']) {
+                throw new \RuntimeException('Published package does not match approved release');
+            }
+        } elseif ($r['action']==='apply') {
             if (!preg_match('/^[a-f0-9]{32}$/D',(string)($r['stage']??''))) throw new \RuntimeException('Invalid staged ID');
             $result=$this->apply(['package'=>$this->path('inbox/'.$r['stage'].'/package.zip'),'sha256'=>$r['sha256']]);
         } elseif ($r['action']==='rollback') {

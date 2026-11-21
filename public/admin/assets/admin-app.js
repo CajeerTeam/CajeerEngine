@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '2.0.3'
+const ADMIN_VERSION = '2.0.4'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -1377,13 +1377,85 @@ function bindExtensions() {
   document.querySelectorAll('[data-ext-page]').forEach(button=>button.addEventListener('click',async()=>{const host=document.getElementById('extension-page-result');try{const prefix='/extensions/actions/'+encodeURIComponent(button.dataset.extPage)+'/';const payload=await api(prefix+encodeURIComponent(button.dataset.action));const data=dataOf(payload,{});host.replaceChildren();const title=document.createElement('h3');title.textContent=data.title||button.textContent;host.append(title);const text=document.createElement('pre');text.className='json';text.textContent=JSON.stringify(data.data??data,null,2);host.append(text);if(data.form&&typeof data.form.action==='string'&&Array.isArray(data.form.fields)){const form=document.createElement('form');form.className='form';for(const field of data.form.fields){if(typeof field.name!=='string')continue;const label=document.createElement('label');label.textContent=field.label||field.name;const input=document.createElement('input');input.className='input';input.name=field.name;input.type=field.type==='email'?'email':'text';input.required=!!field.required;label.append(input);form.append(label)}const submit=document.createElement('button');submit.type='submit';submit.className='btn';submit.textContent=data.form.submit||'Сохранить';form.append(submit);form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;try{const result=await api(prefix+encodeURIComponent(data.form.action),{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(form)))});text.textContent=JSON.stringify(dataOf(result,result),null,2);form.reset()}catch(error){setNotice('error',error.message,error.payload)}finally{submit.disabled=false}});host.append(form)}}catch(error){host.textContent=error.message}}))
 }
 
+let updatesWorking = false
+let updatesPolling = false
 function updatesView() {
-  return `<div class="grid two"><div class="card"><h2>Production updater</h2><p>Подписанный dist, обязательный backup и восстановление. Подготовка и запуск выполняются отдельным CLI-процессом.</p><a class="btn" href="/upgrade/">Открыть мастер обновления</a><pre class="json">${escapeHtml(JSON.stringify(dataOf(state.cache.updates, state.cache.updates), null, 2))}</pre></div><div class="card"><h2>Maintenance</h2><pre class="json">${escapeHtml(JSON.stringify(dataOf(state.cache.maintenance, state.cache.maintenance), null, 2))}</pre><div class="toolbar"><button class="btn secondary" data-update-action="maintenance/on">Включить</button><button class="btn ghost" data-update-action="maintenance/off">Выключить</button></div></div></div>`
+  const raw = state.cache.updates
+  if (raw?.error) return `<div class="notice error">${escapeHtml(raw.error.message || 'Не удалось получить состояние обновлений')}</div>`
+  const u = dataOf(raw, {}) || {}
+  const w = u.wizard || {}, stage = u.staged || {}, check = u.last_check || {}, latest = check.latest || {}
+  const requests = Array.isArray(u.requests) ? u.requests : []
+  const pending = requests.some(r => ['pending', 'running'].includes(r.state))
+  const enabled = u.web_upgrade_enabled === true && w.operator_ready === true && w.operator_status?.status !== 'recovery_required'
+  const trust = w.production_apply_enabled === true
+  const available = check.update_available === true && typeof latest.version === 'string'
+  const downloadReady = enabled && trust && available && !pending && !w.maintenance?.update_active && !updatesWorking
+  const installReady = enabled && trust && stage.ok === true && !!stage.id && !!stage.sha256 && !pending && !w.maintenance?.update_active && !updatesWorking && w.installed
+  const operator = w.operator_status || {}, current = u.current_version || w.current_version || '—'
+  const flag = (ok, on, off) => `<span class="badge ${ok?'ok':'warning'}">${escapeHtml(ok?on:off)}</span>`
+  const fmtTime = value => value ? escapeHtml(new Date(value).toLocaleString('ru-RU')) : '—'
+  const rows = requests.map(req=>`<tr><td><code>${escapeHtml(String(req.id || '').slice(0,12))}</code></td><td>${escapeHtml(req.action)}</td><td>${escapeHtml(req.version || '—')}</td><td>${escapeHtml(req.state)}</td><td>${fmtTime(req.requested_at)}</td></tr>`)
+  return `<div class="grid cards">
+    <div class="card kpi"><div class="kpi-label">Установленная версия</div><div class="kpi-value">${escapeHtml(current)}</div><span class="muted">CajeerEngine</span></div>
+    <div class="card kpi"><div class="kpi-label">Найдена в GitHub</div><div class="kpi-value">${escapeHtml(latest.version || '—')}</div>${flag(available, 'Есть обновление', 'Нет доступного обновления')}</div>
+    <div class="card kpi"><div class="kpi-label">Канал релизов</div><div class="kpi-value">${escapeHtml(u.channel || 'stable')}</div><span class="muted">${escapeHtml(check.metadata_status || u.metadata_status || 'неизвестно')}</span></div>
+  </div>
+  <div class="grid two">
+    <div class="card"><h2>GitHub Release</h2><p>Проверка GitHub Releases; загрузка ZIP происходит только в отдельном фоновом операторе. Установить можно только проверенный Ed25519/SHA-256 пакет.</p>
+      <div class="status-line">${flag(trust,'Ключ подписи настроен','Нет доверенного ключа')} ${flag(enabled,'Оператор включён','Оператор выключен')} ${flag(u.github_reachable===true,'GitHub доступен','Проверка GitHub недоступна')}</div>
+      <p class="muted">Последняя проверка: ${fmtTime(check.checked_at || u.last_checked_at)}. ${check.metadata_failure ? 'Причина: '+escapeHtml(check.metadata_failure) : ''}</p>
+      ${latest.source && /^https:\/\/github\.com\/CajeerTeam\/CajeerEngine\/releases\//i.test(latest.source) ? `<p><a href="${escapeHtml(latest.source)}" target="_blank" rel="noopener noreferrer">Открыть релиз на GitHub</a></p>` : ''}
+      ${typeof latest.notes === 'string' && latest.notes ? `<details><summary>Описание релиза</summary><pre class="json">${escapeHtml(latest.notes.slice(0,4000))}</pre></details>` : ''}
+      <div class="toolbar"><button class="btn secondary" data-update-check ${updatesWorking?'disabled':''}>Проверить сейчас</button><button class="btn" data-update-download ${downloadReady?'':'disabled'}>Скачать и подготовить ${escapeHtml(latest.version||'')}</button></div>
+      <p class="muted">${!enabled?'Для загрузки и установки нужны UPDATE_WEB_UPGRADE_ENABLED=true, UPDATE_OPERATOR_ENABLED=true и работающий systemd timer.':!trust?'Задайте UPDATE_TRUSTED_PUBLIC_KEY_FILE.':'Загрузка запускается в фоновом операторе; статус обновится автоматически.'}</p>
+    </div>
+    <div class="card"><h2>Установка</h2><p>Подготовленный архив: <strong>${escapeHtml(stage.ok ? stage.version : 'нет')}</strong></p><p class="muted">Последние записи о скачанных релизах: ${escapeHtml(Array.isArray(u.downloads) ? u.downloads.length : 0)}</p>
+      ${stage.ok ? `<p class="muted">SHA-256: <code>${escapeHtml(stage.sha256)}</code><br>Файлов: ${escapeHtml(stage.file_count)}</p>`:''}
+      <p>Оператор: ${escapeHtml(operator.status || 'нет данных')} ${operator.checked_at?('· '+fmtTime(operator.checked_at)):''}</p>
+      ${operator.status==='recovery_required' ? '<div class="notice error">Требуется ручное восстановление. Новые задания автоматически не выполняются.</div>' : ''}
+      <div class="toolbar"><button class="btn" data-update-install ${installReady?'':'disabled'}>Установить обновление</button><a class="btn secondary" href="/upgrade/">Мастер диагностики</a></div>
+      <p class="muted">Установка требует свежего повторного подтверждения входа и явного согласия. Перед заменой файлов выполняется обязательный backup. После сбоя следуйте recovery runbook.</p>
+    </div>
+  </div>
+  <div class="card"><h2>Последние операции</h2>${table(['Запрос','Операция','Версия','Состояние','Создано'], rows)}
+    <p class="muted">Задачи выполняются последовательно, одна за запуск таймера; страница обновляется каждые 5 секунд.</p></div>
+  <div class="card"><h2>Обслуживание и восстановление</h2><p>Режим обслуживания: ${flag(w.maintenance?.enabled === true, 'Включён', 'Выключен')}. Ручной откат и аварийное восстановление — через защищённый CLI/runbook до этапа Backup &amp; Rollback 2.0.5.</p>
+    <div class="toolbar"><button class="btn secondary" data-update-maintenance="on" ${updatesWorking?'disabled':''}>Включить обслуживание</button><button class="btn ghost" data-update-maintenance="off" ${updatesWorking || w.maintenance?.update_active?'disabled':''}>Выключить обслуживание</button></div></div>`
 }
-
 function bindUpdates() {
-  document.querySelectorAll('[data-update-action]').forEach((button) => button.addEventListener('click', async () => { try { const payload = await api(`/updates/${button.dataset.updateAction}`, { method: 'POST', body: '{}' }); setNotice('ok', 'Update action выполнен.', payload); await routeLoad('updates') } catch (error) { setNotice('error', error.message, error.payload) } }))
+  async function submit(path, body, label) {
+    if (updatesWorking) return
+    updatesWorking = true
+    document.querySelectorAll('[data-update-download],[data-update-install],[data-update-check],[data-update-maintenance]').forEach(el=>el.disabled=true)
+    try {
+      const result=await api(path,{method:'POST',body:JSON.stringify(body)})
+      await routeLoad('updates')
+      setNotice('ok', label, result?.data || null)
+    } catch (error) { setNotice('error',error.message,error.payload) }
+    finally {updatesWorking=false;render()}
+  }
+  document.querySelector('[data-update-check]')?.addEventListener('click',()=>submit('/updates/check',{},'Проверка GitHub Releases завершена.'))
+  document.querySelector('[data-update-download]')?.addEventListener('click',()=>{
+    const u=dataOf(state.cache.updates,{}) || {},version=u.last_check?.latest?.version
+    if(!version || !confirm(`Скачать и криптографически проверить CajeerEngine ${version}? Запрос будет выполнен серверным оператором.`))return
+    submit('/updates/download',{confirm:true,version},`Загрузка ${version} поставлена в очередь.`)
+  })
+  document.querySelector('[data-update-install]')?.addEventListener('click',()=>{
+    const u=dataOf(state.cache.updates,{}) || {},stage=u.staged || {}
+    if(!stage.id || !stage.sha256 || !confirm(`Установить CajeerEngine ${stage.version}? Сайт перейдёт в режим обслуживания; перед заменой файлов создаётся резервная копия.`))return
+    submit('/updates/apply',{confirm:true,package:stage.id,sha256:stage.sha256},`Установка ${stage.version} подтверждена и поставлена в очередь.`)
+  })
+  document.querySelectorAll('[data-update-maintenance]').forEach(b=>b.addEventListener('click',()=>{
+    const action=b.dataset.updateMaintenance
+    if(!confirm(action==='on'?'Включить режим обслуживания?':'Выключить режим обслуживания? Не делайте этого во время восстановления.'))return
+    submit('/updates/maintenance/'+action,{},'Режим обслуживания обновлён.')
+  }))
 }
+setInterval(async()=>{
+  if (state.route !== 'updates' || !state.token || updatesWorking || updatesPolling || document.hidden) return
+  updatesPolling = true
+  try { await routeLoad('updates'); if(state.route==='updates')render() } finally { updatesPolling = false }
+},5000)
 
 function searchView() {
   const result=state.cache.searchResult, m=result?.meta||{}, f=state.forms;

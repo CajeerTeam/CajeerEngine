@@ -32,7 +32,9 @@ final readonly class AuthenticationAssurance
         // actual integration creation, configuration, secrets and deletion.
         return in_array($route, ['api.v1.integrations.store','api.v1.integrations.update',
             'api.v1.integrations.delete','api.v1.integrations.secret','api.v1.ai.settings',
-            'api.v1.ai.migration.remediation.apply','api.v1.ai.migration.remediation.rollback'], true);
+            'api.v1.ai.migration.remediation.apply','api.v1.ai.migration.remediation.rollback',
+            'api.v1.updates.download','api.v1.updates.apply','api.v1.updates.rollback',
+            'api.v1.updates.maintenance.on','api.v1.updates.maintenance.off'], true);
     }
 
     public function ttl(): int

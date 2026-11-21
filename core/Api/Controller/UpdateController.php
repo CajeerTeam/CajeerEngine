@@ -20,7 +20,7 @@ final readonly class UpdateController
     public function diagnostics(Request $request, array $parameters): JsonResponse
     {
         $resolver = new UpdateResolver($this->config->get('updates', []), $this->config->rootPath());
-        return new JsonResponse(['data' => $resolver->diagnostics($this->config->string('app.version', '1.5.0')) + ['wizard'=>$this->manager()->wizardState(),'staged'=>$this->manager()->staged(),'requests'=>$this->manager()->pending()]]);
+        return new JsonResponse(['data' => $resolver->diagnostics($this->config->string('app.version', '1.5.0')) + ['wizard'=>$this->manager()->wizardState(),'staged'=>$this->manager()->staged(),'requests'=>$this->manager()->recentRequests(),'downloads'=>$this->manager()->downloaded(),'web_upgrade_enabled'=>$this->config->bool('updates.web_upgrade.enabled')]]);
     }
 
     /** @param array<string, mixed> $parameters */
@@ -40,6 +40,12 @@ final readonly class UpdateController
     {
         $result = $this->manager()->prepare($this->json($request));
         return new JsonResponse(['data' => $result], 201);
+    }
+
+    /** Queue download and signed staging through the one-shot operator, never PHP-FPM. */
+    public function download(Request $request, array $parameters): JsonResponse
+    {
+        return $this->requestOperation($request, 'download');
     }
 
     /** @param array<string, mixed> $parameters */
@@ -76,6 +82,9 @@ final readonly class UpdateController
     private function requestOperation(Request $request, string $action): JsonResponse
     {
         if (!$this->config->bool('updates.web_upgrade.enabled')) return new JsonResponse(['error'=>['code'=>'web_upgrade_disabled','message'=>'Enable UPDATE_WEB_UPGRADE_ENABLED or use CLI.']],403);
+        if (!$this->config->bool('updates.operator.enabled') && $action !== 'rollback') {
+            return new JsonResponse(['error'=>['code'=>'operator_disabled','message'=>'Enable the dedicated UpdateOperator before queueing an update.']],409);
+        }
         $identity=$request->attributes->get('auth');
         try { $result=$this->manager()->request($action,$this->json($request),(string)($identity['user_id']??'api-token')); return new JsonResponse(['data'=>$result],202); }
         catch (\RuntimeException $e) { return new JsonResponse(['error'=>['code'=>'update_request_rejected','message'=>$e->getMessage()]],422); }

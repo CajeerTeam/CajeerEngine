@@ -2633,6 +2633,12 @@ export const operations = {
         "parameters": [],
         "bodyRequired": false
     },
+    "post_UpdatesDownload": {
+        "method": "POST",
+        "path": "/updates/download",
+        "parameters": [],
+        "bodyRequired": true
+    },
     "post_UpdatesMaintenanceOff": {
         "method": "POST",
         "path": "/updates/maintenance/off",
