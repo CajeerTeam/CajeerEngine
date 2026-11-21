@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## GitHub Auto-Updater 2.1.0
+
+The integrated release center discovers eligible GitHub releases, downloads authenticated dist ZIPs, queues administrator-approved installation via a non-root systemd operator, creates verified backups, supports controlled rollback, and preserves history/notifications. **The browser refuses new requests without a recent actual operator heartbeat**; settings flags alone are not sufficient. Installed/staged versions are checked before an installation is offered. See [GA deployment and operational acceptance](docs/github-auto-updater-ga-2.1.0.md). The supplied source patch is not a signed dist or evidence of staging acceptance.
+
 ## Production Hardening 2.0.7
 
 The automatic GitHub updater now rejects symlinked ancestor paths during atomic backup/restore and update writes, prevents substituted hard-linked or symlinked lock files, revalidates persisted administrator approvals immediately before CLI execution, and independently confirms the durable operation journal before reporting success. An interrupted or ambiguous request is blocked from automatic replay and requires supervised recovery. Run `php tools/update-production-hardening-regression.php` as a non-root Linux user and see [Production hardening tests and recovery](docs/update-production-hardening-2.0.7.md). A passing local regression is **not** a production deployment certification.

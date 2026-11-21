@@ -359,6 +359,7 @@ jobs:
           php tools/update-execution-service-regression.php
           php tools/admin-update-center-regression.php
           php tools/update-production-hardening-regression.php
+          php tools/github-auto-updater-ga-regression.php
       - run: python3 tools/github-publish-regression.py
       - run: python3 tools/release-promotion-regression.py
       - run: php tools/release-regression.php

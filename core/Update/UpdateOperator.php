@@ -67,6 +67,64 @@ final class UpdateOperator
         if (!$valid) throw new \RuntimeException('Invalid approved update action');
     }
 
+    /** Real operator liveness: configuration flags alone do not prove the timer is running.
+     * The signed update queue is not accepted by HTTP until a recent CLI poll
+     * has persisted an authentic-looking (locally protected) status record.
+     * Recovery markers always take precedence, even over a fresh idle heartbeat.
+     * @return array<string,mixed>
+     */
+    public static function health(string $rootPath, ConfigRepository $config): array
+    {
+        $enabled = $config->bool('updates.operator.enabled') && $config->bool('updates.web_upgrade.enabled');
+        $maxAge = max(60, min(3600, $config->int('updates.operator.max_heartbeat_age_seconds', 180)));
+        $result = ['ready' => false, 'status' => 'disabled', 'checked_at' => null,
+            'reason' => 'operator_disabled', 'max_age_seconds' => $maxAge];
+        if (!$enabled) return $result;
+        $result['status'] = 'unavailable'; $result['reason'] = 'heartbeat_missing';
+        try {
+            foreach (['storage/app/updates/active.json', 'storage/app/backup-restore.json',
+                'storage/app/extensions/deployment.json'] as $marker) {
+                $path = OperationFiles::path($rootPath, $marker);
+                if (file_exists($path) || is_link($path)) {
+                    $result['status'] = 'recovery_required';
+                    $result['reason'] = 'recovery_marker_present';
+                    return $result;
+                }
+            }
+            $path = OperationFiles::path($rootPath, 'storage/app/updates/operator-status.json');
+            if (!is_file($path) || is_link($path)) return $result;
+            $status = OperationFiles::read($path);
+            $state = $status['status'] ?? null;
+            $checkedAt = $status['checked_at'] ?? null;
+            if (!is_string($state) || !in_array($state,
+                ['idle', 'busy', 'running', 'completed', 'failed', 'recovery_required'], true) ||
+                !is_string($checkedAt) ||
+                !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\+00:00|Z)$/D', $checkedAt)) {
+                $result['reason'] = 'heartbeat_invalid'; return $result;
+            }
+            $when = strtotime($checkedAt);
+            if ($when === false || $when > time() + 30) {
+                $result['reason'] = 'heartbeat_invalid'; return $result;
+            }
+            $result['status'] = $state; $result['checked_at'] = $checkedAt;
+            $result['age_seconds'] = max(0, time() - $when);
+            if ($result['age_seconds'] > $maxAge) {
+                $result['status'] = 'stale'; $result['reason'] = 'heartbeat_stale'; return $result;
+            }
+            if ($state === 'recovery_required') {
+                $result['reason'] = 'recovery_required'; return $result;
+            }
+            if ($state === 'running' || $state === 'busy') {
+                $result['reason'] = 'operator_busy'; return $result;
+            }
+            $result['ready'] = true; $result['reason'] = null;
+        } catch (\Throwable) {
+            $result['ready'] = false; $result['status'] = 'unavailable';
+            $result['reason'] = 'heartbeat_unreadable';
+        }
+        return $result;
+    }
+
     /** One request per invocation: process exits before application PHP files are replaced again. */
     public function runOnce(): array
     {

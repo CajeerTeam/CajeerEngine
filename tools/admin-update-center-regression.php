@@ -85,8 +85,9 @@ try {
         assertCenter($denied, 'real CLI dispatcher reaches secure GitHub downloader');
         assertCenter(OperationFiles::read($root.'/storage/app/update-requests/request-'.$second['id'].'.json')['state']==='failed', 'real downloader failure persists terminal failure');
     }
+    OperationFiles::json($root.'/storage/app/updates/operator-status.json', ['status'=>'idle','ok'=>true,'checked_at'=>gmdate(DATE_ATOM)],0644);
     $state = $manager->wizardState();
-    assertCenter($state['operator_ready']===true && $state['current_version']==='2.0.3', 'admin state exposes operator readiness and installed version');
+    assertCenter($state['operator_ready']===true && $state['current_version']==='2.0.3', 'admin state requires a recent operator heartbeat and installed version');
     assertCenter($manager->downloaded()===[], 'no unsigned artifact is advertised as verified download');
     echo 'Admin Update Center regression: PASS' . PHP_EOL;
 } finally { cleanCenter($root); }

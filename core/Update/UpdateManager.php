@@ -198,8 +198,7 @@ final class UpdateManager
     {
         $last=PHP_SAPI==='cli'?$this->path('last-update.json'):$this->requestDir().'/last-report.json';
         $report=is_file($last)?OperationFiles::read($last):null;
-        $operatorStatus=null; $operatorFile=$this->path('operator-status.json');
-        if (is_file($operatorFile)) { try { $operatorStatus=OperationFiles::read($operatorFile); } catch (\Throwable) { $operatorStatus=['ok'=>false,'status'=>'unavailable']; } }
+        $operatorStatus=UpdateOperator::health($this->rootPath, $this->config);
         $rollback = ['available'=>false];
         if (($report['state'] ?? null) === 'committed' && !OperationLock::active($this->rootPath) &&
             ($report['target_version'] ?? null) === $this->currentVersion() &&
@@ -207,7 +206,14 @@ final class UpdateManager
             $rollback = ['available'=>true,'transaction'=>$report['id'],
                 'from_version'=>$report['target_version'],'to_version'=>$report['previous_version'] ?? null];
         }
-        return ['ok'=>true,'rollback'=>$rollback,'current_version'=>$this->currentVersion(),'maintenance'=>$this->maintenanceState(),'last_report'=>$report===null?null:array_intersect_key($report,array_flip(['ok','id','state','previous_version','target_version','version'])),'installed'=>is_file($this->rootPath.'/storage/app/installed.lock'),'production_apply_enabled'=>$this->trustConfigured(),'operator_enabled'=>$this->config->bool('updates.operator.enabled'),'operator_ready'=>$this->config->bool('updates.operator.enabled') && $this->config->bool('updates.web_upgrade.enabled'),'operator_status'=>$operatorStatus];
+        $staged = $this->staged();
+        $stagedInstallable = isset($staged['id'], $staged['sha256'], $staged['version']) &&
+            is_string($staged['id']) && (bool) preg_match('/^[a-f0-9]{32}$/D', $staged['id']) &&
+            is_string($staged['sha256']) && (bool) preg_match('/^[a-f0-9]{64}$/D', $staged['sha256']) &&
+            is_string($staged['version']) && version_compare($staged['version'], $this->currentVersion(), '>') &&
+            is_file($this->path('inbox/' . $staged['id'] . '/package.zip')) &&
+            is_file($this->path('inbox/' . $staged['id'] . '/package.zip.sig'));
+        return ['ok'=>true,'staged_installable'=>$stagedInstallable,'rollback'=>$rollback,'current_version'=>$this->currentVersion(),'maintenance'=>$this->maintenanceState(),'last_report'=>$report===null?null:array_intersect_key($report,array_flip(['ok','id','state','previous_version','target_version','version'])),'installed'=>is_file($this->rootPath.'/storage/app/installed.lock'),'production_apply_enabled'=>$this->trustConfigured(),'operator_enabled'=>$this->config->bool('updates.operator.enabled'),'operator_ready'=>$operatorStatus['ready'],'operator_status'=>$operatorStatus];
     }
     public function staged(): array
     {
@@ -271,6 +277,7 @@ final class UpdateManager
             }
             $data['version'] = $version;
         } elseif ($action==='apply') {
+            if (!$this->wizardState()['staged_installable']) throw new \RuntimeException('No installable staged release; re-download and verify the update');
             $stage=$this->staged();
             if (empty($stage['id'])||empty($stage['sha256'])||$stage['id']!==($payload['package']??null)||$stage['sha256']!==($payload['sha256']??null)) throw new \RuntimeException('Select the exact staged artifact and digest');
             $data['stage']=$stage['id']; $data['sha256']=$stage['sha256'];

@@ -1,4 +1,4 @@
-const ADMIN_VERSION = '2.0.7'
+const ADMIN_VERSION = '2.1.0'
 let oidcEnabled = false
 const API_BASE = '/api/v1'
 const TOKEN_KEY = 'cajeerengine.admin.token'
@@ -1394,7 +1394,7 @@ function updatesView() {
   const trust = w.production_apply_enabled === true
   const available = check.update_available === true && typeof latest.version === 'string'
   const downloadReady = enabled && trust && available && !pending && !w.maintenance?.update_active && !updatesWorking
-  const installReady = enabled && trust && stage.ok === true && !!stage.id && !!stage.sha256 && !pending && !w.maintenance?.update_active && !updatesWorking && w.installed
+  const installReady = enabled && trust && w.staged_installable === true && stage.ok === true && !!stage.id && !!stage.sha256 && !pending && !w.maintenance?.update_active && !updatesWorking && w.installed
   const rollback = w.rollback || {}, backups = Array.isArray(u.backups) ? u.backups : []
   const safeRecovery = enabled && !pending && !w.maintenance?.update_active && !updatesWorking
   const operator = w.operator_status || {}, current = u.current_version || w.current_version || '—'
@@ -1408,12 +1408,12 @@ function updatesView() {
   </div>
   <div class="grid two">
     <div class="card"><h2>GitHub Release</h2><p>Проверка GitHub Releases; загрузка ZIP происходит только в отдельном фоновом операторе. Установить можно только проверенный Ed25519/SHA-256 пакет.</p>
-      <div class="status-line">${flag(trust,'Ключ подписи настроен','Нет доверенного ключа')} ${flag(enabled,'Оператор включён','Оператор выключен')} ${flag(u.github_reachable===true,'GitHub доступен','Проверка GitHub недоступна')}</div>
+      <div class="status-line">${flag(trust,'Ключ подписи настроен','Нет доверенного ключа')} ${flag(enabled,'Оператор готов','Оператор недоступен')} ${flag(u.github_reachable===true,'GitHub доступен','Проверка GitHub недоступна')}</div>
       <p class="muted">Последняя проверка: ${fmtTime(check.checked_at || u.last_checked_at)}. ${check.metadata_failure ? 'Причина: '+escapeHtml(check.metadata_failure) : ''}</p>
       ${latest.source && /^https:\/\/github\.com\/CajeerTeam\/CajeerEngine\/releases\//i.test(latest.source) ? `<p><a href="${escapeHtml(latest.source)}" target="_blank" rel="noopener noreferrer">Открыть релиз на GitHub</a></p>` : ''}
       ${typeof latest.notes === 'string' && latest.notes ? `<details><summary>Описание релиза</summary><pre class="json">${escapeHtml(latest.notes.slice(0,4000))}</pre></details>` : ''}
       <div class="toolbar"><button class="btn secondary" data-update-check ${updatesWorking?'disabled':''}>Проверить сейчас</button><button class="btn" data-update-download ${downloadReady?'':'disabled'}>Скачать и подготовить ${escapeHtml(latest.version||'')}</button></div>
-      <p class="muted">${!enabled?'Для загрузки и установки нужны UPDATE_WEB_UPGRADE_ENABLED=true, UPDATE_OPERATOR_ENABLED=true и работающий systemd timer.':!trust?'Задайте UPDATE_TRUSTED_PUBLIC_KEY_FILE.':'Загрузка запускается в фоновом операторе; статус обновится автоматически.'}</p>
+      <p class="muted">${!enabled?'Необходим свежий heartbeat UpdateOperator, включённые настройки и отсутствие незавершённого восстановления. Причина: '+escapeHtml(w.operator_status?.reason||'неизвестно'):!trust?'Задайте UPDATE_TRUSTED_PUBLIC_KEY_FILE.':'Загрузка запускается в фоновом операторе; статус обновится автоматически.'}</p>
     </div>
     <div class="card"><h2>Установка</h2><p>Подготовленный архив: <strong>${escapeHtml(stage.ok ? stage.version : 'нет')}</strong></p><p class="muted">Последние записи о скачанных релизах: ${escapeHtml(Array.isArray(u.downloads) ? u.downloads.length : 0)}</p>
       ${stage.ok ? `<p class="muted">SHA-256: <code>${escapeHtml(stage.sha256)}</code><br>Файлов: ${escapeHtml(stage.file_count)}</p>`:''}

@@ -7,8 +7,8 @@ type UpdateState = {
   github_reachable?: boolean; metadata_status?: string; metadata_failure?: string
   last_check?: { update_available?: boolean; latest?: { version?: string; source?: string; notes?: string }; checked_at?: string }
   staged?: { ok?: boolean; id?: string; version?: string; sha256?: string; file_count?: number }
-  wizard?: { operator_ready?: boolean; production_apply_enabled?: boolean; installed?: boolean
-    operator_status?: { status?: string; checked_at?: string }; maintenance?: { enabled?: boolean; update_active?: boolean };
+  wizard?: { operator_ready?: boolean; production_apply_enabled?: boolean; installed?: boolean; staged_installable?: boolean
+    operator_status?: { status?: string; checked_at?: string; reason?: string; age_seconds?: number }; maintenance?: { enabled?: boolean; update_active?: boolean };
     rollback?: { available: boolean; transaction?: string; from_version?: string; to_version?: string } }
   requests?: UpdateRequest[]; backups?: RecoveryBackup[]; downloads?: Array<{version:string}>
 }
@@ -27,7 +27,7 @@ const ready = computed(() => state.value.web_upgrade_enabled === true && state.v
 const canBackup = computed(() => ready.value)
 const canRollback = computed(() => ready.value && state.value.wizard?.rollback?.available === true && !!state.value.wizard?.rollback?.transaction)
 const canDownload = computed(() => ready.value && state.value.last_check?.update_available === true && !!latest.value)
-const canInstall = computed(() => ready.value && state.value.wizard?.installed === true && state.value.staged?.ok === true && !!state.value.staged?.id && !!state.value.staged?.sha256)
+const canInstall = computed(() => ready.value && state.value.wizard?.installed === true && state.value.wizard?.staged_installable === true && state.value.staged?.ok === true && !!state.value.staged?.id && !!state.value.staged?.sha256)
 let timer: ReturnType<typeof setInterval> | undefined
 const load = async (quiet = false) => {
   if (!quiet) loading.value = true
@@ -117,10 +117,10 @@ onUnmounted(() => {if(timer)clearInterval(timer)})
       <p v-if="state.metadata_failure" class="ce-error">{{ state.metadata_failure }}</p>
       <details v-if="state.last_check?.latest?.notes"><summary>Описание релиза</summary><pre>{{ state.last_check.latest.notes.slice(0,4000) }}</pre></details>
       <p>Подпись: {{ state.wizard?.production_apply_enabled ? 'ключ настроен' : 'отсутствует доверенный ключ' }}</p>
-      <p>Оператор: {{ state.wizard?.operator_ready ? 'разрешён' : 'отключён настройками' }}</p>
+      <p>Оператор: {{ state.wizard?.operator_ready ? 'готов' : (state.wizard?.operator_status?.reason || 'недоступен') }} · {{ state.wizard?.operator_status?.checked_at || 'нет heartbeat' }}</p>
       <button :disabled="loading" @click="check">Проверить сейчас</button>
       <button :disabled="!canDownload" @click="download">Скачать и подготовить {{ latest }}</button>
-      <p v-if="!state.wizard?.operator_ready">Для управления включите UPDATE_WEB_UPGRADE_ENABLED и UPDATE_OPERATOR_ENABLED, затем запустите systemd timer.</p>
+      <p v-if="!state.wizard?.operator_ready">Проверьте UPDATE_WEB_UPGRADE_ENABLED, UPDATE_OPERATOR_ENABLED, состояние systemd timer и recovery-журнал. Без свежего heartbeat очередь не принимается.</p>
     </div>
     <div class="ce-panel">
       <h2>Установка</h2>

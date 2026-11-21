@@ -16,6 +16,7 @@ return [
     ],
     'operator' => [
         'enabled' => filter_var(getenv('UPDATE_OPERATOR_ENABLED') ?: false, FILTER_VALIDATE_BOOLEAN),
+        'max_heartbeat_age_seconds' => (int) (getenv('UPDATE_OPERATOR_MAX_HEARTBEAT_AGE_SECONDS') ?: 180),
     ],
     'registry' => [
         'url' => GitHubEndpoints::REGISTRY_URL,

@@ -1,3 +1,10 @@
+# 2.1.0 — GitHub Auto-Updater GA
+
+- Admin Update Center now requires an actual recent UpdateOperator heartbeat to queue authenticated releases, backups, installations or rollbacks. A configured but stopped systemd timer is reported as `unavailable`/`stale`; recovery markers block new approvals.
+- Expose bounded operator readiness/reason/age in wizard diagnostics and both admin interfaces. New `UPDATE_OPERATOR_MAX_HEARTBEAT_AGE_SECONDS` controls the timeout; the operator still performs only explicitly confirmed, one-shot operations.
+- Staged install eligibility is checked against the running version and existence of both signed files. The apply request rejects missing/stale artifacts; the actual operator revalidates SHA-256, Ed25519, ZIP manifest and rollback prerequisites.
+- Add real heartbeat/queue fault regressions to release CI and operational acceptance instructions. This source patch does not constitute a signed production release; deployed staging, GitHub CDN, CI and non-SQLite database restore qualification remain separate.
+
 # 2.0.7 — Production Hardening
 
 - Rejected symbolic links in ancestor directories before creating files for backups, releases or recovery; write and copy operations now fail closed when a destination would traverse a symlink.

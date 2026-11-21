@@ -113,8 +113,9 @@ final readonly class UpdateController
     private function requestOperation(Request $request, string $action): JsonResponse
     {
         if (!$this->config->bool('updates.web_upgrade.enabled')) return new JsonResponse(['error'=>['code'=>'web_upgrade_disabled','message'=>'Enable UPDATE_WEB_UPGRADE_ENABLED or use CLI.']],403);
-        if (!$this->config->bool('updates.operator.enabled')) {
-            return new JsonResponse(['error'=>['code'=>'operator_disabled','message'=>'Enable the dedicated UpdateOperator before queueing an update.']],409);
+        $health = \CajeerEngine\Update\UpdateOperator::health($this->config->rootPath(), $this->config);
+        if (!$health['ready']) {
+            return new JsonResponse(['error'=>['code'=>'operator_not_ready','message'=>'Update operator is not healthy; inspect its systemd timer and recovery state.', 'reason'=>$health['reason']]],409);
         }
         $identity=$request->attributes->get('auth');
         try { $result=$this->manager()->request($action,$this->json($request),(string)($identity['user_id']??'api-token')); return new JsonResponse(['data'=>$result],202); }

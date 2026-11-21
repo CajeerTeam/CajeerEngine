@@ -65,6 +65,7 @@ jobs:
           php tools/admin-update-center-regression.php
           php tools/update-history-notifications-regression.php
           php tools/update-production-hardening-regression.php
+          php tools/github-auto-updater-ga-regression.php
           php tools/update-regression.php
       - name: Deployment and disaster recovery acceptance (actual SQLite)
         run: |
