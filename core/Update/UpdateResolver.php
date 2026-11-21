@@ -80,7 +80,7 @@ final readonly class UpdateResolver
             'signature_required' => (bool) ($this->config['registry']['signature_required'] ?? true),
         ];
         $this->writeLastCheck($result);
-        if ($this->rootPath !== null && $result['github_reachable'] && $updateAvailable && $latest !== null) {
+        if ($this->rootPath !== null && $result['github_reachable'] && $updateAvailable) {
             // Deduplicated across manual checks and periodic discovery.
             (new UpdateHistory($this->rootPath))->record('update.available', [
                 'version'=>$latest['version'], 'previous_version'=>$currentVersion, 'channel'=>$channel,

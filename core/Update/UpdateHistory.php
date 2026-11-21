@@ -43,7 +43,13 @@ final readonly class UpdateHistory
         OperationFiles::json($temp, $eventRecord, 0660);
         try {
             if (!@link($temp, $path)) {
-                if (!is_file($path) || is_link($path)) throw new \RuntimeException('Cannot publish update history');
+                // Another writer may have published the same event; refuse a
+                // symlink or non-file entry even if it appeared after our first check.
+                clearstatcache(true, $path);
+                $published = @lstat($path);
+                if (!is_array($published) || ($published['mode'] & 0170000) !== 0100000) {
+                    throw new \RuntimeException('Cannot publish update history');
+                }
                 return $this->readEvent($path);
             }
             OperationFiles::syncDir($directory);
