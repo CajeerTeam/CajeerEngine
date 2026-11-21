@@ -111,3 +111,8 @@ jobs:
           npm install --prefix packages/ts-sdk --no-audit --no-fund
           npm run build --prefix packages/ts-sdk
           node tools/sdk-client-compatibility-regression.mjs
+      - name: Release dist update, rollback and recovery smoke (SQLite)
+        run: |
+          composer install --no-dev --no-interaction --prefer-dist --no-progress --optimize-autoloader
+          php tools/build-release.php --dist --target-dir="$RUNNER_TEMP/ci-dist" --json > /dev/null
+          bash tools/update-dist-smoke.sh "$RUNNER_TEMP/ci-dist/cajeerengine-$(cat VERSION)-dist.zip"
