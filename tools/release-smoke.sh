@@ -158,7 +158,8 @@ expect_status 401 "$base/api/v1/users"
 expect_status 401 --path-as-is "$base/api/v1/%75sers"
 expect_status 401 -I "$base/api/v1/users"
 expect_status 422 "${auth[@]}" -d '{"email":"bad"}' "$base/api/v1/auth/login"
-expect_status 422 "${auth[@]}" -d '{"force":true,"package":"test.zip"}' "$base/api/v1/updates/apply"
+# Machine credentials must be rejected before parsing dangerous update requests.
+expect_status 403 "${auth[@]}" -d '{"force":true,"package":"test.zip"}' "$base/api/v1/updates/apply"
 # A machine/Bearer token may not perform high-risk user mutations, even with admin scopes.
 expect_status 403 "${auth[@]}" -d '{"email":"viewer@example.invalid","name":"Viewer","password":"ReleaseSmokeOnly-9X!","roles":["viewer"]}' "$base/api/v1/users"
 # Obtain a real browser cookie and prove that the session is not implicitly assured.
