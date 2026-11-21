@@ -1,6 +1,6 @@
 {
   "name": "cajeerengine",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "channel": "stable",
   "engine_api_version": "1.1",
   "php": ">=8.4.1 <9.0",
@@ -17,10 +17,10 @@
     "docs": "GitHub repository docs/",
     "updates": "GitHub Releases",
     "release_builder": "tools/build-release.php",
-    "source_artifact": "storage/releases/cajeerengine-2.0.1-source.zip",
-    "dist_artifact": "storage/releases/cajeerengine-2.0.1-dist.zip",
+    "source_artifact": "storage/releases/cajeerengine-2.0.2-source.zip",
+    "dist_artifact": "storage/releases/cajeerengine-2.0.2-dist.zip",
     "checksums": "storage/releases/*.sha256",
-    "artifact_index": "storage/releases/cajeerengine-2.0.1-artifacts.json",
+    "artifact_index": "storage/releases/cajeerengine-2.0.2-artifacts.json",
     "support_bundle": "storage/app/support",
     "backup": "storage/app/backups/production",
     "server_reports": "storage/app/reports",
@@ -36,6 +36,7 @@
     "engine_api_version": "1.1"
   },
   "product_changes": [
+    "2.0.2 Secure Release Downloader: operator CLI update:download fetches only canonical CajeerTeam GitHub Release production dist ZIP and its checksum/signature; bounded streamed HTTPS download through pinned public DNS and allowlisted redirects, strict SHA256 and Ed25519 verification with externally provisioned trust key, full release ZIP manifest verification, atomic verified local publication, idempotent integrity checked cache, rollback-safe cleanup. No automatic installation; no database migrations.",
     "2.0.1 Automatic Release Discovery: periodic six-hour GitHub Releases checks in the production scheduler, conditional ETag requests, bounded rate-limit cooldown, durable metadata cache and last-check status, read-only admin diagnostics and failure-visible scheduler state. No automatic download or installation; no DB migrations.",
     "2.0.0 Production Release: repair the real source/dist artifact publication boundary to prevent incomplete release indexes, and redact operator support bundles by excluding raw audit/runtime events and environment values; enforce restricted support artifact permissions and bounded operational summaries. Maintains existing CMS, External Analytics, Migration Center, SkiF4er ID and AI Assistant code; live production GA admission requires signed dist and full CI/staging evidence.",
     "1.9.9 Production GA Qualification: decrypt offsite recovery archives into an isolated workspace and publish only after the authenticated final frame, rejecting partial/corrupt inputs without modifying the destination; prevent certification of distributions missing runtime files present in source, and require matching release stability metadata. Exercise negative acceptance and build gates in PR/release CI. Full production-host, dependency and soak acceptance still required before 2.0 RC.",

@@ -8,6 +8,10 @@ API-first CMS на PHP с собственным ядром (`core/`), шабл�
 
 > **Identity Center 1.5.7:** админское управление локальными SkiF4er ID-привязками и SSO-сессиями, поиск пользователей и безопасная повторная аутентификация: [руководство](docs/identity-center-admin.md).
 
+## Secure Release Downloader 2.0.2
+
+`php bin/cajeer update:download` downloads and verifies only the newest eligible production `dist.zip` from the canonical GitHub Release, with SHA-256 and externally provisioned Ed25519 signature checks. Installation remains a separate, explicit operator operation. [Guide](docs/secure-release-downloader-2.0.2.md).
+
 ## Automatic Release Discovery 2.0.1
 
 Встроенная задача `updates.discover_releases` проверяет GitHub Releases каждые шесть часов через штатный scheduler, сохраняет ETag, метаданные и результат, сообщает о недоступности GitHub и не выполняет установку. Для работы требуется запущенный scheduler и HTTPS-доступ к GitHub. [Руководство](docs/automatic-release-discovery-2.0.1.md).

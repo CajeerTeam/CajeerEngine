@@ -1,4 +1,4 @@
-# CajeerEngine 2.0.1 — Operational Acceptance Checklist
+# CajeerEngine 2.0.2 — Operational Acceptance Checklist
 
 ## Блокирующие условия
 

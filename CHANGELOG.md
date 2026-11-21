@@ -1,3 +1,10 @@
+# 2.0.2 — Secure Release Downloader
+
+- Added `php bin/cajeer update:download` to fetch the latest eligible production distribution from CajeerTeam GitHub Releases using a streaming, bounded HTTPS transport; DNS is checked and pinned, only a small set of GitHub asset hosts is accepted across at most five explicit redirects.
+- Require canonical release identity and fresh discovery, verify the downloaded `.sha256`, its optional GitHub digest, the trusted Ed25519 detached `.sig` and the existing full ZIP/manifest verification before publishing a file under `storage/app/updates/downloads/<version>/`.
+- Verified downloads are reusable after checking the local package again with the currently trusted public key. Downloads do not install, migrate, enter maintenance or authorize execution of arbitrary packages.
+- Preserve the 2.0.1 release monitor and scheduler. No database migrations.
+
 # 2.0.1 — Automatic Release Discovery
 
 - Рабочая проверка GitHub Releases каждые 6 часов через существующий SchedulerRunner и TaskRunStore: one-run-per-slot, file/PostgreSQL locking, настройка интервала и выключения через окружение.
