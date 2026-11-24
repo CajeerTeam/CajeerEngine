@@ -102,4 +102,4 @@ docs/               Руководства по продукту и эксплу
 
 ---
 
-<sub>Лицензия: [Apache-2.0](LICENSE). Название и товарные знаки: [TRADEMARKS.md](TRADEMARKS.md). Достоверным источником версий и выпускаемых файлов остаётся [GitHub Releases](https://github.com/CajeerTeam/CajeerEngine/releases).</sub>
+<sub>© 2026 SkiF4er · Cajeer Team · сведения о правообладателях и участниках: [NOTICE](NOTICE).</sub>
